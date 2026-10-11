@@ -13,7 +13,7 @@ It does not turn an unmerged pull request into merged functionality.
 
 ## D-001: Keep local DVC reproduction separate from shared GCS publication
 
-- **Status:** Accepted for M2-06; implementation is pending merge.
+- **Status:** Accepted and implemented in M2-06 (PR #24).
 - **Decision:** `dvc repro` validates and materializes the declared local
   processed-data output only. Uploading to the versioned GCS artifact prefix is
   a separate explicit `--publish` action.

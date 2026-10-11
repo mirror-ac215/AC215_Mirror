@@ -14,15 +14,13 @@ What we store in the team bucket `gs://mirror-ac215-data/`, where each file came
 
 Everything lives in `gs://mirror-ac215-data/`. Download with `gcloud storage cp gs://mirror-ac215-data/<path> .` (requires project access).
 
-## Processed FER-2013 v1 — pending repository integration
+## Processed FER-2013 v1 — merged preprocessing pipeline
 
-The intended processed-data release is
-`data/processed/fer2013/v1/` in the team bucket. Its preprocessing code,
-manifests, deterministic split, and publication workflow are reviewed with
-M2-06 and become a `main` implementation fact only when that pull request is
-merged.
+The processed-data release is `data/processed/fer2013/v1/` in the team bucket.
+Its preprocessing code, manifests, deterministic split, and publication workflow
+were accepted in M2-06 (PR #24) and are available from `main`.
 
-The planned release layout is intentionally inspectable:
+Its output layout is intentionally inspectable:
 
 ```text
 images/{train,val,test}/<class>/<image>.png
