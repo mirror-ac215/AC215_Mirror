@@ -1,0 +1,21 @@
+stages:
+  fer2013_preprocess:
+    cmd: PYTHONPATH=pipelines/data-preprocess/src uv run --project pipelines/data-preprocess mirror-preprocess --params pipelines/data-preprocess/params.yaml
+    deps:
+      - data/raw/fer2013/archive.zip
+      - pipelines/data-preprocess/src/mirror_data_preprocess/__init__.py
+      - pipelines/data-preprocess/src/mirror_data_preprocess/cli.py
+      - pipelines/data-preprocess/src/mirror_data_preprocess/pipeline.py
+      - pipelines/data-preprocess/src/mirror_data_preprocess/publish.py
+      - pipelines/data-preprocess/pyproject.toml
+      - pipelines/data-preprocess/uv.lock
+      - pipelines/data-preprocess/params.yaml
+    params:
+      - pipelines/data-preprocess/params.yaml:
+          - dataset
+          - split
+          - output
+          - image
+          - inference_transform
+    outs:
+      - data/processed/fer2013/v1
