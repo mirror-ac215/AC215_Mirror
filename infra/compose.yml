@@ -1,0 +1,35 @@
+# Runs the Mirror stack locally; docker compose -f infra/compose.yml up --build
+# Paths below are relative to this file (infra/), so services live in ../services.
+name: mirror
+
+services:
+  db:
+    build: ../services/db
+    environment:
+      POSTGRES_DB: mirror
+      POSTGRES_USER: mirror_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD:?set MIRROR_DEMO_PASSWORD in infra/.env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  api-gateway:
+    build: ../services/api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ../services/frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  db-data:

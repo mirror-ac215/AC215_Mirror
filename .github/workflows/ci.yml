@@ -18,6 +18,8 @@ jobs:
       db: ${{ steps.filter.outputs.db }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs_contracts: ${{ steps.filter.outputs.docs_contracts }}
+      compose: ${{ steps.filter.outputs.compose }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,6 +43,12 @@ jobs:
               - '.github/workflows/**'
             docs_contracts:
               - 'docs/contracts/**'
+              - '.github/workflows/**'
+            compose:
+              - 'infra/**'
+              - 'services/frontend/**'
+              - 'services/api-gateway/**'
+              - 'services/db/**'
               - '.github/workflows/**'
 
   service_template:
@@ -133,9 +141,41 @@ jobs:
       - name: Run validator tests
         run: uv run pytest -v
 
+  compose:
+    name: Compose stake smoke test
+    needs: changes
+    if : needs.changes.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    env:
+      # Throwaway values for CI only. Compose reads these instead of infra/.env.
+      POSTGRES_PASSWORD: ci-only-password
+      MIRROR_DEMO_PASSWORD: ci-only-demo-password
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate compose file
+        run: docker compose -f infra/compose.yml config --quiet
+
+      - name: Build and start the stack, wait for every health check
+        run: docker compose -f infra/compose.yml up --build --wait --wait-timeout 300
+
+      - name: Smoke-test the running services
+        run: |
+          curl -fsS http://localhost:8000/health
+          curl -fsS http://localhost:3000/health
+
+      - name: Show logs if anything failed
+        if: failure()
+        run: docker compose -f infra/compose.yml logs
+
+      - name: Stop and remove stack
+        if: always()
+        run: docker compose -f infra/compose.yml down -v
+
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, frontend, contract_validation, api_gateway]
+    needs: [changes, service_template, db, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -152,6 +192,8 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
           CONTRACT_VALIDATION_RESULT: ${{ needs.contract_validation.result }}
+          COMPOSE_CHANGED: ${{ needs.changes.outputs.compose }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
         run: |
           if [ "$CHANGES_RESULT" != "success" ]; then
             echo "Changed-component detection did not pass: $CHANGES_RESULT"
@@ -180,6 +222,11 @@ jobs:
 
           if [ "$DOCS_CONTRACTS_CHANGED" = "true" ] && [ "$CONTRACT_VALIDATION_RESULT" != "success" ]; then
             echo "Contract validation did not pass: $CONTRACT_VALIDATION_RESULT"
+            exit 1
+          fi
+
+          if [ "$COMPOSE_CHANGED" = "true" ] && [ "$COMPOSE_RESULT" != "success" ]; then
+            echo "Compose stack smoke test did not pass: $COMPOSE_RESULT"
             exit 1
           fi
 
