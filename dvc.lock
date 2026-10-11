@@ -1,0 +1,85 @@
+schema: '2.0'
+stages:
+  fer2013_preprocess:
+    cmd: 'PYTHONPATH=pipelines/data-preprocess/src uv run --project pipelines/data-preprocess mirror-preprocess --params pipelines/data-preprocess/params.yaml'
+    deps:
+    - path: data/raw/fer2013/archive.zip
+      hash: md5
+      md5: 9f58794746ff496be12cf0bb2679e3d4
+      size: 63252113
+    - path: pipelines/data-preprocess/params.yaml
+      hash: md5
+      md5: 5cb0e0739e0da7ab1ba96a72a0f7e0ac
+      size: 606
+    - path: pipelines/data-preprocess/pyproject.toml
+      hash: md5
+      md5: e1f093cb58378f8002d9ce784915abae
+      size: 609
+    - path: pipelines/data-preprocess/src/mirror_data_preprocess/__init__.py
+      hash: md5
+      md5: c6c8bd54129bdcc2ca62606e2262c0ce
+      size: 54
+    - path: pipelines/data-preprocess/src/mirror_data_preprocess/cli.py
+      hash: md5
+      md5: fd6d2f66a0e1ea901c372a03878ac857
+      size: 1657
+    - path: pipelines/data-preprocess/src/mirror_data_preprocess/pipeline.py
+      hash: md5
+      md5: e5c340743bbc3c7d4d4f418eefff87d3
+      size: 8065
+    - path: pipelines/data-preprocess/src/mirror_data_preprocess/publish.py
+      hash: md5
+      md5: 8d267594be86dcf5c4d849d9aa272690
+      size: 2409
+    - path: pipelines/data-preprocess/uv.lock
+      hash: md5
+      md5: 13d9d875c7b4458783cfafe683ee341d
+      size: 68622
+    params:
+      pipelines/data-preprocess/params.yaml:
+        dataset:
+          raw_archive: data/raw/fer2013/archive.zip
+          class_order:
+          - angry
+          - disgust
+          - fear
+          - happy
+          - neutral
+          - sad
+          - surprise
+        image:
+          stored_format: png
+          stored_width: 48
+          stored_height: 48
+          stored_channels: 1
+        inference_transform:
+          grayscale_to_channels: 3
+          resize:
+          - 224
+          - 224
+          pixel_range:
+          - 0.0
+          - 1.0
+          mean:
+          - 0.485
+          - 0.456
+          - 0.406
+          std:
+          - 0.229
+          - 0.224
+          - 0.225
+        output:
+          local_dir: data/processed/fer2013/v1
+          gcs_uri: gs://mirror-ac215-data/data/processed/fer2013/v1/
+          publish_workers: 32
+        split:
+          train_fraction: 0.8
+          validation_fraction: 0.2
+          seed: 42
+          test_source: provided_test_directory
+    outs:
+    - path: data/processed/fer2013/v1
+      hash: md5
+      md5: b9c06fc9a66880c70c51e4916d6d88de.dir
+      size: 65385909
+      nfiles: 35892

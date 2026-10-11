@@ -1,0 +1,27 @@
+dataset:
+  raw_archive: data/raw/fer2013/archive.zip
+  class_order: [angry, disgust, fear, happy, neutral, sad, surprise]
+
+split:
+  train_fraction: 0.80
+  validation_fraction: 0.20
+  seed: 42
+  test_source: provided_test_directory
+
+output:
+  local_dir: data/processed/fer2013/v1
+  gcs_uri: gs://mirror-ac215-data/data/processed/fer2013/v1/
+  publish_workers: 32
+
+image:
+  stored_format: png
+  stored_width: 48
+  stored_height: 48
+  stored_channels: 1
+
+inference_transform:
+  grayscale_to_channels: 3
+  resize: [224, 224]
+  pixel_range: [0.0, 1.0]
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
