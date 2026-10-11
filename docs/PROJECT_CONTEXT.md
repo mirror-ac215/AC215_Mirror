@@ -13,9 +13,10 @@ does not mean that every pictured service, Compose configuration, deployment
 asset, or test is already merged into `main`. Treat the repository's default
 branch as the implementation source of truth and open pull requests as
 unmerged work. At the current foundation stage, `main` contains the contracts,
-reusable Python template, shared CI foundation, DVC metadata, and artifact
-inventory; service implementations, Compose integration, deployment, E2E, and
-load testing land through their own reviewed pull requests.
+reusable Python template, shared CI foundation, DVC metadata, artifact
+inventory, and the Compose v0 stack for the frontend, API gateway, and database.
+The remaining service implementations, later Compose additions, deployment, E2E,
+and load testing land through their own reviewed pull requests.
 
 When a component PR merges, update its README, lockfile/runtime declaration,
 Docker and CI handoff, and the relevant contract or documentation in the same
