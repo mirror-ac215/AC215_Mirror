@@ -108,6 +108,8 @@ paths:
         "403": { description: Not the patient who owns this session }
         "404": { description: Unknown session }
         "409": { description: Camera consent was not given for this session }
+        "413": { description: Frame larger than the gateway's maximum frame size }
+        "415": { description: Frame is not a JPEG image }
 
   /sessions/{session_id}/messages:
     post:

@@ -26,17 +26,18 @@ Start with [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). It covers:
 
 ## Quick start
 
-The full Compose stack is **planned for M2-03** and is not yet present in
-`main`. Until `infra/compose.yml` is merged, use each component's own README
-and pull request validation instructions rather than treating this command as
-a fresh-clone acceptance path.
+The local stack (frontend, api-gateway, db) runs with Docker Compose. Details,
+configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
 
 ```bash
 git clone https://github.com/mirror-ac215/mirror.git
 cd mirror
-# After M2-03 merges, get the secrets described in secrets/README.md
-docker compose -f infra/compose.yml up --build
+cp infra/.env.example infra/.env   # fill in the two values
+docker compose -f infra/compose.yml up --build -d
 ```
+
+Then open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API).
+`llm-service` and `cv-service` join the stack when their PRs merge.
 
 ## Data setup with DVC
 

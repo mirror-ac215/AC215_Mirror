@@ -14,10 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       service_template: ${{ steps.filter.outputs.service_template }}
+      api_gateway: ${{ steps.filter.outputs.api_gateway }}
       db: ${{ steps.filter.outputs.db }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs_contracts: ${{ steps.filter.outputs.docs_contracts }}
       data_preprocess: ${{ steps.filter.outputs.data_preprocess }}
+      compose: ${{ steps.filter.outputs.compose }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,6 +32,9 @@ jobs:
           filters: |
             service_template:
               - 'services/_template/**'
+              - '.github/workflows/**'
+            api_gateway:
+              - 'services/api-gateway/**'
               - '.github/workflows/**'
             db:
               - 'services/db/**'
@@ -43,6 +49,12 @@ jobs:
               - 'pipelines/data-preprocess/**'
               - 'dvc.yaml'
               - '.github/workflows/**'
+            compose:
+              - 'infra/**'
+              - 'services/frontend/**'
+              - 'services/api-gateway/**'
+              - 'services/db/**'
+              - '.github/workflows/**'
 
   service_template:
     name: Service template checks
@@ -52,6 +64,15 @@ jobs:
     with:
       service_path: services/_template
       image_name: mirror-service-template-ci
+
+  api_gateway:
+    name: API gateway checks
+    needs: changes
+    if: needs.changes.outputs.api_gateway == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: services/api-gateway
+      image_name: mirror-api-gateway-ci
 
   db:
     name: Database integration checks
@@ -134,9 +155,41 @@ jobs:
       - name: Run validator tests
         run: uv run pytest -v
 
+  compose:
+    name: Compose stake smoke test
+    needs: changes
+    if : needs.changes.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    env:
+      # Throwaway values for CI only. Compose reads these instead of infra/.env.
+      POSTGRES_PASSWORD: ci-only-password
+      MIRROR_DEMO_PASSWORD: ci-only-demo-password
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate compose file
+        run: docker compose -f infra/compose.yml config --quiet
+
+      - name: Build and start the stack, wait for every health check
+        run: docker compose -f infra/compose.yml up --build --wait --wait-timeout 300
+
+      - name: Smoke-test the running services
+        run: |
+          curl -fsS http://localhost:8000/health
+          curl -fsS http://localhost:3000/health
+
+      - name: Show logs if anything failed
+        if: failure()
+        run: docker compose -f infra/compose.yml logs
+
+      - name: Stop and remove stack
+        if: always()
+        run: docker compose -f infra/compose.yml down -v
+
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, data_preprocess, frontend, contract_validation]
+    needs: [changes, service_template, db, data_preprocess, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -145,6 +198,8 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           SERVICE_TEMPLATE_CHANGED: ${{ needs.changes.outputs.service_template }}
           SERVICE_TEMPLATE_RESULT: ${{ needs.service_template.result }}
+          API_GATEWAY_CHANGED: ${{ needs.changes.outputs.api_gateway }}
+          API_GATEWAY_RESULT: ${{ needs.api_gateway.result }}
           DB_CHANGED: ${{ needs.changes.outputs.db }}
           DB_RESULT: ${{ needs.db.result }}
           DATA_PREPROCESS_CHANGED: ${{ needs.changes.outputs.data_preprocess }}
@@ -153,6 +208,8 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
           CONTRACT_VALIDATION_RESULT: ${{ needs.contract_validation.result }}
+          COMPOSE_CHANGED: ${{ needs.changes.outputs.compose }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
         run: |
           if [ "$CHANGES_RESULT" != "success" ]; then
             echo "Changed-component detection did not pass: $CHANGES_RESULT"
@@ -161,6 +218,11 @@ jobs:
 
           if [ "$SERVICE_TEMPLATE_CHANGED" = "true" ] && [ "$SERVICE_TEMPLATE_RESULT" != "success" ]; then
             echo "Service template checks did not pass: $SERVICE_TEMPLATE_RESULT"
+            exit 1
+          fi
+
+          if [ "$API_GATEWAY_CHANGED" = "true" ] && [ "$API_GATEWAY_RESULT" != "success" ]; then
+            echo "API gateway checks did not pass: $API_GATEWAY_RESULT"
             exit 1
           fi
 
@@ -181,6 +243,11 @@ jobs:
 
           if [ "$DOCS_CONTRACTS_CHANGED" = "true" ] && [ "$CONTRACT_VALIDATION_RESULT" != "success" ]; then
             echo "Contract validation did not pass: $CONTRACT_VALIDATION_RESULT"
+            exit 1
+          fi
+
+          if [ "$COMPOSE_CHANGED" = "true" ] && [ "$COMPOSE_RESULT" != "success" ]; then
+            echo "Compose stack smoke test did not pass: $COMPOSE_RESULT"
             exit 1
           fi
 
