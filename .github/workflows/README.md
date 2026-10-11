@@ -12,7 +12,10 @@ The reusable workflow in `python-service-ci.yml` validates one Python service or
 4. runs `uv run pytest -v`;
 5. builds the component Docker image.
 
-The initial caller validates `services/_template/`, the reference implementation for Python services.
+The initial callers validate:
+
+- `services/_template/`, the reference implementation for Python services;
+- `services/llm-service/`, whose portable mock-mode image is tested in CI. Real GPU inference is validated separately on an NVIDIA host.
 
 ## Add a Python service to CI
 

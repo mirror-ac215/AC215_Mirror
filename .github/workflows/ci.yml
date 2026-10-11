@@ -18,6 +18,7 @@ jobs:
       db: ${{ steps.filter.outputs.db }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs_contracts: ${{ steps.filter.outputs.docs_contracts }}
+      llm_service: ${{ steps.filter.outputs.llm_service }}
       data_preprocess: ${{ steps.filter.outputs.data_preprocess }}
       compose: ${{ steps.filter.outputs.compose }}
 
@@ -44,6 +45,9 @@ jobs:
               - '.github/workflows/**'
             docs_contracts:
               - 'docs/contracts/**'
+              - '.github/workflows/**'
+            llm_service:
+              - 'services/llm-service/**'
               - '.github/workflows/**'
             data_preprocess:
               - 'pipelines/data-preprocess/**'
@@ -85,6 +89,15 @@ jobs:
 
       - name: Run database container integration test
         run: bash services/db/tests/test_database.sh
+
+  llm_service:
+    name: LLM service checks
+    needs: changes
+    if: needs.changes.outputs.llm_service == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: services/llm-service
+      image_name: mirror-llm-service-ci
 
   data_preprocess:
     name: Data preprocess checks
@@ -189,7 +202,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, data_preprocess, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, data_preprocess, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -202,6 +215,8 @@ jobs:
           API_GATEWAY_RESULT: ${{ needs.api_gateway.result }}
           DB_CHANGED: ${{ needs.changes.outputs.db }}
           DB_RESULT: ${{ needs.db.result }}
+          LLM_SERVICE_CHANGED: ${{ needs.changes.outputs.llm_service }}
+          LLM_SERVICE_RESULT: ${{ needs.llm_service.result }}
           DATA_PREPROCESS_CHANGED: ${{ needs.changes.outputs.data_preprocess }}
           DATA_PREPROCESS_RESULT: ${{ needs.data_preprocess.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
@@ -228,6 +243,11 @@ jobs:
 
           if [ "$DB_CHANGED" = "true" ] && [ "$DB_RESULT" != "success" ]; then
             echo "Database integration checks did not pass: $DB_RESULT"
+            exit 1
+          fi
+
+          if [ "$LLM_SERVICE_CHANGED" = "true" ] && [ "$LLM_SERVICE_RESULT" != "success" ]; then
+            echo "LLM service checks did not pass: $LLM_SERVICE_RESULT"
             exit 1
           fi
 
