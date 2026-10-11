@@ -1,25 +1,4 @@
-# Who is asked to review changes in each folder.
-# Replace each @username with the real GitHub username once everyone has sent theirs.
-# The last matching line wins.
-
-*                          @MOSTAFA_USERNAME
-
-/services/api-gateway/     @MOSTAFA_USERNAME
-/services/frontend/        @MOSTAFA_USERNAME
-/services/_template/       @OWEN_USERNAME
-/services/llm-service/     @OWEN_USERNAME
-/services/db/              @OWEN_USERNAME
-/services/cv-service/      @SAMUEL_USERNAME
-
-/pipelines/data-preprocess/ @SAMUEL_USERNAME
-/pipelines/cv-train/        @SAMUEL_USERNAME
-/pipelines/fairness-audit/  @SAMUEL_USERNAME
-/pipelines/persona-data/    @JULIE_USERNAME
-/pipelines/llm-finetune/    @JULIE_USERNAME
-/pipelines/llm-eval/        @JULIE_USERNAME
-
-/infra/                    @OWEN_USERNAME
-/.github/                  @OWEN_USERNAME @MOSTAFA_USERNAME
-/tests/e2e/                @OWEN_USERNAME
-/tests/load/               @JULIE_USERNAME
-/docs/contracts/           @MOSTAFA_USERNAME @OWEN_USERNAME @JULIE_USERNAME @SAMUEL_USERNAME
+# Every change to main needs approval from one of the two maintainers.
+# Other teammates are welcome to review too; a maintainer's approval is what unlocks the merge.
+# (GitHub rule: on each line, any one listed owner is enough.)
+* @MGalal07 @peggiethepegasus
