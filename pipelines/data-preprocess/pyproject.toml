@@ -1,0 +1,31 @@
+[project]
+name = "mirror-data-preprocess"
+version = "0.1.0"
+description = "Reproducible FER-2013 preprocessing pipeline for Mirror"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "google-cloud-storage>=3.0,<4",
+  "pillow>=11.0,<12",
+  "pyyaml>=6.0,<7",
+]
+
+[project.scripts]
+mirror-preprocess = "mirror_data_preprocess.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0,<9",
+  "ruff>=0.11,<0.12",
+]
+
+[build-system]
+requires = ["uv_build>=0.7,<0.8"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

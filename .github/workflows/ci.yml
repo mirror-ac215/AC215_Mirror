@@ -18,6 +18,7 @@ jobs:
       db: ${{ steps.filter.outputs.db }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs_contracts: ${{ steps.filter.outputs.docs_contracts }}
+      data_preprocess: ${{ steps.filter.outputs.data_preprocess }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -43,6 +44,10 @@ jobs:
               - '.github/workflows/**'
             docs_contracts:
               - 'docs/contracts/**'
+              - '.github/workflows/**'
+            data_preprocess:
+              - 'pipelines/data-preprocess/**'
+              - 'dvc.yaml'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -80,6 +85,15 @@ jobs:
 
       - name: Run database container integration test
         run: bash services/db/tests/test_database.sh
+
+  data_preprocess:
+    name: Data preprocess checks
+    needs: changes
+    if: needs.changes.outputs.data_preprocess == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/data-preprocess
+      image_name: mirror-data-preprocess-ci
 
   frontend:
     name: Frontend checks
@@ -175,7 +189,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, data_preprocess, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -188,6 +202,8 @@ jobs:
           API_GATEWAY_RESULT: ${{ needs.api_gateway.result }}
           DB_CHANGED: ${{ needs.changes.outputs.db }}
           DB_RESULT: ${{ needs.db.result }}
+          DATA_PREPROCESS_CHANGED: ${{ needs.changes.outputs.data_preprocess }}
+          DATA_PREPROCESS_RESULT: ${{ needs.data_preprocess.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -212,6 +228,11 @@ jobs:
 
           if [ "$DB_CHANGED" = "true" ] && [ "$DB_RESULT" != "success" ]; then
             echo "Database integration checks did not pass: $DB_RESULT"
+            exit 1
+          fi
+
+          if [ "$DATA_PREPROCESS_CHANGED" = "true" ] && [ "$DATA_PREPROCESS_RESULT" != "success" ]; then
+            echo "Data preprocess checks did not pass: $DATA_PREPROCESS_RESULT"
             exit 1
           fi
 
