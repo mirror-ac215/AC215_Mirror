@@ -69,7 +69,7 @@ jobs:
       run:
         working-directory: services/frontend
     steps:
-      - name: Check out reopsitory
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Node 24
@@ -84,6 +84,12 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build
         run: npm run build

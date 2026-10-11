@@ -13,6 +13,10 @@ import * as api from "@/lib/api/client";
 import { setRole } from "@/lib/role";
 
 export const Route = createFileRoute("/session")({
+  // The camera choice from /consent arrives as ?camera=true. Anything else, including
+  // opening /session directly, means no camera: consent is never assumed.
+  validateSearch: (search: Record<string, unknown>): { camera?: boolean } =>
+    search["camera"] === true ? { camera: true } : {},
   head: () => ({
     meta: [
       { title: "Your session — Mirror" },
@@ -45,12 +49,13 @@ function Session() {
 
   useEffect(() => setRole("patient"), []);
   // Start a session with the gateway (or the mock) when the screen opens.
+  const cameraConsent = Route.useSearch().camera === true;
   useEffect(() => {
     api
-      .startSession(true)
+      .startSession(cameraConsent)
       .then((s) => setSessionId(s.session_id))
       .catch(() => setSessionId(null));
-  }, []);
+  }, [cameraConsent]);
 
   useEffect(() => {
     const t = setInterval(() => {

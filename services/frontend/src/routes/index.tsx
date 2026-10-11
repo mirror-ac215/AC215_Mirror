@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import * as api from "@/lib/api/client";
 import { setRole, useRole, type Role } from "@/lib/role";
 
 export const Route = createFileRoute("/")({
@@ -30,8 +31,25 @@ function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const choose = (r: Role) => setRole(r);
+  // Log in through the API client: it stores the token that every later request sends.
+  // In mock mode any credentials work; against the real gateway they must match a demo user.
+  const signIn = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await api.login(email, password, role);
+      setRole(result.role);
+      navigate({ to: result.role === "patient" ? "/consent" : "/clinician" });
+    } catch {
+      setError("Wrong email or password.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-16">
@@ -63,7 +81,7 @@ function Login() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
-              navigate({ to: role === "patient" ? "/consent" : "/clinician" });
+              void signIn();
             }}
           >
             <div className="space-y-1.5">
@@ -92,9 +110,10 @@ function Login() {
                 className="h-11 rounded-[11px]"
               />
             </div>
+            {error && <p className="text-sm text-safety">{error}</p>}
             <Button
-              type="button"
-              onClick={() => navigate({ to: role === "patient" ? "/consent" : "/clinician" })}
+              type="submit"
+              disabled={busy}
               className="brand-gradient h-11 w-full rounded-[11px] text-white shadow-soft hover:opacity-95"
             >
               Continue as {role}
@@ -103,7 +122,7 @@ function Login() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-ink">
-          Prototype for demonstration — not medical advice. Any credentials work.
+          Prototype for demonstration — not medical advice. In mock mode any credentials work.
         </p>
       </div>
     </main>

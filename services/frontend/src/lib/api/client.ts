@@ -3,7 +3,8 @@
 
 import { API_BASE_URL, USE_MOCK_API } from "@/lib/config";
 import * as mock from "./mock";
-import type { ChatEvent, FrameAck, LoginResponse, Role, Session, TokenPayload } from "./types";
+import { createSseParser } from "./sse";
+import type { ChatEvent, FrameAck, LoginResponse, Role, Session } from "./types";
 
 let accessToken: string | null = null;
 
@@ -65,27 +66,12 @@ export async function sendMessage(
   });
   if (!res.ok || !res.body) throw new Error(`messages failed with ${res.status}`);
 
-  // Server-Sent Events arrive as text blocks separated by a blank line:
-  //   event: token
-  //   data: Hello
+  const parser = createSseParser(onEvent);
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = "";
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += value.replaceAll("\r\n", "\n"); // some servers end lines with CR+LF
-    const blocks = buffer.split("\n\n");
-    buffer = blocks.pop() ?? ""; // keep an unfinished block for the next chunk
-    for (const block of blocks) {
-      let type = "";
-      const dataLines: string[] = [];
-      for (const line of block.split("\n")) {
-        if (line.startsWith("event:")) type = line.slice(6).trim();
-        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-      }
-      const data = dataLines.join("\n"); // the SSE standard joins multiple data lines with newlines
-      if (type === "token") onEvent({ type, data: (JSON.parse(data) as TokenPayload).text });
-      else if (type === "crisis" || type === "done") onEvent({ type, data: JSON.parse(data) });
-    }
+    parser.push(value);
   }
+  parser.flush();
 }
