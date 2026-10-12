@@ -89,7 +89,7 @@ def start_session(
     "/sessions/{session_id}/frames",
     status_code=202,
     responses={
-        401: {"description": "Wrong email or password"},
+        401: {"description": "Not logged in"},
         403: {"description": "Not a patient, or not this patient's session"},
         404: {"description": "Unknown session"},
         409: {"description": "Camera consent not given"},
