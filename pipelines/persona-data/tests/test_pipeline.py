@@ -28,6 +28,7 @@ def _write(path: Path, rows: list[tuple[str, str]]) -> None:
     "I am a psychology professor at the University of Toronto, a clinical psychologist, "
     "and an author.",
     "When I wrote 12 Rules for Life I was thinking about exactly this.",
+    "I've certainly seen this as a clinical practitioner, many times over.",
 ])
 def test_identity_claims_are_removed(response):
     kept, removed = clean([Pair("f.csv:2", "How do I cope?", response)], PARAMS)
@@ -43,6 +44,21 @@ def test_plain_advice_is_kept(response):
     kept, removed = clean([Pair("f.csv:2", "Where do I start?", response)], PARAMS)
     assert [p.response for p in kept] == [response]
     assert removed == []
+
+
+@pytest.mark.parametrize("prompt", [
+    "I have very bad work ethic, Peterson.",
+    "We've got the legendary Jordan Peterson in the house.",
+])
+def test_name_in_question_is_removed(prompt):
+    kept, removed = clean([Pair("f.csv:2", prompt, GOOD)], PARAMS)
+    assert kept == []
+    assert removed[0]["reason"] == "identity_in_question:named_identity"
+
+
+def test_clinical_word_in_question_is_kept():
+    kept, _ = clean([Pair("f.csv:2", "Should I see a psychologist?", GOOD)], PARAMS)
+    assert len(kept) == 1
 
 
 def test_whitespace_and_case_duplicates_are_removed():

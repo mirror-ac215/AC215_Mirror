@@ -32,6 +32,7 @@ stages:
           - input
           - clean
           - identity_filters
+          - prompt_filters
           - split
     outs:
       - data/processed/persona/v1

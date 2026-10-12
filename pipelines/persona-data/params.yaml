@@ -18,13 +18,17 @@ clean:
 # Each pattern has an id so the report can say exactly why a pair was removed.
 identity_filters:
   doctor_title: "\\bI(?: a|')m (?:a )?dr\\.?\\b|\\bI(?: a|')m doctor\\b"
-  clinical_role: "\\b(?:as|I(?: a|')m|I was|I've been) an? (?:\\w+ ){0,3}(?:psychologist|psychiatrist|therapist|psychotherapist|counsell?or|physician|doctor|clinician)\\b"
+  clinical_role: "\\b(?:as|I(?: a|')m|I was|I've been) an? (?:\\w+ ){0,3}(?:psychologist|psychiatrist|therapist|psychotherapist|counsell?or|physician|doctor|clinician|practitioner)\\b"
   professor_claim: "\\b(?:as|I(?: a|')m|I was|I've been) an? (?:\\w+ ){0,3}professor\\b"
   my_patients: "\\bmy (?:patients|clients|clinical practice|practice)\\b"
   clinical_experience: "\\bin my (?:clinical|therapeutic) (?:practice|work|experience)\\b"
   my_works: "\\bmy (?:book|books|lectures?|podcast|students)\\b"
   # The real person behind the source interviews: his name, employer, books and family.
   named_identity: "\\b(?:Jordan (?:B\\. )?Peterson|Peterson|University of Toronto|Harvard professor|12 Rules for Life|Maps of Meaning|Beyond Order|Tammy|Mikhaila)\\b"
+
+# Rules also checked on the *question*: an interviewer addressing the persona by name
+# ("Peterson, let's discuss...") would teach the model that it is that person.
+prompt_filters: [named_identity]
 
 split:
   seed: 215

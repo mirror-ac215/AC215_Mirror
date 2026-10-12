@@ -20,7 +20,9 @@ Steps, in this order:
 4. **Filter identity/credential claims** with the regex list in `params.yaml`
    (`identity_filters`), e.g. "I am Dr…", "as a clinical psychologist",
    "my patients", and the source person's name, employer, books and family.
-   Each rule has an id, so the report says which rule fired.
+   Each rule has an id, so the report says which rule fired. Questions that
+   address the persona by name ("Peterson, let's discuss…") are removed too
+   (`prompt_filters`), since they would teach the model it is that person.
 5. **Dedupe** exact duplicates (ignoring case and spacing).
 6. **Split** 80/10/10 into train/val/test with seed 215.
 

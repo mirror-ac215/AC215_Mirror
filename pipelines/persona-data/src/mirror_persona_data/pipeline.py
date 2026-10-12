@@ -66,6 +66,7 @@ def clean(pairs: list[Pair], params: dict[str, Any]) -> tuple[list[Pair], list[d
     min_chars = int(params["clean"]["min_response_chars"])
     max_chars = int(params["clean"]["max_response_chars"])
     filters = {k: re.compile(v, re.IGNORECASE) for k, v in params["identity_filters"].items()}
+    prompt_filters = {k: filters[k] for k in params.get("prompt_filters", [])}
     kept: list[Pair] = []
     removed: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -80,6 +81,8 @@ def clean(pairs: list[Pair], params: dict[str, Any]) -> tuple[list[Pair], list[d
             reason = "too_long"
         elif rule := first_identity_hit(pair.response, filters):
             reason = f"identity:{rule}"
+        elif rule := first_identity_hit(pair.prompt, prompt_filters):
+            reason = f"identity_in_question:{rule}"
         elif (key := dedupe_key(pair)) in seen:
             reason = "duplicate"
         if reason:
