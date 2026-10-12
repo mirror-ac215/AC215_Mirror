@@ -16,7 +16,7 @@ Steps, in this order:
    prompt, which names the real person) is dropped; M3-09 builds Mirror's own
    prompt.
 2. **Normalise** whitespace (wording and case are kept).
-3. **Drop** empty pairs, responses shorter than 12 or longer than 4,000 characters.
+3. **Drop** empty pairs, responses shorter than 12 or longer than 1,000 characters.
 4. **Filter identity/credential claims** with the regex list in `params.yaml`
    (`identity_filters`), e.g. "I am Dr…", "as a clinical psychologist",
    "my patients", and the source person's name, employer, books and family.

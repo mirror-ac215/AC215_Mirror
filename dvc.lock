@@ -115,7 +115,7 @@ stages:
       pipelines/persona-data/params.yaml:
         clean:
           min_response_chars: 12
-          max_response_chars: 4000
+          max_response_chars: 1000
         identity_filters:
           doctor_title: "\\bI(?: a|')m (?:a )?dr\\.?\\b|\\bI(?: a|')m doctor\\b"
           clinical_role: "\\b(?:as|I(?: a|')m|I was|I've been) an? (?:\\w+ ){0,3}(?:psychologist|psychiatrist|therapist|psychotherapist|counsell?or|physician|doctor|clinician|practitioner)\\\

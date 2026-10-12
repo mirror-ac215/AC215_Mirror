@@ -11,8 +11,8 @@ input:
   # (old training prompt that names a real person; M3-09 builds Mirror's own prompt).
 
 clean:
-  min_response_chars: 12             # drop empty / one-word answers
-  max_response_chars: 4000           # drop runaway transcripts
+  min_response_chars: 12             # drop throwaway replies ("Yes.", "Sure."); short real answers stay
+  max_response_chars: 1000           # safety net for broken rows (~3x the longest real answer, 317)
 
 # Identity and credential claims the persona must never make (case-insensitive regex).
 # Each pattern has an id so the report can say exactly why a pair was removed.
