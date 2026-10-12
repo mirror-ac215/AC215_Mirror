@@ -19,3 +19,19 @@ stages:
           - inference_transform
     outs:
       - data/processed/fer2013/v1
+  persona_clean:
+    cmd: PYTHONPATH=pipelines/persona-data/src uv run --project pipelines/persona-data mirror-persona-data --params pipelines/persona-data/params.yaml
+    deps:
+      - data/raw/persona
+      - pipelines/persona-data/src/mirror_persona_data/pipeline.py
+      - pipelines/persona-data/src/mirror_persona_data/cli.py
+      - pipelines/persona-data/pyproject.toml
+      - pipelines/persona-data/uv.lock
+    params:
+      - pipelines/persona-data/params.yaml:
+          - input
+          - clean
+          - identity_filters
+          - split
+    outs:
+      - data/processed/persona/v1
