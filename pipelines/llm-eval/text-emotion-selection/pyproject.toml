@@ -1,0 +1,13 @@
+[project]
+name = "text-emotion-selection"
+version = "0.1.0"
+description = "M2-11: compare two pretrained text-emotion classifiers"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "torch>=2.3",
+    "transformers>=4.44",
+    "scikit-learn>=1.5",
+    "pandas>=2.2",
+
+
+]

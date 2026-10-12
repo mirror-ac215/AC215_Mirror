@@ -35,6 +35,9 @@ data/
 *.onnx
 *.npy
 wandb/
+# raw third-party datasets downloaded by hand (keep outside the repo)
+empatheticdialogues/
+*.tar.gz
 
 # --- Node / frontend ---
 node_modules/
