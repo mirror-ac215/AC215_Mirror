@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Heart, LifeBuoy, Mic, Send, User, Video } from "lucide-react";
+import { Heart, LifeBuoy, Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ExpressionPanel } from "@/components/mirror/ExpressionPanel";
 import { TopNav } from "@/components/mirror/TopNav";
 import { seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
@@ -45,19 +45,27 @@ function Session() {
   const [expr, setExpr] = useState({ calm: 38, anxious: 44, sad: 18 });
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [sessionFailed, setSessionFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0); // bump to retry starting the session
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setRole("patient"), []);
   // Start a session with the gateway (or the mock) when the screen opens.
   const cameraConsent = Route.useSearch().camera === true;
   useEffect(() => {
+    setSessionFailed(false);
     api
       .startSession(cameraConsent)
       .then((s) => setSessionId(s.session_id))
-      .catch(() => setSessionId(null));
-  }, [cameraConsent]);
+      .catch(() => {
+        setSessionId(null);
+        setSessionFailed(true);
+      });
+  }, [cameraConsent, attempt]);
 
+  // Simulated readings only while the camera is on; no consent means no sensing at all.
   useEffect(() => {
+    if (!cameraConsent) return;
     const t = setInterval(() => {
       setExpr((p) => {
         const jitter = () => Math.round((Math.random() - 0.5) * 8);
@@ -70,7 +78,7 @@ function Session() {
       });
     }, 3200);
     return () => clearInterval(t);
-  }, []);
+  }, [cameraConsent]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -163,16 +171,26 @@ function Session() {
             </div>
 
             <div className="border-t border-border p-4">
+              {sessionFailed && (
+                <p className="mb-2 text-sm text-safety">
+                  Couldn&apos;t start your session.{" "}
+                  <button onClick={() => setAttempt((a) => a + 1)} className="underline">
+                    Try again
+                  </button>
+                </p>
+              )}
               <div className="flex gap-2">
                 <Input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && send()}
-                  placeholder="Type a message…"
+                  placeholder={sessionId ? "Type a message…" : "Connecting…"}
+                  disabled={!sessionId}
                   className="h-11 rounded-[11px]"
                 />
                 <Button
                   onClick={send}
+                  disabled={!sessionId || sending}
                   className="brand-gradient h-11 w-11 shrink-0 rounded-[11px] p-0 text-white hover:opacity-95"
                   aria-label="Send message"
                 >
@@ -189,45 +207,7 @@ function Session() {
           </section>
 
           {/* side panel */}
-          <aside className="space-y-5">
-            <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-              <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-neutral">
-                <Video className="h-6 w-6 text-muted-ink" />
-              </div>
-              <p className="mt-2.5 px-1 text-xs text-muted-ink">
-                Camera preview · expression sensing on
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-reflective p-5">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-ink">
-                Predicted expression
-              </p>
-              <div className="mt-4 space-y-3.5">
-                {(
-                  [
-                    ["Calm", expr.calm],
-                    ["Anxious", expr.anxious],
-                    ["Sad", expr.sad],
-                  ] as const
-                ).map(([label, value]) => (
-                  <div key={label}>
-                    <div className="mb-1.5 flex justify-between text-xs text-body">
-                      <span>{label}</span>
-                      <span className="text-muted-ink">{value}%</span>
-                    </div>
-                    <Progress
-                      value={value}
-                      className="h-1.5 bg-card/70 [&>div]:bg-lavender [&>div]:transition-all [&>div]:duration-700"
-                    />
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 text-[11px] leading-relaxed text-muted-ink">
-                An estimate of expression, not a measure of how you truly feel.
-              </p>
-            </div>
-          </aside>
+          <ExpressionPanel cameraConsent={cameraConsent} expr={expr} />
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-ink">

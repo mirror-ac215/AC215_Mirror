@@ -22,7 +22,13 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Forget the current user's token (on logout, and before any new login attempt). */
+export function logout(): void {
+  accessToken = null;
+}
+
 export async function login(email: string, password: string, role: Role): Promise<LoginResponse> {
+  logout(); // a failed login must never leave the previous user's token active
   const result = USE_MOCK_API
     ? await mock.login(role)
     : await postJson<LoginResponse>("/auth/login", { email, password });
