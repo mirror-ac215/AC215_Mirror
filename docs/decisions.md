@@ -114,7 +114,11 @@ It does not turn an unmerged pull request into merged functionality.
     calls (e.g. nostalgic→sadness, prepared→joy), which makes full-split
     scores slightly pessimistic for both models equally.
   - Both models confuse fear with sadness, and A's sadness recall (0.48)
-    is its weakest point.
+    is its weakest label. This is softened by design: the gateway passes
+    the top-2 text emotions with their probabilities (`text.top2` in the
+    context object), not a single label, so a missed sadness can still
+    appear as the second label, and the persona treats emotion as
+    uncertain rather than fact.
   - EmpatheticDialogues is everyday situations told to a stranger, not
     patients talking to a support companion.
 - **Next:** package A as the gateway text-emotion module (M3-05) with unit

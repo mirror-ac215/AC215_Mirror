@@ -9,20 +9,25 @@ the api-gateway (M3-05). Decision and full results: `docs/decisions.md`, D-003.
 
 ## Data
 EmpatheticDialogues (Rashkin et al., ACL 2019), official test split.
-Downloaded it outside git, via VScode into the repo root:
+Download it to a folder **outside the repo** (raw data never goes in git):
 
-    cd ~/projects/mirror
+    mkdir -p ~/datasets && cd ~/datasets
     curl -LO https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/empatheticdialogues.tar.gz
-    tar -xzf empatheticdialogues.tar.gz
+    tar -xzf empatheticdialogues.tar.gz      # -> ~/datasets/empatheticdialogues/test.csv
 
 `test.csv` SHA-256: `a014199d689a11bfd58c19a406ccf18c4fdffd1eb45c5eb31a3a1c880dc15958`
 
 ## Run
 
     uv sync
-    uv run python sample_empathetic.py ../../../empatheticdialogues/test.csv   # draws the 50 (seed 215)
-    uv run python compare.py data/m2-11_messages_to_label.csv                  # 50 hand-labelled
-    uv run python compare_full.py ../../../empatheticdialogues/test.csv        # full test split
+    uv run python sample_empathetic.py ~/datasets/empatheticdialogues/test.csv   # draws the 50 (seed 215)
+    uv run python compare.py data/m2-11_messages_to_label.csv                    # 50 hand-labelled
+    uv run python compare_full.py ~/datasets/empatheticdialogues/test.csv        # full test split
+
+`compare_full.py` skips messages that mention suicide or self-harm (and
+dated pandemic/election content): in Mirror those messages go to the
+deterministic crisis check (M3-07) before any emotion model runs, so the
+classifier is never the safety path.
 
 `data/` is gitignored (team rule). Julie's 50 labels are preserved in
 `results/predictions.csv` (columns `label`, `second_label`).
@@ -65,4 +70,4 @@ Recall per label, the limits of each evaluation and the reasoning are in D-003.
 | `sample_empathetic.py` | Draws the 50 messages with a fixed seed |
 | `compare.py` | Scores both models on the hand-labelled 50 |
 | `compare_full.py` | Scores both models on the full test split vs. author tags |
-| `results/` | Summaries and per-message predictions |
+| `results/` | Summaries and per-message predictions (`full_split_predictions.csv` holds `conv_id` only, no dataset text; look messages up in `test.csv`) |

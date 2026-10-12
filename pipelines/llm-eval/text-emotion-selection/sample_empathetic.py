@@ -5,7 +5,7 @@ Download: https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/empatheticdi
 Uses each conversation's prompt (a first-person situation), one per
 conversation, from the test split. ED's 32 emotions are grouped only to
 balance the sample; Julie labels every message herself.
-Usage: python3 sample_empathetic.py empatheticdialogues/test.csv
+Usage: uv run python sample_empathetic.py ~/datasets/empatheticdialogues/test.csv
 """
 import csv
 import random

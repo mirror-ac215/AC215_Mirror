@@ -1,7 +1,7 @@
 """M2-11 part 2: score both models on the full EmpatheticDialogues test split.
 
 Usage:
-    uv run python compare_full.py ../../../empatheticdialogues/test.csv
+    uv run python compare_full.py ~/datasets/empatheticdialogues/test.csv
 
 Gold labels are each conversation's own emotion tag (written by its
 author), grouped into Mirror's labels. The dataset has no neutral tag,
@@ -97,7 +97,8 @@ def main():
     summary = pd.DataFrame(rows).set_index("model").T
     print("\n", summary.round(3).to_string())
     summary.to_csv("results/full_split_summary.csv")
-    df.to_csv("results/full_split_predictions.csv", index=False)
+    # No dataset text in git (team rule): conv_id is enough to look a message up.
+    df.drop(columns=["text"]).to_csv("results/full_split_predictions.csv", index=False)
     print("\nWrote results/full_split_summary.csv")
 
 
