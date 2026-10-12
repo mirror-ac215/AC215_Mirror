@@ -67,15 +67,20 @@ Google Application Default Credentials (see `secrets/README.md`).
 
 ## Results
 
-<!-- TODO(Julie): paste report.json numbers after the first real run -->
+First run, 12 Oct 2026 (`report.json`, seed 215):
 
 | | Count |
 |---|---|
-| Pairs in | TBD |
-| Removed: identity claims | TBD |
-| Removed: duplicates | TBD |
-| Removed: empty / too short / too long | TBD |
-| Pairs out (train / val / test) | TBD |
+| Pairs in (`jbp_clean_full.csv`) | 380 |
+| Removed: too short (< 12 chars: "Yes.", "Yeah.", "Gotcha!"...) | 12 |
+| Removed: identity claim in the answer | 6 (named identity 3, professor 1, clinical role 1, own works 1) |
+| Removed: question addresses the persona by name | 4 |
+| Removed: duplicates / empty / too long | 0 |
+| **Pairs out** | **358** (train 286 / val 36 / test 36) |
+
+Every removal is listed with its source row and rule in `removed.csv`.
+After the run, a search of the kept data for `psycholog|professor|clinic|patient|toronto|peterson`
+only finds neutral uses (e.g. "not a psychologist", "psychologically").
 
 ## Verification
 
