@@ -23,6 +23,19 @@ services:
       db:
         condition: service_healthy
 
+  cv-service:
+    profiles: ["cv"]
+    build: ../services/cv-service
+    ports:
+      - "8001:8001"
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /var/secrets/google/adc.json
+      MODEL_BUCKET: ${CV_MODEL_BUCKET:-mirror-ac215-data}
+      MODEL_OBJECT: ${CV_MODEL_OBJECT:-models/cv/inherited-v3/vit_b16_v3_best.pth}
+      MODEL_VERSION: ${CV_MODEL_VERSION:-cv-vit-b16-v3}
+    volumes:
+      - ${CV_GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/var/secrets/google/adc.json:ro
+
   frontend:
     build: ../services/frontend
     ports:
