@@ -9,12 +9,22 @@ Local Docker Compose stack for Mirror (M2-03, v0).
 | `frontend` | `services/frontend` | 3000 | `GET /health` |
 | `api-gateway` | `services/api-gateway` | 8000 | `GET /health` |
 | `db` | `services/db` (Postgres 16 + schema + demo seed) | none (internal only) | `pg_isready` |
+| `cv-service` (`cv` profile only) | `services/cv-service` | 8001 | `GET /health` after the configured CPU model loads |
 
 Start order is enforced with health checks: `db` must be healthy before `api-gateway` starts, and `api-gateway` must be healthy before `frontend` starts.
 
 Inside the Compose network, services reach each other by service name. The gateway's default `DB_HOST=db` therefore finds the database with no extra configuration.
 
-Not in the stack yet: `llm-service` (PR #16) and `cv-service` (M2-07). Until they are added, the gateway's `/health` reports `"status": "degraded"` with `cv-service` and `llm-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
+`llm-service` (PR #16) is not in the stack yet. `cv-service` is present behind the explicit `cv` Compose profile because its real startup requires an approved GCS credential and model download. The default stack and its CI smoke test intentionally do not enable that profile, so neither needs cloud credentials. Until the LLM service is added, the gateway's `/health` reports `"status": "degraded"` with `llm-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
+
+To run CV locally, first export the path to an ADC credential file that is outside this repository, then explicitly enable the profile:
+
+```bash
+export CV_GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS"
+docker compose -f infra/compose.yml --profile cv up --build cv-service
+```
+
+The profile mounts that credential read-only and never copies it into an image. See [`services/cv-service/README.md`](../services/cv-service/README.md) for the model artifact and validation boundary.
 
 ## First run
 
