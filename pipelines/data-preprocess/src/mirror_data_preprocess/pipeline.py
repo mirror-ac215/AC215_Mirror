@@ -157,7 +157,7 @@ def preprocess_dataset(source_archive: Path, output_dir: Path, params: dict[str,
         report["source_archive"] = source_archive.as_posix()
         report_path = work_dir / "reports" / "data_report.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
         metadata = {
             "class_order": classes,
@@ -175,7 +175,7 @@ def preprocess_dataset(source_archive: Path, output_dir: Path, params: dict[str,
         }
         metadata_path = work_dir / "metadata" / "transform_spec.json"
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
         if output_dir.exists():
             output_dir.replace(backup_dir)
