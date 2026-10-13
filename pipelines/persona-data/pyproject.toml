@@ -1,0 +1,29 @@
+[project]
+name = "mirror-persona-data"
+version = "0.1.0"
+description = "Clean, filter and split the persona prompt/response pairs for Mirror (M2-09)"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "pyyaml>=6.0,<7",
+]
+
+[project.scripts]
+mirror-persona-data = "mirror_persona_data.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0,<9",
+  "ruff>=0.11,<0.12",
+]
+
+[build-system]
+requires = ["uv_build>=0.7,<0.8"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
