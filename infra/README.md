@@ -10,12 +10,15 @@ Local Docker Compose stack for Mirror (M2-03, v0).
 | `api-gateway` | `services/api-gateway` | 8000 | `GET /health` |
 | `db` | `services/db` (Postgres 16 + schema + demo seed) | none (internal only) | `pg_isready` |
 | `cv-service` (`cv` profile only) | `services/cv-service` | 8001 | `GET /health` after the configured CPU model loads |
+| `llm-service` | `services/llm-service` (mock mode: no GPU, no model download) | none (internal only) | `GET /health` |
 
-Start order is enforced with health checks: `db` must be healthy before `api-gateway` starts, and `api-gateway` must be healthy before `frontend` starts.
+Start order is enforced with health checks: `db` and `llm-service` must be healthy before `api-gateway` starts, and `api-gateway` must be healthy before `frontend` starts.
 
 Inside the Compose network, services reach each other by service name. The gateway's default `DB_HOST=db` therefore finds the database with no extra configuration.
 
-`llm-service` (PR #16) is not in the stack yet. `cv-service` is present behind the explicit `cv` Compose profile because its real startup requires an approved GCS credential and model download. The default stack and its CI smoke test intentionally do not enable that profile, so neither needs cloud credentials. Until the LLM service is added, the gateway's `/health` reports `"status": "degraded"` with `llm-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
+`llm-service` runs in **mock mode** (the image's default build target): it answers the OpenAI-compatible chat API with deterministic replies, so the stack and its CI smoke test need no GPU and no model download. The real GPU target is documented in [`services/llm-service/README.md`](../services/llm-service/README.md).
+
+`cv-service` is available behind the explicit `cv` Compose profile (`--profile cv`), because its real startup needs an approved GCS credential to download the model. The default stack and its CI smoke test do not enable that profile, so neither needs cloud credentials. Without the profile, the gateway's `/health` reports `"status": "degraded"` with only `cv-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
 
 To run CV locally, first export the path to an ADC credential file that is outside this repository, then explicitly enable the profile:
 
