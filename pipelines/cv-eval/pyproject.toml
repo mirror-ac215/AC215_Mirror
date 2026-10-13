@@ -1,0 +1,29 @@
+[project]
+name = "mirror-cv-eval"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy>=2.4.0",
+    "pillow>=12.1.1",
+    "scikit-learn>=1.7.0",
+    "torch>=2.9.1",
+    "torchvision>=0.24.1",
+    "wandb>=0.30.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[project.scripts]
+mirror-cv-eval = "mirror_cv_eval.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

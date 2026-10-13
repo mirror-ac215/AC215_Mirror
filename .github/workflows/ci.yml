@@ -21,6 +21,7 @@ jobs:
       llm_service: ${{ steps.filter.outputs.llm_service }}
       cv_service: ${{ steps.filter.outputs.cv_service }}
       data_preprocess: ${{ steps.filter.outputs.data_preprocess }}
+      cv_eval: ${{ steps.filter.outputs.cv_eval }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -56,6 +57,9 @@ jobs:
             data_preprocess:
               - 'pipelines/data-preprocess/**'
               - 'dvc.yaml'
+              - '.github/workflows/**'
+            cv_eval:
+              - 'pipelines/cv-eval/**'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -120,6 +124,15 @@ jobs:
     with:
       service_path: pipelines/data-preprocess
       image_name: mirror-data-preprocess-ci
+
+  cv_eval:
+    name: CV evaluation checks
+    needs: changes
+    if: needs.changes.outputs.cv_eval == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/cv-eval
+      image_name: mirror-cv-eval-ci
 
   frontend:
     name: Frontend checks
@@ -215,7 +228,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, cv_eval, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -234,6 +247,8 @@ jobs:
           CV_SERVICE_RESULT: ${{ needs.cv_service.result }}
           DATA_PREPROCESS_CHANGED: ${{ needs.changes.outputs.data_preprocess }}
           DATA_PREPROCESS_RESULT: ${{ needs.data_preprocess.result }}
+          CV_EVAL_CHANGED: ${{ needs.changes.outputs.cv_eval }}
+          CV_EVAL_RESULT: ${{ needs.cv_eval.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -273,6 +288,11 @@ jobs:
 
           if [ "$DATA_PREPROCESS_CHANGED" = "true" ] && [ "$DATA_PREPROCESS_RESULT" != "success" ]; then
             echo "Data preprocess checks did not pass: $DATA_PREPROCESS_RESULT"
+            exit 1
+          fi
+
+          if [ "$CV_EVAL_CHANGED" = "true" ] && [ "$CV_EVAL_RESULT" != "success" ]; then
+            echo "CV evaluation checks did not pass: $CV_EVAL_RESULT"
             exit 1
           fi
 

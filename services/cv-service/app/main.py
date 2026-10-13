@@ -135,7 +135,7 @@ def create_app(
             "probs": probabilities,
             "top2": top2,
             "margin": margin,
-            "uncertain": margin < 0.1,
+            "uncertain": margin < settings.uncertain_margin,
             "model_version": app.state.model_version,
             "latency_ms": round((perf_counter() - started) * 1000, 3),
         }

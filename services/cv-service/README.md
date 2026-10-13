@@ -22,6 +22,12 @@ gs://mirror-ac215-data/models/cv/inherited-v3/vit_b16_v3_best.pth
 
 Defaults are in `.env.example`. The checkpoint, credentials, cached model, and frames must never be added to Git or a Docker build context. The service logs one JSON record per HTTP request with `request_id`, path, status, and latency; it returns the ID in `X-Request-ID`.
 
+`UNCERTAIN_MARGIN` defaults to `0.1` and must be between `0.0` and `1.0`. A detected face is marked `uncertain` when its top-1 minus top-2 probability margin is below this setting. This keeps the deployed default stable while allowing the M3 gate to be calibrated without editing service code.
+
+## M2-08 baseline evaluation
+
+The inherited ViT-B/16 checkpoint was evaluated on the DVC-restored FER-2013 v1 test split (7,178 examples) using the documented grayscale-to-RGB, 224×224, ImageNet-normalized transform. It achieved **0.64453 macro-F1** and passed the required `>= 0.64` regression guard. Aggregate metrics and evaluation identity are recorded in the verified [Weights & Biases run](https://wandb.ai/mog941-harvard-university/mirror/runs/vqa4ulfz). No raw frames, image examples, model weights, or dataset artifacts were uploaded.
+
 No model download is performed by tests or Docker build. A missing/invalid checkpoint leaves `/health` at HTTP 503 rather than serving fake predictions.
 
 ## Local unit validation (no cloud access)
