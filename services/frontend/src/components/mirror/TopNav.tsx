@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import * as api from "@/lib/api/client";
 import { setRole, useRole } from "@/lib/role";
 
 export function TopNav() {
@@ -57,6 +58,7 @@ export function TopNav() {
             <DropdownMenuItem
               className="text-sm"
               onSelect={() => {
+                api.logout();
                 setRole("patient");
                 navigate({ to: "/" });
               }}
