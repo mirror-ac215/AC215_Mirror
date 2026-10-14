@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from google.cloud import storage
 from PIL import Image
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from torchvision import models, transforms
 
@@ -27,6 +28,7 @@ class ModelSettings(BaseSettings):
     model_object: str = "models/cv/inherited-v3/vit_b16_v3_best.pth"
     model_version: str = "cv-vit-b16-v3"
     model_cache_dir: Path = Path("/tmp/mirror-cv-model")
+    uncertain_margin: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
 class FaceDetector:
