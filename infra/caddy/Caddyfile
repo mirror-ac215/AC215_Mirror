@@ -1,0 +1,16 @@
+{
+	email {$CADDY_EMAIL}
+}
+
+{$CADDY_DOMAIN} {
+	encode zstd gzip
+
+	# Browser requests use /api; the FastAPI service receives its native path.
+	handle_path /api/* {
+		reverse_proxy api-gateway:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
