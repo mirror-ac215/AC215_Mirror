@@ -70,7 +70,7 @@ function Consent() {
           </div>
 
           <Button
-            onClick={() => navigate({ to: "/session" })}
+            onClick={() => navigate({ to: "/session", search: { camera } })}
             className="brand-gradient mt-7 h-11 w-full rounded-[11px] text-white shadow-soft hover:opacity-95 sm:w-auto sm:px-8"
           >
             Start session

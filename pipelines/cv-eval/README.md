@@ -18,7 +18,7 @@ uv run --project pipelines/cv-eval mirror-cv-eval \
   --code-revision "$(git rev-parse HEAD)"
 ```
 
-The report contains model/data/code/transform identity, aggregate metrics, and the inclusive macro-F1 regression decision. Keep reports, checkpoints, local DVC data, W&B credentials, and W&B working directories outside Git.
+The report contains model/data/code/transform identity, aggregate metrics, and the inclusive macro-F1 regression decision. Add `--wandb-project mirror` only when you intentionally want to create a W&B run: it logs the evaluation identity, regression threshold/pass result, aggregate metrics, and runtime only. It does not upload frames, examples, reports, checkpoints, or artifacts. Keep reports, checkpoints, local DVC data, W&B credentials, and W&B working directories outside Git.
 
 ## Validation
 

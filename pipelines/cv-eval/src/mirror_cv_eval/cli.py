@@ -14,6 +14,7 @@ from torchvision import models, transforms
 
 from mirror_cv_eval.metrics import evaluate_predictions
 from mirror_cv_eval.report import build_report
+from mirror_cv_eval.tracking import log_aggregate_report
 
 
 def parser() -> argparse.ArgumentParser:
@@ -23,6 +24,7 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--output", type=Path, required=True)
     command.add_argument("--code-revision", required=True)
     command.add_argument("--batch-size", type=int, default=32)
+    command.add_argument("--wandb-project", help="Optionally log aggregate metrics and configuration to this W&B project")
     return command
 
 
@@ -66,6 +68,8 @@ def run(args: argparse.Namespace) -> int:
     report["runtime"] = {"seconds": round(perf_counter() - started, 3), "batch_size": args.batch_size}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    if args.wandb_project:
+        log_aggregate_report(report, project=args.wandb_project)
     print(json.dumps({"output": str(args.output), "macro_f1": metrics.macro_f1, "passed": report["regression_guard"]["passed"]}))
     return 0 if report["regression_guard"]["passed"] else 2
 

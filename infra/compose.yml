@@ -22,6 +22,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      llm-service:
+        condition: service_healthy
+
+  llm-service:
+    build: ../services/llm-service   # default target = mock (no GPU, no model download)
 
   cv-service:
     profiles: ["cv"]

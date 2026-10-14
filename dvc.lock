@@ -1,7 +1,9 @@
 schema: '2.0'
 stages:
   fer2013_preprocess:
-    cmd: 'PYTHONPATH=pipelines/data-preprocess/src uv run --project pipelines/data-preprocess mirror-preprocess --params pipelines/data-preprocess/params.yaml'
+    cmd: PYTHONPATH=pipelines/data-preprocess/src uv run --project 
+      pipelines/data-preprocess mirror-preprocess --params 
+      pipelines/data-preprocess/params.yaml
     deps:
     - path: data/raw/fer2013/archive.zip
       hash: md5
@@ -83,3 +85,64 @@ stages:
       md5: b9c06fc9a66880c70c51e4916d6d88de.dir
       size: 65385909
       nfiles: 35892
+  persona_clean:
+    cmd: PYTHONPATH=pipelines/persona-data/src uv run --project 
+      pipelines/persona-data mirror-persona-data --params 
+      pipelines/persona-data/params.yaml
+    deps:
+    - path: data/raw/persona
+      hash: md5
+      md5: a9bba215e80c5e7a55dccf508e81ac75.dir
+      size: 337232
+      nfiles: 4
+    - path: pipelines/persona-data/pyproject.toml
+      hash: md5
+      md5: 5486ef9f7c4052b7d91302af143737cc
+      size: 570
+    - path: pipelines/persona-data/src/mirror_persona_data/cli.py
+      hash: md5
+      md5: 00a1b02d7e446a1275b406bc860bb357
+      size: 836
+    - path: pipelines/persona-data/src/mirror_persona_data/pipeline.py
+      hash: md5
+      md5: 137d53fef233c5be4ac32d8a4c5ea037
+      size: 5681
+    - path: pipelines/persona-data/uv.lock
+      hash: md5
+      md5: 8ca562a482c391bb2ef2d778481f2ccb
+      size: 13963
+    params:
+      pipelines/persona-data/params.yaml:
+        clean:
+          min_response_chars: 12
+          max_response_chars: 1000
+        identity_filters:
+          doctor_title: "\\bI(?: a|')m (?:a )?dr\\.?\\b|\\bI(?: a|')m doctor\\b"
+          clinical_role: "\\b(?:as|I(?: a|')m|I was|I've been) an? (?:\\w+ ){0,3}(?:psychologist|psychiatrist|therapist|psychotherapist|counsell?or|physician|doctor|clinician|practitioner)\\\
+            b"
+          professor_claim: "\\b(?:as|I(?: a|')m|I was|I've been) an? (?:\\w+ ){0,3}professor\\\
+            b"
+          my_patients: \bmy (?:patients|clients|clinical practice|practice)\b
+          clinical_experience: \bin my (?:clinical|therapeutic) 
+            (?:practice|work|experience)\b
+          my_works: \bmy (?:book|books|lectures?|podcast|students)\b
+          named_identity: \b(?:Jordan (?:B\. )?Peterson|Peterson|University of 
+            Toronto|Harvard professor|12 Rules for Life|Maps of Meaning|Beyond 
+            Order|Tammy|Mikhaila)\b
+        input:
+          raw_dir: data/raw/persona
+          glob: jbp_clean_full.csv
+          prompt_column: question
+          response_column: answer
+        prompt_filters:
+        - named_identity
+        split:
+          seed: 215
+          train: 0.8
+          val: 0.1
+    outs:
+    - path: data/processed/persona/v1
+      hash: md5
+      md5: 62c01999a3195639ded2b12a47b48269.dir
+      size: 60840
+      nfiles: 5
