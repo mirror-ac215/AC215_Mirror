@@ -1,3 +1,7 @@
-# Shell scripts run inside Linux containers, so they must keep LF line endings
-# even when checked out on windows (otherwise: "can't execute 'sh'", exit 127).
-*.sh text eol=lf
+# Every text file keeps Linux (LF) line endings on every OS, including Windows checkouts.
+# Why: shell scripts run inside Linux containers ("can't execute 'sh'", exit 127 with CRLF),
+# and DVC fingerprints code files, so CRLF copies look "modified" in `dvc status`.
+* text=auto eol=lf
+
+# Data files are left byte-for-byte as committed.
+*.csv -text

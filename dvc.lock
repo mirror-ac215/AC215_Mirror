@@ -1,8 +1,7 @@
 schema: '2.0'
 stages:
   fer2013_preprocess:
-    cmd: PYTHONPATH=pipelines/data-preprocess/src uv run --project 
-      pipelines/data-preprocess mirror-preprocess --params 
+    cmd: uv run --project pipelines/data-preprocess mirror-preprocess --params 
       pipelines/data-preprocess/params.yaml
     deps:
     - path: data/raw/fer2013/archive.zip
@@ -27,8 +26,8 @@ stages:
       size: 1657
     - path: pipelines/data-preprocess/src/mirror_data_preprocess/pipeline.py
       hash: md5
-      md5: e5c340743bbc3c7d4d4f418eefff87d3
-      size: 8065
+      md5: fcdd09aaab691096b8cc980980d697fa
+      size: 8093
     - path: pipelines/data-preprocess/src/mirror_data_preprocess/publish.py
       hash: md5
       md5: 8d267594be86dcf5c4d849d9aa272690
@@ -86,8 +85,7 @@ stages:
       size: 65385909
       nfiles: 35892
   persona_clean:
-    cmd: PYTHONPATH=pipelines/persona-data/src uv run --project 
-      pipelines/persona-data mirror-persona-data --params 
+    cmd: uv run --project pipelines/persona-data mirror-persona-data --params 
       pipelines/persona-data/params.yaml
     deps:
     - path: data/raw/persona
@@ -105,8 +103,8 @@ stages:
       size: 836
     - path: pipelines/persona-data/src/mirror_persona_data/pipeline.py
       hash: md5
-      md5: 137d53fef233c5be4ac32d8a4c5ea037
-      size: 5681
+      md5: 7b753f13fdf84e550984ac8f09a84ed6
+      size: 5695
     - path: pipelines/persona-data/uv.lock
       hash: md5
       md5: 8ca562a482c391bb2ef2d778481f2ccb
