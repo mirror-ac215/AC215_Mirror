@@ -136,5 +136,5 @@ def run(raw_dir: Path, out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
         "split_sha256": hashes,
         "seed": int(params["split"]["seed"]),
     }
-    (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
     return report

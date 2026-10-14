@@ -1,6 +1,6 @@
 stages:
   fer2013_preprocess:
-    cmd: PYTHONPATH=pipelines/data-preprocess/src uv run --project pipelines/data-preprocess mirror-preprocess --params pipelines/data-preprocess/params.yaml
+    cmd: uv run --project pipelines/data-preprocess mirror-preprocess --params pipelines/data-preprocess/params.yaml
     deps:
       - data/raw/fer2013/archive.zip
       - pipelines/data-preprocess/src/mirror_data_preprocess/__init__.py
@@ -20,7 +20,7 @@ stages:
     outs:
       - data/processed/fer2013/v1
   persona_clean:
-    cmd: PYTHONPATH=pipelines/persona-data/src uv run --project pipelines/persona-data mirror-persona-data --params pipelines/persona-data/params.yaml
+    cmd: uv run --project pipelines/persona-data mirror-persona-data --params pipelines/persona-data/params.yaml
     deps:
       - data/raw/persona
       - pipelines/persona-data/src/mirror_persona_data/pipeline.py
