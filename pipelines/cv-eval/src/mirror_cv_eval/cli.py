@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from time import perf_counter
 
@@ -28,9 +28,39 @@ def parser() -> argparse.ArgumentParser:
     return command
 
 
-def load_model(checkpoint: Path) -> torch.nn.Module:
+def transform_from_metadata(specification: dict[str, object]) -> transforms.Compose:
+    """Build the evaluation transform from the dataset's recorded contract."""
+    try:
+        channels = int(specification["grayscale_to_channels"])
+        height, width = (int(value) for value in specification["resize"])
+        pixel_range = tuple(float(value) for value in specification["pixel_range"])
+        mean = tuple(float(value) for value in specification["mean"])
+        std = tuple(float(value) for value in specification["std"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("inference_transform metadata is invalid") from exc
+    if channels != 3 or height <= 0 or width <= 0:
+        raise ValueError("evaluation requires a positive RGB inference transform")
+    if pixel_range != (0.0, 1.0) or len(mean) != 3 or len(std) != 3 or any(value == 0 for value in std):
+        raise ValueError("inference_transform is incompatible with ToTensor RGB evaluation")
+    return transforms.Compose(
+        [
+            transforms.Resize((height, width)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std),
+        ]
+    )
+
+
+def _vit_b16_factory() -> torch.nn.Module:
     model = models.vit_b_16(weights=None)
     model.heads.head = torch.nn.Sequential(torch.nn.Dropout(0.5), torch.nn.Linear(768, 7))
+    return model
+
+
+def load_model(
+    checkpoint: Path, *, model_factory: Callable[[], torch.nn.Module] = _vit_b16_factory
+) -> torch.nn.Module:
+    model = model_factory()
     state = torch.load(checkpoint, map_location="cpu", weights_only=True)
     if not isinstance(state, dict):
         raise TypeError("checkpoint must contain a state dictionary")
@@ -44,7 +74,7 @@ def load_model(checkpoint: Path) -> torch.nn.Module:
 def run(args: argparse.Namespace) -> int:
     metadata = json.loads((args.data_dir / "metadata" / "transform_spec.json").read_text())
     labels = tuple(metadata["class_order"])
-    transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))])
+    transform = transform_from_metadata(metadata["inference_transform"])
     rows = list(csv.DictReader((args.data_dir / "manifests" / "test.csv").open()))
     if not rows or any(row["label"] not in labels or row["split"] != "test" for row in rows):
         raise ValueError("test manifest is empty or violates the FER-2013 evaluation contract")

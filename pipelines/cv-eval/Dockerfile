@@ -5,4 +5,4 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 COPY src ./src
 RUN uv sync --frozen --no-dev
-ENTRYPOINT ["uv", "run", "mirror-cv-eval"]
+ENTRYPOINT ["uv", "run", "--no-sync", "mirror-cv-eval"]
