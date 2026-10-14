@@ -36,12 +36,11 @@ Inherited assets:
 
 | Person | Role |
 |---|---|
-| Mostafa | Coordinator, product and integration: api-gateway orchestration, frontend shell and webcam (from the Lovable prototype), docker-compose integration, milestone submissions |
-| Owen | Platform and backend: repo, service template, GCP, shared CI/CD, GPU VM deployment, llm-service, database, auth, clinician API, E2E tests |
-| Julie | LLM and NLP: persona data, LoRA retrain on Vertex AI, prompt template, text-emotion module, crisis-check rules, chat UI, evaluation, load test, monitoring dashboard, demo video |
-| Samuel | Data science and CV: data pipeline and DVC, cv-service, retraining, smoothing/gating, fairness audit, W&B, clinician dashboard |
+| Mostafa | Coordinator, product and integration: api-gateway orchestration, smoothing/gating and fusion, CV model retraining (cv-train) and CV model card, frontend shell and clinician dashboard (from the Lovable prototype), docker-compose integration, milestone submissions |
+| Owen | Platform and backend: repo, service template, GCP, shared CI/CD, GPU VM deployment, llm-service, database, auth, clinician API, E2E tests; data pipeline and DVC, cv-service serving, CV evaluation; chat endpoint and webcam capture |
+| Julie | LLM and NLP: persona data, LoRA retrain on Vertex AI, prompt template, text-emotion module, crisis-check rules, chat UI, fairness audit, evaluation, load test, monitoring dashboard, demo video |
 
-The frontend is split across the team: Mostafa builds the app shell and webcam, Julie the chat screen, and Samuel the clinician dashboard.
+The team is three people since Oct 13, 2026. The frontend is split across the team: Mostafa builds the app shell and the clinician dashboard, Owen the webcam capture, and Julie the chat screen.
 
 **MLOps is shared: "you build it, you ship it."** Whoever owns a container or job also owns its MLOps work:
 - its Dockerfile and uv lockfile

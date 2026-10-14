@@ -37,7 +37,7 @@ It does not turn an unmerged pull request into merged functionality.
 
 ## D-003: Use j-hartmann/emotion-english-distilroberta-base for text emotion
 
-- **Status:** Proposed for M2-11, pending review (Samuel).
+- **Status:** Accepted (M2-11, PR #35, merged Oct 12, 2026).
 - **Decision:** The api-gateway text-emotion module (M3-05) uses
   `j-hartmann/emotion-english-distilroberta-base`. It outputs Mirror's 7
   labels directly: anger, disgust, fear, joy, neutral, sadness, surprise.
