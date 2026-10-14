@@ -46,7 +46,7 @@ Raw datasets are versioned with DVC, while the actual content is stored in the t
 Install DVC once (with its Google Cloud Storage plugin), authenticate once for the GCS backend, then retrieve the tracked dataset version:
 
 ```bash
-uv tool install "dvc[gs]"
+uv tool install --reinstall --with dvc-gs dvc
 gcloud auth application-default login
 dvc pull
 ```
