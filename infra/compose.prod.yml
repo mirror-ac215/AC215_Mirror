@@ -1,0 +1,68 @@
+# Production-only override. Keep infra/compose.yml unchanged for local laptop/CI.
+# Invoke with: docker compose --env-file infra/.env.prod -f infra/compose.yml -f infra/compose.prod.yml up -d --wait
+services:
+  db:
+    restart: unless-stopped
+
+  api-gateway:
+    ports: !reset []
+    restart: unless-stopped
+
+  llm-service:
+    build:
+      context: ../services/llm-service
+      target: real
+    gpus: all
+    restart: unless-stopped
+    environment:
+      MOCK_MODE: "0"
+      MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
+      SERVED_MODEL_NAME: ${LLM_SERVED_MODEL_NAME:-mirror-persona-v1}
+      LORA_ADAPTER_PATH: /models/adapter-v1
+      MAX_LORA_RANK: ${LLM_MAX_LORA_RANK:-32}
+      GPU_MEMORY_UTILIZATION: ${LLM_GPU_MEMORY_UTILIZATION:-0.9}
+      DTYPE: ${LLM_DTYPE:-auto}
+      MAX_MODEL_LEN: ${LLM_MAX_MODEL_LEN:-2048}
+      MAX_NUM_SEQS: ${LLM_MAX_NUM_SEQS:-1}
+    volumes:
+      - type: bind
+        source: ${LLM_ADAPTER_HOST_PATH:?set LLM_ADAPTER_HOST_PATH in infra/.env.prod}
+        target: /models/adapter-v1
+        read_only: true
+      - hf-cache:/root/.cache/huggingface
+
+  cv-service:
+    ports: !reset []
+    restart: unless-stopped
+
+  frontend:
+    ports: !reset []
+    restart: unless-stopped
+    build:
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_USE_MOCK_API: "false"
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:?set CADDY_DOMAIN in infra/.env.prod}
+      CADDY_EMAIL: ${CADDY_EMAIL:?set CADDY_EMAIL in infra/.env.prod}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  hf-cache:
+  caddy-data:
+  caddy-config:
