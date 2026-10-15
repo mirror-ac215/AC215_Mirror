@@ -22,7 +22,7 @@ flowchart LR
 | Service | Owner | Contract |
 |---|---|---|
 | api-gateway | Mostafa | [api-gateway.openapi.yaml](contracts/api-gateway.openapi.yaml) |
-| cv-service | Samuel | [cv-service.openapi.yaml](contracts/cv-service.openapi.yaml) |
+| cv-service | Owen (serving), Mostafa (model retraining) | [cv-service.openapi.yaml](contracts/cv-service.openapi.yaml) |
 | llm-service | Owen | [llm-service.openapi.yaml](contracts/llm-service.openapi.yaml) |
 | (shared data shape) | all | [context_object.schema.json](contracts/context_object.schema.json) |
 
