@@ -1,0 +1,47 @@
+﻿INPUT:  POST /sessions/{id}/messages  text='I feel overwhelmed this week'
+OUTPUT: Server-Sent Events (token events stream word by word, then done):
+event: token
+data: {"text": "Thanks "}
+
+event: token
+data: {"text": "for "}
+
+event: token
+data: {"text": "telling "}
+
+event: token
+data: {"text": "me "}
+
+event: token
+data: {"text": "that. "}
+
+event: token
+data: {"text": "What "}
+
+event: token
+data: {"text": "feels "}
+
+event: token
+data: {"text": "most "}
+
+event: token
+data: {"text": "important "}
+
+event: token
+data: {"text": "to "}
+
+event: token
+data: {"text": "talk "}
+
+event: token
+data: {"text": "about "}
+
+event: token
+data: {"text": "right "}
+
+event: token
+data: {"text": "now? "}
+
+event: done
+data: {"message_id": "eed7731c-dbfc-48fb-bd03-04294cde88c0", "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["neutral", 0.6]]}, "agreement": "n/a", "tone_mode": "coach", "note": "v0 stub: no real signals yet."}}
+

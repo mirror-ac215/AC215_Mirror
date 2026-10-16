@@ -1,0 +1,6 @@
+﻿NAME                   STATUS                   PORTS
+mirror-api-gateway-1   Up 5 minutes (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+mirror-cv-service-1    Up 5 minutes (healthy)   0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+mirror-db-1            Up 5 minutes (healthy)   5432/tcp
+mirror-frontend-1      Up 5 minutes (healthy)   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+mirror-llm-service-1   Up 5 minutes (healthy)   8002/tcp

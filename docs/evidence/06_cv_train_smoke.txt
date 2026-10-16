@@ -1,0 +1,14 @@
+﻿== cv-train smoke run on the real DVC dataset (data/processed/fer2013/v1): 1 epoch, 2 batches, no ImageNet download, CPU
+== proves the pipeline end to end: manifests -> transforms -> sampler + Mixup -> focal loss -> validation -> test -> checkpoint. Metrics after 2 batches are not meaningful.
+epoch 1/1 train_loss=1.5180 val_loss=1.2226 val_acc=0.7500 val_macro_f1=0.4286
+{
+  "model_version": "cv-vit-b16-v3",
+  "best_epoch": 1,
+  "best_val_accuracy": 0.75,
+  "test": {
+    "loss": 1.2337366938591003,
+    "accuracy": 0.6875,
+    "macro_f1": 0.4074074074074074
+  },
+  "checkpoint": "C:\\Users\\USER\\AppData\\Local\\Temp\\cv_smoke.pth"
+}

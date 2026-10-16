@@ -1,0 +1,42 @@
+[project]
+name = "mirror-cv-train"
+version = "0.1.0"
+description = "Baseline training job for Mirror's facial-expression model (ViT-B/16 on FER-2013)"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy>=2.4.0",
+    "pillow>=12.1.1",
+    "pyyaml>=6.0,<7",
+    "scikit-learn>=1.7.0",
+    "torch>=2.9.1",
+    "torchvision>=0.24.1",
+    "wandb>=0.30.0",
+]
+
+# CPU wheels for CI and the container (same as cv-eval and cv-service, #45).
+# A GPU run installs the CUDA build of torch instead; see README "Run on a GPU".
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[project.scripts]
+mirror-cv-train = "mirror_cv_train.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
