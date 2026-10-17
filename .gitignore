@@ -4,6 +4,7 @@ secrets/*
 .env
 *.env
 !.env.example
+infra/.env.prod
 *.pem
 *-key.json
 *service-account*.json
