@@ -9,6 +9,8 @@ RUN npm ci --no-audit --no-fund
 
 # Then copy the source and build for a plain Node server (Lovable defaults to Cloudflare)
 COPY . .
+ARG VITE_USE_MOCK_API=false
+ARG VITE_API_BASE_URL=http://localhost:8000
 ENV NITRO_PRESET=node-server
 RUN npm run build
 

@@ -1,0 +1,47 @@
+﻿== 1. dvc status on a fresh Windows clone
+Data and pipelines are up to date.
+
+== 2. dvc repro --force persona_clean (rebuilds the persona data from the raw CSV)
+Verifying data sources in stage: 'raw-persona.dvc'
+
+Running stage 'persona_clean':
+> uv run --project pipelines/persona-data mirror-persona-data --params pipelines/persona-data/params.yaml
+{
+  "pairs_in": 380,
+  "pairs_out": 358,
+  "removed_total": 22,
+  "removed_by_reason": {
+    "identity:clinical_role": 1,
+    "identity:my_works": 1,
+    "identity:named_identity": 3,
+    "identity:professor_claim": 1,
+    "identity_in_question:named_identity": 4,
+    "too_short": 12
+  },
+  "split_counts": {
+    "train": 286,
+    "val": 36,
+    "test": 36
+  },
+  "split_sha256": {
+    "train": "1f3173fa054d5223ef4b3dd948df97620eb4d358beb6414fea5a07ce8b0b1cb2",
+    "val": "c245198b48a273722c15aee5784944c690d4df4fe9ccaf0ebe4ac1f9d889b8e1",
+    "test": "ac45ffe0ad03c3021fcaa855827601832dfd27b231e7653950cade37520162a0"
+  },
+  "seed": 215
+}
+
+To track the changes with git, run:
+
+	git add raw-persona.dvc
+
+To enable auto staging, run:
+
+	dvc config core.autostage true
+Use `dvc push` to send your updates to remote storage.
+
+== 3. git status of dvc.lock after the rebuild (empty = output hashes identical, nothing changed)
+(empty)
+
+== 4. persona output fingerprint in dvc.lock (same as Julie's original run)
+      md5: 62c01999a3195639ded2b12a47b48269.dir

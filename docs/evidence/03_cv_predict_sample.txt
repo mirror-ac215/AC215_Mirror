@@ -1,0 +1,7 @@
+﻿INPUT:  POST /predict  one FER-2013 test image, true label: happy (PrivateTest_10077120.jpg)
+OUTPUT:
+{"face_found":false,"probs":{},"top2":[],"margin":null,"uncertain":null,"model_version":"cv-vit-b16-v3","latency_ms":8.766}
+
+INPUT:  same image enlarged to 240x240 (cv-service expects a webcam-size frame)
+OUTPUT:
+{"face_found":true,"probs":{"angry":0.03335553780198097,"disgust":0.11649119108915329,"fear":0.039474621415138245,"happy":0.6615171432495117,"neutral":0.06459600478410721,"sad":0.044075239449739456,"surprise":0.04049032926559448},"top2":[["happy",0.6615171432495117],["disgust",0.11649119108915329]],"margin":0.545026,"uncertain":false,"model_version":"cv-vit-b16-v3","latency_ms":198.174}

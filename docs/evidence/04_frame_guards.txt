@@ -1,0 +1,7 @@
+﻿Frame guards on POST /sessions/{id}/frames (expected code in brackets)
+valid JPEG, camera on        [202] -> HTTP 202
+no token                     [401] -> HTTP 401
+another patient's session    [403] -> HTTP 403
+camera consent not given     [409] -> HTTP 409
+not a JPEG (a text file)     [415] -> HTTP 415
+JPEG over 1 MB (1.5 MB)      [413] -> HTTP 413
