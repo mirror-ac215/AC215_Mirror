@@ -30,8 +30,8 @@ The local stack (frontend, api-gateway, llm-service in mock mode, db) runs with 
 configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
 
 ```bash
-git clone https://github.com/mirror-ac215/mirror.git
-cd mirror
+git clone https://github.com/mirror-ac215/AC215_Mirror.git
+cd AC215_Mirror
 cp infra/.env.example infra/.env   # fill in the two values
 docker compose -f infra/compose.yml up --build -d
 ```
