@@ -1,6 +1,6 @@
 # frontend
 
-Mirror's web app: patient sign-in, consent, chat with the expression readout, crisis prompt, and the clinician dashboard. Started from our Lovable prototype; models and the api-gateway are not wired in yet (MS2 Part B / MS3).
+Mirror's web app: patient sign-in, consent, and streamed chat with the expression readout. Started from our Lovable prototype, the MS2 Docker build calls the real API gateway for those flows. CV inference, safety handling, text emotion, fusion, real LLM orchestration, and the clinician dashboard remain later milestone work.
 
 **Tech:** React 19 + TanStack Start (server-side rendering), built with Vite and packaged by Nitro for a plain Node server. Uses **npm**, not uv (this is the one JavaScript service).
 

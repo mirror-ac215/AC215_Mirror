@@ -12,11 +12,13 @@ This document describes the **target architecture and shared contracts**. It
 does not mean that every pictured service, Compose configuration, deployment
 asset, or test is already merged into `main`. Treat the repository's default
 branch as the implementation source of truth and open pull requests as
-unmerged work. At the current foundation stage, `main` contains the contracts,
-reusable Python template, shared CI foundation, DVC metadata, artifact
-inventory, and the Compose v0 stack for the frontend, API gateway, and database.
-The remaining service implementations, later Compose additions, deployment, E2E,
-and load testing land through their own reviewed pull requests.
+unmerged work. At the MS2 foundation stage, `main` contains the contracts,
+reusable Python template, shared CI foundation, DVC metadata and reproducible
+data jobs, the CV evaluation and baseline-training jobs, and the Compose v0
+stack for the frontend, API gateway, database, and mock LLM service. The CV
+service is an explicit credentialed Compose profile. Deployment, end-to-end and
+load testing, and the MS3 orchestration features still land through their own
+reviewed pull requests.
 
 When a component PR merges, update its README, lockfile/runtime declaration,
 Docker and CI handoff, and the relevant contract or documentation in the same
