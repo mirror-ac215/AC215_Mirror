@@ -132,6 +132,8 @@ paths:
             Event types:
               crisis: data = CrisisPayload; no persona reply, the stream ends
               medical: data = MedicalPayload; a request for medical advice, no persona reply, the stream ends
+              support: data = SupportPayload; sent first when the patient asks for a person or an appointment
+                       or says they can't cope; the normal token ... done reply follows
               token:  data = TokenPayload, the next piece of reply text
               done:   data = DonePayload; the stream ends
 
@@ -261,6 +263,26 @@ components:
       required: [message]
       properties:
         message: { type: string }
+
+    SupportPayload:
+      description: >
+        The in-between note (M3-07). Book and Call appear only when the clinic has configured them;
+        Talk-now is always listed, and the frontend hides it while available is false.
+      type: object
+      required: [message, actions]
+      properties:
+        message: { type: string }
+        actions:
+          type: array
+          items:
+            type: object
+            required: [type, label]
+            properties:
+              type: { type: string, enum: [schedule, call, live] }
+              label: { type: string }
+              url: { type: string, description: "schedule only" }
+              contact: { type: string, description: "call only" }
+              available: { type: boolean, description: "live only" }
 
     DonePayload:
       type: object

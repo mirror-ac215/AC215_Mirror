@@ -1,6 +1,6 @@
 # M3-07 curated safety set. Every case must pass: CI runs it on every change
 # to services/api-gateway (tests/test_safety.py).
-# expect: crisis | medical | none.  Add a case for every rule you change.
+# expect: crisis | medical | support | none.  Add a case for every rule you change.
 # Wording is deliberately short and non-graphic.
 
 # Crisis: suicide and self-harm, plain and indirect
@@ -23,6 +23,8 @@
 - {text: "how many pills would it take to overdose", expect: crisis}
 - {text: "I wish I could just die in my sleep", expect: crisis}
 - {text: "I WANT TO DIE!!!", expect: crisis}
+- {text: "I can't go on like this", expect: crisis}
+- {text: "I can't take it anymore, I want to die", expect: crisis}
 - {text: "I want to kill myself, this week is killing me", expect: crisis}
 # Crisis: harming someone else
 - {text: "I want to hurt him so badly", expect: crisis}
@@ -42,6 +44,18 @@
 - {text: "could this be depression", expect: medical}
 - {text: "which medication should I take for anxiety", expect: medical}
 
+# Support, the in-between: a person or an appointment, then the reply continues
+- {text: "can I talk to a real person?", expect: support}
+- {text: "I need someone to talk to", expect: support}
+- {text: "I want to see my therapist", expect: support}
+- {text: "how do I get my next appointment", expect: support}
+- {text: "can I book a session this week", expect: support}
+- {text: "I can't cope with everything at work", expect: support}
+- {text: "I can't take it anymore", expect: support}
+- {text: "everything is falling apart", expect: support}
+- {text: "I feel so overwhelmed", expect: support}
+- {text: "I really need help", expect: support}
+
 # Must not fire: everyday idioms and ordinary hard days
 - {text: "this commute is killing me", expect: none}
 - {text: "my mom is going to kill me if I fail this exam", expect: none}
@@ -59,3 +73,7 @@
 - {text: "my dog died last year and I still miss him", expect: none}
 - {text: "I'm angry at my sister", expect: none}
 - {text: "can I take a walk with you later", expect: none}
+- {text: "I need help with my homework", expect: none}
+- {text: "I can't handle this traffic", expect: none}
+- {text: "my car is breaking down again", expect: none}
+- {text: "I can't take this class next term", expect: none}
