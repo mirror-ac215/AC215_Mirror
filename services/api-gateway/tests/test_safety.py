@@ -1,7 +1,7 @@
 """M3-07: deterministic safety check.
 
 The curated set in safety_cases.yaml must pass 100%. CI runs this on every
-change to services/api-gateway, so a rule edit can't silently weaken it.
+change to services/api-gateway: a rule edit can't silently weaken it.
 """
 
 import json
@@ -98,7 +98,7 @@ async def test_normal_turn_still_gets_the_persona_reply() -> None:
 @pytest.mark.anyio
 async def test_message_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> None:
     secret = "I want to kill myself because of my exam"
-    # The "mirror" logger doesn't propagate to root, so attach caplog's handler to it directly.
+    # The "mirror" logger doesn't propagate to root; attach caplog's handler to it directly.
     mirror_logger = logging.getLogger("mirror")
     mirror_logger.addHandler(caplog.handler)
     try:

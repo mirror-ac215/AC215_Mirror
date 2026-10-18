@@ -23,7 +23,7 @@ Or get the token from `POST /auth/login` with one of these emails and the demo p
 
 | Endpoint | Returns |
 |---|---|
-| `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200 so Docker doesn't restart the gateway when a dependency is down |
+| `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200, which keeps Docker from restarting the gateway when a dependency is down |
 | `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
 | `POST /sessions` | 201, in-memory session (database: MS3) |
 | `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
@@ -49,19 +49,129 @@ Defaults use docker-compose service names. No secrets needed in v0. All variable
 
 ## Safety check (M3-07)
 
-`app/safety.py` runs on every patient message **before** text emotion, fusion or the LLM. It is plain regular expressions, not a model, so the same message always gets the same answer and every rule can be reviewed. The face signal is never an input.
+Every patient message goes through `app/safety.py` **first**, before text emotion, fusion or the LLM. If it fires, the turn stops there and the persona never replies.
 
-| Outcome | What the patient gets | Review flag |
+It is plain rules (regular expressions), not a model, on purpose:
+
+- the same message always gets the same answer, which makes it exactly testable;
+- every rule can be read and reviewed by the team;
+- style tuning of the LLM (our LoRA) can weaken a model's own refusals; safety must therefore not depend on the LLM.
+
+The face signal is **never** an input: a sad face must not trigger a crisis screen, and a neutral face must not hide one.
+
+```mermaid
+flowchart LR
+    M[Patient message] --> S{safety.check}
+    S -- crisis --> C[crisis event: 988 + 911<br/>review flag for the clinician]
+    S -- medical --> D[medical event:<br/>ask your clinician or pharmacist]
+    S -- no hit --> N[text emotion -> fusion -> LLM -> reply]
+```
+
+### What the patient gets
+
+| Outcome | Fires on | Stream | Review flag |
+|---|---|---|---|
+| `crisis` | suicide, self-harm, harming someone else | one `crisis` event, then the stream ends | yes |
+| `medical` | doses, mixing or stopping medication, asking for a diagnosis | one `medical` event, then the stream ends | no |
+| no hit | everything else | `token` events, then `done` (normal reply) | no |
+
+Example crisis turn (shape from `docs/contracts/api-gateway.openapi.yaml`, `CrisisPayload`):
+
+```text
+event: crisis
+data: {"message": "It sounds like you're carrying something really painful right now...",
+       "resources": [{"name": "988 Suicide & Crisis Lifeline", "contact": "call or text 988"},
+                     {"name": "Emergency services", "contact": "call 911 if you are in immediate danger"}],
+       "review_flag_created": true}
+```
+
+Example medical turn (`MedicalPayload`, added in M3-07):
+
+```text
+event: medical
+data: {"message": "That's a question about medicine or a diagnosis, and I can't give medical advice. ..."}
+```
+
+### How a message is checked
+
+1. **Normalise:** lower-case, curly apostrophes become straight ones, punctuation becomes spaces, repeated spaces collapse. This way, `I’M GOING TO END MY LIFE!!!` and `i'm going to end my life` are checked the same way.
+2. **Crisis rules first.** Crisis always wins: "how many pills would it take to overdose" is crisis, not medical.
+3. **Idiom exceptions.** Some rules have harmless look-alikes ("this commute is killing me", "my mom is going to kill me", "I hurt myself at the gym"). Before a rule runs, *only those phrases* are blanked out of the text; the rest of the message is still checked. For example, "I want to kill myself, this week is killing me" still fires.
+4. **Medical rules** run only if no crisis rule fired.
+5. The first matching rule's id is returned (for example `crisis / not-alive`).
+
+### The rules
+
+| Kind | Rule id | Catches (examples) |
 |---|---|---|
-| `crisis` (suicide, self-harm, harming someone else) | one `crisis` event with 988 + 911, no persona reply | yes |
-| `medical` (doses, mixing/stopping medication, diagnosis) | one `medical` event pointing to their clinician or pharmacist, no persona reply | no |
-| no hit | the normal reply | no |
+| crisis | `suicide-word` | "suicide", "suicidal thoughts" |
+| crisis | `kill-self` | "kill myself" |
+| crisis | `end-life` | "end my life", "take my own life" |
+| crisis | `want-die` | "I want to die", "I wish I could just die" |
+| crisis | `better-dead` | "better off dead", "better off without me" |
+| crisis | `not-alive` | "I don't want to be alive / wake up" |
+| crisis | `no-reason-live` | "no reason to live", "nothing left to live for" |
+| crisis | `not-here` | "I won't be around much longer" |
+| crisis | `self-harm` | "cutting myself", "hurt myself on purpose", "self-harm" |
+| crisis | `overdose` | "overdose", "OD on" |
+| crisis | `goodbye-note` | "goodbye letter", "goodbye note" |
+| crisis | `harm-other` | "kill my neighbour", "stabbing someone" |
+| crisis | `hurt-other` | "I want to hurt him" |
+| medical | `dose` | "how many mg of melatonin", "max dose of tylenol" |
+| medical | `mix-meds` | "can I take ibuprofen with my zoloft" |
+| medical | `stop-meds` | "should I stop taking my meds", "double my dose" |
+| medical | `diagnose` | "do I have ADHD?", "am I bipolar" |
+| medical | `prescribe` | "which medication should I take" |
 
-- Crisis is checked first ("how many pills to overdose" is crisis, not medical).
-- Rules lean towards firing. `CRISIS_EXCEPTIONS` blanks out known idioms ("this commute is killing me") for one rule only; the rest of the message is still checked.
-- Review flags are kept in memory (`chat.review_flags`) until M3-10 writes them to the `review_flags` table and sets `messages.safety_hit`.
-- Logs carry the rule id, never the message text.
-- **Changing a rule:** edit the lists in `app/safety.py`, add a case to `tests/safety_cases.yaml`, get it reviewed. `tests/test_safety.py` requires every curated case to pass and every rule to be covered by a case.
+The exact patterns are in `CRISIS_RULES`, `CRISIS_EXCEPTIONS` and `MEDICAL_RULES` at the top of `app/safety.py`.
+
+### Review flags and logs
+
+- On a crisis hit the gateway records a review flag: patient, session, message id, rule id and time. **It never copies the message text.** Flags live in memory (`chat.review_flags`) for now; M3-10 writes them to the `review_flags` table and sets `messages.safety_hit`, and the clinician dashboard (M4-01) shows them.
+- There are no real-time alerts: a flag is for the clinician's next review, not an emergency call.
+- Logs say `safety_hit kind=crisis rule=not-alive`, never the message.
+
+### Try it
+
+Run the gateway (see *Run locally*), then:
+
+```bash
+SID=$(curl -s -X POST localhost:8000/sessions -H "Authorization: Bearer dev-patient-token" \
+  -H "Content-Type: application/json" -d '{"camera_consent": false}' | python -c "import sys, json; print(json.load(sys.stdin)['session_id'])")
+
+curl -N -X POST localhost:8000/sessions/$SID/messages -H "Authorization: Bearer dev-patient-token" \
+  -H "Content-Type: application/json" -d '{"text": "can I take ibuprofen with my zoloft?"}'
+```
+
+You should see a single `event: medical`. Try "I had a rough day" for a normal reply.
+
+### Tests
+
+`tests/test_safety.py` runs in CI on every change to `services/api-gateway`:
+
+- every case in `tests/safety_cases.yaml` must pass: 50 curated messages (23 crisis, 11 medical, 16 that must **not** fire, such as idioms and ordinary hard days);
+- every rule must be matched by at least one case;
+- crisis, medical and normal turns go end to end through `POST /sessions/{id}/messages`;
+- the message text never reaches the logs.
+
+```bash
+uv run pytest tests/test_safety.py -q
+```
+
+### Changing a rule
+
+1. Add the message that was missed (or wrongly caught) to `tests/safety_cases.yaml` and run the tests: it should fail.
+2. Edit the pattern in `app/safety.py` (or add an idiom to `CRISIS_EXCEPTIONS`).
+3. Run the tests until everything passes, then open a PR. Safety rules always need a reviewer to read the cases, not just the code.
+
+When in doubt, let a crisis rule fire: showing 988 to someone who didn't need it costs a moment; missing someone in crisis costs much more.
+
+### Limits
+
+- English only, and only what the rules spell out: paraphrases, heavy misspellings or coded language can get through. The persona prompt (M3-08) and the evaluation's harmful-completion check (M4-09) are the next layers.
+- Each message is checked on its own; the check does not look at earlier messages in the session.
+- It is a safety net for a course prototype, not a clinical risk assessment.
+- The frontend does not show the `medical` event yet; that comes with the chat UI (M3-12).
 
 ## Checks
 
@@ -85,4 +195,4 @@ Check it from a second terminal:
 curl -f http://localhost:8000/health
 ```
 
-Run on its own, `/health` reports `degraded` because cv-service, llm-service and db aren't running. That's expected: the status code is still 200, so the container stays healthy. Inside docker-compose (M2-03) the dependencies resolve by service name.
+Run on its own, `/health` reports `degraded` because cv-service, llm-service and db aren't running. That's expected: the status code is still 200 and the container stays healthy. Inside docker-compose (M2-03) the dependencies resolve by service name.

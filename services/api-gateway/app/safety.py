@@ -1,7 +1,7 @@
 """Deterministic safety check (M3-07).
 
 Runs on the patient's text BEFORE text emotion, fusion or the LLM. It is plain
-rules (regular expressions), not a model, so the same message always gives the
+rules (regular expressions), not a model: the same message always gives the
 same answer and every rule can be reviewed line by line. The face signal is
 never an input.
 
@@ -13,7 +13,7 @@ Two outcomes besides "no hit":
            a diagnosis). The gateway withholds the persona reply and streams a
            `medical` event pointing to the clinician or pharmacist. No flag.
 
-Crisis is checked first, so "how many pills would it take to overdose" is
+Crisis is checked first: "how many pills would it take to overdose" is
 crisis, not medical. Rules lean towards firing: a false alarm shows 988 to
 someone who didn't need it; a miss leaves someone in crisis with a chatbot.
 
@@ -115,7 +115,7 @@ class SafetyResult:
 
 
 def normalise(text: str) -> str:
-    """Lower-case, straight apostrophes, single spaces: so 'I’m' and 'I'm' match the same rule."""
+    """Lower-case, straight apostrophes, single spaces: 'I’m' and 'I'm' then match the same rule."""
     text = unicodedata.normalize("NFKC", text).lower()
     text = text.replace("’", "'").replace("‘", "'")
     text = re.sub(r"[^\w'\s-]", " ", text)  # punctuation becomes a space
@@ -124,7 +124,7 @@ def normalise(text: str) -> str:
 
 def _crisis_rule(text: str) -> str | None:
     for rule_id, pattern in _COMPILED_CRISIS:
-        # Blank out this rule's harmless phrases first, then look again. So in
+        # Blank out this rule's harmless phrases first, then look again. In
         # "I want to kill myself, this is killing me" only "is killing me" is
         # removed and "kill myself" still fires.
         masked = text
