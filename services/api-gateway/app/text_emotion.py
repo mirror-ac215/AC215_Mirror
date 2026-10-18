@@ -88,7 +88,7 @@ def load_hf_classifier(model_name: str, revision: str, max_tokens: int) -> Class
     Imported here, not at the top, so torch/transformers are only loaded
     when the model is actually needed.
     """
-    from transformers import pipeline  # noqa: PLC0415 (lazy import on purpose)
+    from transformers import pipeline
 
     clf = pipeline(
         "text-classification",
@@ -180,7 +180,7 @@ def get_text_emotion() -> TextEmotion:
     """One shared instance for the whole gateway, configured from env vars."""
     global _instance
     if _instance is None:
-        from app.config import Settings  # noqa: PLC0415 (avoid import cycle)
+        from app.config import Settings
 
         settings = Settings()
         _instance = TextEmotion(
