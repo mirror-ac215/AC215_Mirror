@@ -27,7 +27,7 @@ Or get the token from `POST /auth/login` with one of these emails and the demo p
 | `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
 | `POST /sessions` | 201, in-memory session (database: MS3) |
 | `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
-| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done` |
+| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done`; or a single `crisis` / `medical` event when the safety check fires (M3-07) |
 
 Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session, 404 unknown session, 409 no camera consent, 413 frame too large, 415 not a JPEG, 422 malformed request.
 
@@ -46,6 +46,22 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
 
 Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
+
+## Safety check (M3-07)
+
+`app/safety.py` runs on every patient message **before** text emotion, fusion or the LLM. It is plain regular expressions, not a model, so the same message always gets the same answer and every rule can be reviewed. The face signal is never an input.
+
+| Outcome | What the patient gets | Review flag |
+|---|---|---|
+| `crisis` (suicide, self-harm, harming someone else) | one `crisis` event with 988 + 911, no persona reply | yes |
+| `medical` (doses, mixing/stopping medication, diagnosis) | one `medical` event pointing to their clinician or pharmacist, no persona reply | no |
+| no hit | the normal reply | no |
+
+- Crisis is checked first ("how many pills to overdose" is crisis, not medical).
+- Rules lean towards firing. `CRISIS_EXCEPTIONS` blanks out known idioms ("this commute is killing me") for one rule only; the rest of the message is still checked.
+- Review flags are kept in memory (`chat.review_flags`) until M3-10 writes them to the `review_flags` table and sets `messages.safety_hit`.
+- Logs carry the rule id, never the message text.
+- **Changing a rule:** edit the lists in `app/safety.py`, add a case to `tests/safety_cases.yaml`, get it reviewed. `tests/test_safety.py` requires every curated case to pass and every rule to be covered by a case.
 
 ## Checks
 
