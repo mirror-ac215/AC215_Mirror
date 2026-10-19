@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     mirror_demo_password: str = "mirror-demo"
 
     # Text-emotion module (M3-05). Model chosen in M2-11 (D-003 in docs/decisions.md).
-    # Pin TEXT_EMOTION_REVISION to a commit hash on the VM so the model can't change under us.
+    # Pin TEXT_EMOTION_REVISION to a commit hash on the VM; the model then can't change under us.
     text_emotion_model: str = "j-hartmann/emotion-english-distilroberta-base"
     text_emotion_revision: str = "main"
     # Longer messages are cut before scoring (the API allows up to 4000 characters).

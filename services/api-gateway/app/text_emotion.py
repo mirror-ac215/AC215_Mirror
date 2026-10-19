@@ -7,14 +7,14 @@ probabilities, in the shape the context object expects for `text.top2`:
 
 The model is the one chosen in M2-11 (decision D-003 in docs/decisions.md):
 j-hartmann/emotion-english-distilroberta-base. It already outputs Mirror's
-7 labels, the same 7 the camera model uses, so face and text can be compared.
+7 labels, the same 7 the camera model uses: face and text can be compared.
 
 Design notes (useful for the oral check):
 - The model is loaded lazily, on the first message or on warm_up(), not at
-  import time. Importing this file costs nothing, so tests and the rest of
+  import time. Importing this file costs nothing: tests and the rest of
   the gateway don't need torch or a model download.
-- The classifier is injectable. Unit tests pass a small fake function, so
-  they run in milliseconds in CI with no network.
+- The classifier is injectable. Unit tests pass a small fake function and
+  run in milliseconds in CI with no network.
 - The crisis check (M3-07) runs before this module, and never depends on it:
   this module only describes tone, it never decides safety.
 - We never log the message text (team rule: no real user text in logs),
@@ -68,7 +68,7 @@ class TextEmotionResult:
 def top2_from_scores(scores: dict[str, float]) -> list[list[str | float]]:
     """Pick the two highest scores, rounded to 3 decimals, most likely first.
 
-    Raises ValueError if the model returned a label Mirror doesn't know, so a
+    Raises ValueError if the model returned a label Mirror doesn't know: a
     wrong or swapped model fails loudly instead of sending odd labels downstream.
     """
     unknown = set(scores) - set(LABELS)
@@ -77,7 +77,7 @@ def top2_from_scores(scores: dict[str, float]) -> list[list[str | float]]:
     if not scores:
         raise ValueError("The model returned no scores")
 
-    # Sort by score (highest first); ties broken by label name so results are stable.
+    # Sort by score (highest first); ties broken by label name for stable results.
     ranked = sorted(scores.items(), key=lambda item: (-item[1], item[0]))
     return [[label, round(min(max(score, 0.0), 1.0), 3)] for label, score in ranked[:2]]
 
@@ -85,8 +85,8 @@ def top2_from_scores(scores: dict[str, float]) -> list[list[str | float]]:
 def load_hf_classifier(model_name: str, revision: str, max_tokens: int) -> Classifier:
     """Build the real classifier from the Hugging Face pipeline (CPU).
 
-    Imported here, not at the top, so torch/transformers are only loaded
-    when the model is actually needed.
+    Imported here, not at the top: torch/transformers load only when the
+    model is actually needed.
     """
     from transformers import pipeline
 
@@ -146,7 +146,7 @@ class TextEmotion:
         return self._classifier
 
     def warm_up(self) -> None:
-        """Load the model and run it once, so the first patient message isn't slow."""
+        """Load the model and run it once; the first patient message is then fast."""
         self.analyse("warm-up message")
 
     def analyse(self, message: str) -> TextEmotionResult:

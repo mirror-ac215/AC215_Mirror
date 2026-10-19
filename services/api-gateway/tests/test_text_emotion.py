@@ -1,11 +1,12 @@
 """Unit tests for the text-emotion module (M3-05).
 
-These use a fake classifier, so they need no model download and run in CI in
+These use a fake classifier: they need no model download and run in CI in
 milliseconds. The real-model latency check is in test_text_emotion_model.py
 and only runs when RUN_MODEL_TESTS=1.
 """
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -125,8 +126,15 @@ def test_model_is_loaded_once(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_message_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> None:
     secret = "my private message about my sister"
     module = TextEmotion(classifier=lambda text: fake_scores(sadness=0.9))
-    with caplog.at_level("INFO", logger="mirror"):
+    # The "mirror" logger doesn't propagate to root; attach caplog's handler to it directly.
+    mirror_logger = logging.getLogger("mirror")
+    mirror_logger.setLevel("INFO")
+    mirror_logger.addHandler(caplog.handler)
+    try:
         module.analyse(secret)
+    finally:
+        mirror_logger.removeHandler(caplog.handler)
+    assert any(r.getMessage() == "text_emotion" for r in caplog.records)  # the log was seen
     for record in caplog.records:
         assert secret not in record.getMessage()
         assert secret not in str(record.__dict__)

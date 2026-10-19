@@ -63,14 +63,14 @@ result.as_context()   # {"top2": [["sadness", 0.71], ["fear", 0.12]]}
 result.latency_ms     # time spent scoring this message
 ```
 
-- **Model:** `j-hartmann/emotion-english-distilroberta-base`, chosen in M2-11 (D-003 in `docs/decisions.md`). Its 7 labels are the same as the camera model's, so face and text can be compared in fusion (M3-06).
-- **CPU only.** torch comes from the CPU wheel index (as in cv-service), so the image doesn't carry CUDA.
-- **Loaded lazily:** on the first message, or call `get_text_emotion().warm_up()` at startup so the first patient message isn't slow. The model (~330 MB) downloads from Hugging Face on first load; mount a volume on `HF_HOME` to keep it between restarts.
+- **Model:** `j-hartmann/emotion-english-distilroberta-base`, chosen in M2-11 (D-003 in `docs/decisions.md`). Its 7 labels are the same as the camera model's: face and text can be compared in fusion (M3-06).
+- **CPU only.** torch comes from the CPU wheel index (as in cv-service); the image doesn't carry CUDA.
+- **Loaded lazily:** on the first message, or call `get_text_emotion().warm_up()` at startup to keep the first patient message fast. The model (~330 MB) downloads from Hugging Face on first load; mount a volume on `HF_HOME` to keep it between restarts.
 - **Failure:** if the model can't load or run, `analyse()` raises `TextEmotionUnavailable`. The chat endpoint (M3-10) should then carry on without a text signal (fallback paths: M4-04).
 - **Safety:** this module only describes tone. The crisis check (M3-07) runs before it and never depends on it.
 - **Privacy:** message text is never logged, only the top label and latency.
 
-Tests: `tests/test_text_emotion.py` uses a fake classifier, so it runs in CI with no download. The real-model latency check (target: p95 < 100 ms per message on CPU) runs only when asked:
+Tests: `tests/test_text_emotion.py` uses a fake classifier and runs in CI with no download. The real-model latency check (target: p95 < 100 ms per message on CPU) runs only when asked:
 
 ```bash
 RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s
