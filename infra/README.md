@@ -39,7 +39,8 @@ docker compose -f infra/compose.yml up --build -d
 docker compose -f infra/compose.yml ps
 ```
 
-All three services should show `(healthy)` after about a minute. Then:
+All four default services (`db`, `llm-service`, `api-gateway`, and `frontend`)
+should show `(healthy)` after about a minute. Then:
 
 - App: http://localhost:3000
 - Gateway API docs: http://localhost:8000/docs
