@@ -113,6 +113,7 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 - Flags are kept in memory for now; M3-10 saves them to the database.
 - English only.
 - The chat screen doesn't show the medical and support events yet (M3-12).
+- Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
 ## Checks
 
