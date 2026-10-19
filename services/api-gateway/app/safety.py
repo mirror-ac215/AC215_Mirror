@@ -199,7 +199,7 @@ def support_payload(booking_url: str, phone: str, live_available: bool) -> dict:
     """
     actions: list[dict] = []
     if booking_url:
-        actions.append({"type": "schedule", "label": "Book an appointment", "url": booking_url})
+        actions.append({"type": "schedule", "label": "Schedule an appointment", "url": booking_url})
     if phone:
         actions.append({"type": "call", "label": "Call the office", "contact": phone})
     actions.append({"type": "live", "label": "Talk to someone now", "available": live_available})
