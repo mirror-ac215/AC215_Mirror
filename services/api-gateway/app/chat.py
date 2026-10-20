@@ -6,6 +6,7 @@ safety check, fusion and LLM call arrive in MS3.
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Annotated
@@ -14,8 +15,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from app import safety
 from app.auth import DemoUser, demo_login, require_patient
 from app.config import Settings
+from app.logging_config import request_id_context
 from app.schemas import (
     FrameAck,
     LoginRequest,
@@ -37,6 +40,14 @@ sessions: dict[str, Session] = {}
 # Who created each session: session_id -> user_id. Kept out of Session so the
 # response shape still matches the contract.
 session_owners: dict[str, str] = {}
+
+# Review flags for the patient's clinician: "urgent" from the crisis rules,
+# "routine" from the support rules.
+# In memory for now; M3-10 writes them to the review_flags table instead
+# (and sets messages.safety_hit).
+review_flags: list[dict] = []
+
+logger = logging.getLogger("mirror")
 
 STUB_REPLY = "Thanks for telling me that. What feels most important to talk about right now?"
 
@@ -121,7 +132,7 @@ async def receive_frame(
     response_class=StreamingResponse,
     responses={
         200: {
-            "description": "Server-sent Events: token events, then done",
+            "description": "Server-sent Events: [support], token events, done; or one crisis or medical event",
             "content": {"text/event-stream": {}},
         },
         401: {"description": "Not logged in"},
@@ -133,8 +144,46 @@ def send_message(
     session_id: str, body: MessageRequest, user: Annotated[DemoUser, Depends(require_patient)]
 ) -> StreamingResponse:
     get_owned_session(session_id, user)
+    message_id = str(uuid4())
+
+    # Safety check first (M3-07), before text emotion, fusion or the LLM.
+    result = safety.check(body.text)
+    if result.hit:
+        # Log the rule, never the text.
+        logger.info("safety_hit kind=%s rule=%s", result.kind, result.rule_id)
+    if result.kind in ("crisis", "support"):
+        review_flags.append(
+            {
+                "patient_id": user.user_id,
+                "session_id": session_id,
+                "message_id": message_id,
+                "rule_id": result.rule_id,
+                "urgency": "urgent" if result.kind == "crisis" else "routine",
+                "request_id": request_id_context.get(),
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
+    if result.kind == "crisis":
+        payload = safety.crisis_payload(review_flag_created=True)
+        return StreamingResponse(
+            iter([sse("crisis", payload)]), media_type="text/event-stream"
+        )
+    if result.kind == "medical":
+        return StreamingResponse(
+            iter([sse("medical", safety.medical_payload())]), media_type="text/event-stream"
+        )
 
     async def events() -> AsyncIterator[str]:
+        if result.kind == "support":
+            # The in-between: offer a person first, then keep the conversation going.
+            yield sse(
+                "support",
+                safety.support_payload(
+                    settings.clinic_booking_url,
+                    settings.clinic_phone,
+                    settings.live_support_available,
+                ),
+            )
         for word in STUB_REPLY.split(" "):
             yield sse("token", {"text": word + " "})
             await asyncio.sleep(0.03)
@@ -145,6 +194,6 @@ def send_message(
             "tone_mode": "coach",
             "note": "v0 stub: no real signals yet.",
         }
-        yield sse("done", {"message_id": str(uuid4()), "context": context})
+        yield sse("done", {"message_id": message_id, "context": context})
 
     return StreamingResponse(events(), media_type="text/event-stream")

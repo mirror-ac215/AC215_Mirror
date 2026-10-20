@@ -131,6 +131,9 @@ paths:
             Server-Sent Events. Every `data:` line is JSON (so newlines in the reply are safe).
             Event types:
               crisis: data = CrisisPayload; no persona reply, the stream ends
+              medical: data = MedicalPayload; a request for medical advice, no persona reply, the stream ends
+              support: data = SupportPayload; sent first when the patient asks for a person or an appointment
+                       or says they can't cope; the normal token ... done reply follows
               token:  data = TokenPayload, the next piece of reply text
               done:   data = DonePayload; the stream ends
 
@@ -147,6 +150,10 @@ paths:
             Example, crisis turn:
               event: crisis
               data: {"message": "...", "resources": [{"name": "988 Suicide & Crisis Lifeline", "contact": "call or text 988"}], "review_flag_created": true}
+
+            Example, medical-advice turn (M3-07):
+              event: medical
+              data: {"message": "... I can't give medical advice. Your clinician, doctor or pharmacist is the right person to ask ..."}
           content:
             text/event-stream:
               schema: { type: string }
@@ -249,6 +256,33 @@ components:
               name: { type: string, example: 988 Suicide & Crisis Lifeline }
               contact: { type: string, example: call or text 988 }
         review_flag_created: { type: boolean }
+
+    MedicalPayload:
+      description: A medical-advice request (doses, mixing or stopping medication, a diagnosis). No review flag.
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+
+    SupportPayload:
+      description: >
+        The in-between note (M3-07). Book and Call appear only when the clinic has configured them;
+        Talk-now is always listed, and the frontend hides it while available is false.
+      type: object
+      required: [message, actions]
+      properties:
+        message: { type: string }
+        actions:
+          type: array
+          items:
+            type: object
+            required: [type, label]
+            properties:
+              type: { type: string, enum: [schedule, call, live] }
+              label: { type: string }
+              url: { type: string, description: "schedule only" }
+              contact: { type: string, description: "call only" }
+              available: { type: boolean, description: "live only" }
 
     DonePayload:
       type: object
