@@ -11,6 +11,7 @@ import yaml
 from mirror_cv_train.data import (
     MixupCutmixCollator,
     build_eval_transform,
+    build_mixed_sampler,
     build_train_transform,
     build_weighted_sampler,
     compute_class_weights,
@@ -70,3 +71,19 @@ def test_vit_head_matches_what_cv_service_loads() -> None:
     model = build_vit(num_classes=7, head_dropout=0.5, pretrained=False)
     assert isinstance(model.heads.head[0], torch.nn.Dropout)
     assert model.heads.head[1].in_features == 768 and model.heads.head[1].out_features == 7
+
+
+def test_mixed_sampler_gives_each_source_its_share() -> None:
+    big = np.zeros(900, dtype=np.int64)       # source A: 900 images
+    small = np.zeros(100, dtype=np.int64)     # source B: 100 images
+    sampler = build_mixed_sampler([big, small], [0.5, 0.5], num_classes=7, strength=0.5,
+                                  generator=torch.Generator().manual_seed(0))
+    drawn = np.array(list(sampler))
+    assert len(drawn) == 1000
+    assert 0.45 < (drawn >= 900).mean() < 0.55   # half the draws from the small source
+
+
+def test_mixed_sampler_with_share_zero_never_draws_that_source() -> None:
+    sampler = build_mixed_sampler([np.zeros(50, dtype=np.int64), np.zeros(50, dtype=np.int64)],
+                                  [1.0, 0.0], num_classes=7, strength=0.5)
+    assert max(sampler) < 50

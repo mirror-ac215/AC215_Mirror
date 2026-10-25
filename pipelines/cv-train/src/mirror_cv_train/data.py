@@ -35,10 +35,11 @@ class ManifestDataset(Dataset):
     """One split of the versioned dataset. Returns (image tensor, class index)."""
 
     def __init__(self, data_dir: Path, split: str, class_order: Sequence[str],
-                 transform: Callable[[Image.Image], torch.Tensor]) -> None:
+                 transform: Callable[[Image.Image], torch.Tensor], every_nth: int = 1) -> None:
         manifest = data_dir / "manifests" / f"{split}.csv"
         with manifest.open(encoding="utf-8", newline="") as handle:
-            rows = list(csv.DictReader(handle))
+            # Manifests are sorted by label then file, so [::n] keeps every n-th frame of each video.
+            rows = list(csv.DictReader(handle))[::every_nth]
         index = {name: i for i, name in enumerate(class_order)}
         unknown = {row["label"] for row in rows} - set(index)
         if not rows or unknown:
@@ -97,6 +98,21 @@ def build_weighted_sampler(labels: np.ndarray, num_classes: int, strength: float
     sample_weights = ((1.0 / counts) ** strength)[labels]
     return WeightedRandomSampler(torch.as_tensor(sample_weights, dtype=torch.double),
                                  num_samples=len(labels), replacement=True, generator=generator)
+
+
+def build_mixed_sampler(label_sets: Sequence[np.ndarray], shares: Sequence[float], num_classes: int,
+                        strength: float, generator: torch.Generator | None = None) -> WeightedRandomSampler:
+    """Several datasets in one epoch: each source gets its share of the draws, and inside a
+    source the classes are rebalanced exactly as build_weighted_sampler does."""
+    weights = []
+    for labels, share in zip(label_sets, shares, strict=True):
+        counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+        counts = np.where(counts == 0, 1.0, counts)
+        per_sample = ((1.0 / counts) ** strength)[labels]
+        weights.append(share * per_sample / per_sample.sum())
+    return WeightedRandomSampler(torch.as_tensor(np.concatenate(weights), dtype=torch.double),
+                                 num_samples=sum(len(labels) for labels in label_sets),
+                                 replacement=True, generator=generator)
 
 
 def compute_class_weights(labels: np.ndarray, num_classes: int, scheme: str = "sqrt",
