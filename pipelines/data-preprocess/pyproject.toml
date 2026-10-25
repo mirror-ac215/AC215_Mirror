@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 mirror-preprocess = "mirror_data_preprocess.cli:main"
+mirror-prepare-affwild2 = "mirror_data_preprocess.affwild2:main"
 
 [dependency-groups]
 dev = [

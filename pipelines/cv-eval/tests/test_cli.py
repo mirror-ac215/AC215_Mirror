@@ -54,3 +54,23 @@ def test_load_model_accepts_a_wrapped_state_dict(tmp_path) -> None:
     assert loaded.state_dict().keys() == expected.state_dict().keys()
     for key, value in expected.state_dict().items():
         assert torch.equal(loaded.state_dict()[key], value)
+
+
+def test_parser_defaults_keep_the_fer2013_guard() -> None:
+    args = parser().parse_args(
+        ["--data-dir", "data", "--checkpoint", "c.pth", "--output", "r.json", "--code-revision", "abc"]
+    )
+
+    assert args.dataset_version == "fer2013/v1"
+    assert args.threshold == 0.64
+    assert args.report_only is False
+    assert args.device == "auto"
+
+
+def test_auto_device_uses_the_gpu_only_when_available(monkeypatch) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert cli.pick_device("auto").type == "cpu"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    assert cli.pick_device("auto").type == "cuda"
+    assert cli.pick_device("cpu").type == "cpu"
