@@ -24,7 +24,7 @@ The same inherited checkpoint (`cv-vit-b16-v3`) and the same evaluator, run with
       --checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/m3-18-affwild2.json \
       --code-revision "$(git rev-parse HEAD)" --dataset-version affwild2/v1-test --report-only
 
-Add `--device cuda` on a GPU machine with the CUDA build of torch installed (results match the CPU; this run took 88 s on an RTX 4070 Ti).
+Add `--device cuda` on a GPU machine with the CUDA build of torch installed (verified identical to the CPU run, same confusion matrix: 88 s on an RTX 4070 Ti vs ~9 min on CPU).
 
 ## Local run
 
