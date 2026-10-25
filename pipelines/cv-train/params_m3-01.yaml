@@ -3,6 +3,7 @@
 # "Changed for M3-01" is the M2-17 baseline recipe (params.yaml).
 # Run A (video only): --set data.sources.fer2013.share=0
 # Run C (FER+ soft labels): --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true
+# Run C2 (C + cosine schedule, 8 epochs): C's two --set plus --set scheduler.name=cosine --set training.epochs=8
 
 model:
   name: cv-vit-b16
@@ -59,8 +60,11 @@ optimizer:
   weight_decay: 1.0e-4
 
 scheduler:
-  factor: 0.5
-  patience: 2
+  name: plateau                    # Run C2: cosine (smooth decay, every batch)
+  factor: 0.5                      # plateau: halve the lr when val loss stalls...
+  patience: 2                      # ...for more than 2 epochs
+  warmup_fraction: 0.05            # cosine: first 5 % of batches ramp up to optimizer.lr
+  min_lr_ratio: 0.01               # cosine: end at 1 % of optimizer.lr
 
 training:
   epochs: 6

@@ -75,13 +75,15 @@ def test_two_sources_start_from_a_checkpoint_and_record_it(tmp_path: Path) -> No
 
     assert main(["--params", str(tmp_path / "params.yaml"), "--data-root", str(root), "--output", str(out),
                  "--epochs", "1", "--max-batches", "1", "--init-checkpoint", str(start),
-                 "--set", "data.sources.fer2013.share=0"]) == 0
+                 "--set", "data.sources.fer2013.share=0", "--set", "scheduler.name=cosine"]) == 0
 
     checkpoint = torch.load(out, map_location="cpu", weights_only=False)
     assert checkpoint["model_name"] == "cv-vit-b16-v4"
     assert checkpoint["params"]["model"]["init_checkpoint"] == "start.pth"
     assert checkpoint["params"]["data"]["sources"]["fer2013"]["share"] == 0
     assert "monitor_fer2013_macro_f1" in checkpoint["history"][0]
+    assert checkpoint["params"]["scheduler"]["name"] == "cosine"
+    assert checkpoint["history"][0]["lr"] > 0
 
 
 def test_a_misspelt_override_is_rejected(tmp_path: Path) -> None:

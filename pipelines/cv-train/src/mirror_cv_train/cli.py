@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 from collections.abc import Sequence
 from pathlib import Path
@@ -77,6 +78,27 @@ def resolve_sources(params: dict, args: argparse.Namespace) -> tuple[dict[str, P
     return dirs, sources, params["data"]["val_source"]
 
 
+def build_scheduler(optimizer: torch.optim.Optimizer, settings: dict, total_steps: int) -> object:
+    """plateau (baseline): halve the lr when val loss stalls. cosine: warm up over the first
+    warmup_fraction of all batches, then slide smoothly down to min_lr_ratio x the lr."""
+    name = settings.get("name", "plateau")
+    if name == "plateau":
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=settings["factor"],
+                                                          patience=settings["patience"])
+    if name != "cosine":
+        raise ValueError(f"unknown scheduler: {name}")
+    warmup = max(1, int(settings["warmup_fraction"] * total_steps))
+    floor = float(settings["min_lr_ratio"])
+
+    def factor(step: int) -> float:
+        if step < warmup:
+            return (step + 1) / warmup
+        progress = min(1.0, (step - warmup) / max(1, total_steps - warmup))
+        return floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * progress))
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, factor)
+
+
 def run(args: argparse.Namespace) -> dict[str, object]:
     params = yaml.safe_load(args.params.read_text(encoding="utf-8"))
     for assignment in args.set:
@@ -126,10 +148,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     criterion = FocalLoss(params["loss"]["gamma"], alpha.to(device), params["loss"]["label_smoothing"])
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(params["optimizer"]["lr"]),
                                   weight_decay=float(params["optimizer"]["weight_decay"]))
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min",
-                                                           factor=params["scheduler"]["factor"],
-                                                           patience=params["scheduler"]["patience"])
-
+    steps_per_epoch = min(len(train_loader), args.max_batches or len(train_loader))
+    scheduler = build_scheduler(optimizer, params["scheduler"], steps_per_epoch * int(params["training"]["epochs"]))
     log = None
     if args.wandb_project:
         import wandb

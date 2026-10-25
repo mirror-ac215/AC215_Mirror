@@ -87,3 +87,28 @@ def test_mixed_sampler_with_share_zero_never_draws_that_source() -> None:
     sampler = build_mixed_sampler([np.zeros(50, dtype=np.int64), np.zeros(50, dtype=np.int64)],
                                   [1.0, 0.0], num_classes=7, strength=0.5)
     assert max(sampler) < 50
+
+
+def test_cosine_schedule_warms_up_then_decays_to_the_floor() -> None:
+    from mirror_cv_train.cli import build_scheduler
+
+    optimizer = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=1.0)
+    scheduler = build_scheduler(optimizer, {"name": "cosine", "warmup_fraction": 0.1, "min_lr_ratio": 0.01},
+                                total_steps=100)
+    lrs = []
+    for _ in range(100):
+        lrs.append(optimizer.param_groups[0]["lr"])
+        optimizer.step()
+        scheduler.step()
+    assert lrs[0] == pytest.approx(0.1)          # warm-up starts low
+    assert max(lrs) == pytest.approx(1.0)        # peaks at optimizer.lr after warm-up
+    assert lrs[-1] < 0.02                        # ends near the 1 % floor
+    assert lrs[10:] == sorted(lrs[10:], reverse=True)  # never rises after warm-up
+
+
+def test_unknown_scheduler_is_rejected() -> None:
+    from mirror_cv_train.cli import build_scheduler
+
+    optimizer = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=1.0)
+    with pytest.raises(ValueError, match="unknown scheduler"):
+        build_scheduler(optimizer, {"name": "cosin"}, total_steps=10)

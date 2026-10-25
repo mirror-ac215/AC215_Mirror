@@ -14,10 +14,11 @@ from torch import nn
 
 def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
                     optimizer: torch.optim.Optimizer, device: torch.device,
-                    max_batches: int | None = None, amp: bool = False) -> tuple[float, float]:
+                    max_batches: int | None = None, amp: bool = False, step_scheduler: Any = None) -> tuple[float, float]:
     """One pass over the training data. Labels may be soft (Mixup/CutMix): accuracy uses their argmax.
 
     amp=True computes in bfloat16 where safe (about 2x faster on a recent NVIDIA GPU).
+        step_scheduler, if given, moves the learning rate after every batch (cosine schedule).
     """
     model.train()
     total_loss, correct, seen = 0.0, 0, 0
@@ -31,6 +32,8 @@ def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
             loss = criterion(logits.float(), labels)
         loss.backward()
         optimizer.step()
+        if step_scheduler is not None:
+            step_scheduler.step()
         hard = labels.argmax(dim=1) if labels.dim() == 2 else labels
         total_loss += loss.item() * images.size(0)
         correct += (logits.argmax(dim=1) == hard).sum().item()
@@ -74,12 +77,16 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
     best = {"val_accuracy": -1.0, "val_macro_f1": -1.0, "epoch": 0}
     best_state: dict[str, torch.Tensor] | None = None
     best_loss, stale = float("inf"), 0
+    # ReduceLROnPlateau reacts to val loss once per epoch; any other scheduler moves every batch.
+    per_epoch = isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
     for epoch in range(1, epochs + 1):
-        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device, max_batches, amp)
+        lr = optimizer.param_groups[0]["lr"]
+        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device, max_batches,
+                                                amp, None if per_epoch else scheduler)
         val = evaluate(model, val_loader, device, max_batches, amp)
-        if scheduler is not None:
+        if scheduler is not None and per_epoch:
             scheduler.step(val["loss"])
-        row = {"epoch": epoch, "train_loss": train_loss, "train_accuracy": train_acc,
+        row = {"epoch": epoch, "lr": lr, "train_loss": train_loss, "train_accuracy": train_acc,
                "val_loss": val["loss"], "val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"]}
         for name, loader in (monitor or {}).items():
             row[f"monitor_{name}_macro_f1"] = evaluate(model, loader, device, max_batches, amp)["macro_f1"]
