@@ -6,6 +6,26 @@ Reproducible, CPU-only evaluation of the inherited ViT-B/16 FER-2013 classifier.
 
 The verified M2-08 baseline run evaluated 7,178 FER-2013 v1 test examples with the documented grayscale→3-channel, 224×224, ImageNet-normalized transform: **macro-F1 0.64453**, passing the required **≥0.64** guard. W&B record: https://wandb.ai/mog941-harvard-university/mirror/runs/vqa4ulfz
 
+## M3-18 baselines on new data (no training)
+
+The same inherited checkpoint (`cv-vit-b16-v3`) and the same evaluator, run with `--report-only` on data it was never trained on. These are the "before" numbers that M3-01's retrain must beat.
+
+| Dataset | Examples | Macro-F1 | Accuracy | W&B |
+|---|---|---|---|---|
+| FER-2013 test (M2-08 guard) | 7,178 | **0.645** | — | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/vqa4ulfz) |
+| Aff-Wild2 official validation videos (`affwild2/v1-test`) | 10,772 frames, 45 videos | **0.260** | 0.362 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/a5z2hsrk) |
+| FER+ relabelled FER-2013 test | — | *pending* | — | — |
+
+**Reading the Aff-Wild2 number:** real video is far harder than posed 48×48 photos. Per-class F1: happy 0.55, neutral 0.35, sad 0.35, surprise 0.31, fear 0.19, angry 0.07, disgust 0.01. The model over-predicts *neutral* (3,967 predictions vs 1,839 true) and reads *angry* mostly as neutral or sad.
+
+**Reproduce:** build the dataset with `mirror-prepare-affwild2` (`pipelines/data-preprocess`; Aff-Wild2 is licensed, so frames stay local), then:
+
+    uv run --project pipelines/cv-eval mirror-cv-eval --data-dir data/processed/affwild2/v1 \
+      --checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/m3-18-affwild2.json \
+      --code-revision "$(git rev-parse HEAD)" --dataset-version affwild2/v1-test --report-only
+
+Add `--device cuda` on a GPU machine with the CUDA build of torch installed (results match the CPU; this run took 88 s on an RTX 4070 Ti).
+
 ## Local run
 
 From the repository root, restore data with `dvc pull`, obtain the documented checkpoint through approved ADC, then run:
