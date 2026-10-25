@@ -27,3 +27,14 @@ class Settings(BaseSettings):
     # Demo login password for all seeded users (same env var as services/db/seed.sh).
     # Local development only; M4-02 replaces this with real password hashes.
     mirror_demo_password: str = "mirror-demo"
+
+    # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
+    # result is noisy, so the gateway averages the recent ones and decides
+    # whether the reading is steady enough to use. Tuned later with a W&B sweep.
+    gate_window_s: float = 10.0  # only frames from the last N seconds count
+    gate_min_frames: int = 3  # fewer frames with a face than this -> "dropped"
+    gate_min_face_ratio: float = 0.5  # face found in under half the frames -> "dropped"
+    gate_min_top_prob: float = 0.40  # averaged top emotion must reach this for "ok"
+    gate_min_margin: float = 0.10  # ...and lead the second emotion by this much
+    gate_min_stability: float = 0.60  # ...and be the top emotion in this share of frames
+    gate_max_frames: int = 30  # cap per session so memory stays small (about 30-60 s of frames)
