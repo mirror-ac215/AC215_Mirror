@@ -161,7 +161,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                  early_stopping_patience=params["training"]["early_stopping_patience"],
                  max_batches=args.max_batches, on_epoch=log.log if log else None,
                  select_by=params["training"].get("select_by", "val_accuracy"),
-                 amp=bool(params["training"].get("amp", False)), monitor=monitor)
+                 amp=bool(params["training"].get("amp", False)), monitor=monitor,
+                 ema_decay=params["training"].get("ema_decay"))
     # report_test: false keeps held-out test sets untouched until the final cv-eval run.
     tests = ({name: evaluate(model, loader, device, args.max_batches) for name, loader in test_loaders.items()}
              if params["training"].get("report_test", True) else {})

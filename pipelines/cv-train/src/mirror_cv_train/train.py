@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -12,9 +13,37 @@ from sklearn.metrics import f1_score
 from torch import nn
 
 
+class WeightEMA:
+    """A running average of the model's weights, updated after every batch:
+    average = decay * average + (1 - decay) * current. With EMA on, the averaged weights are
+    what gets scored, selected and saved: steadier than any single moment of training."""
+
+    def __init__(self, model: nn.Module, decay: float) -> None:
+        self.decay = decay
+        self.average = {k: v.detach().clone() for k, v in model.state_dict().items()}
+
+    @torch.no_grad()
+    def update(self, model: nn.Module) -> None:
+        for name, value in model.state_dict().items():
+            if value.dtype.is_floating_point:
+                self.average[name].lerp_(value, 1.0 - self.decay)
+            else:
+                self.average[name].copy_(value)
+
+    @contextmanager
+    def applied(self, model: nn.Module) -> Iterator[None]:
+        """Temporarily put the averaged weights into the model, then restore the live ones."""
+        live = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        model.load_state_dict(self.average)
+        try:
+            yield
+        finally:
+            model.load_state_dict(live)
+
+
 def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
                     optimizer: torch.optim.Optimizer, device: torch.device,
-                    max_batches: int | None = None, amp: bool = False, step_scheduler: Any = None) -> tuple[float, float]:
+                    max_batches: int | None = None, amp: bool = False, step_scheduler: Any = None, ema: WeightEMA | None = None) -> tuple[float, float]:
     """One pass over the training data. Labels may be soft (Mixup/CutMix): accuracy uses their argmax.
 
     amp=True computes in bfloat16 where safe (about 2x faster on a recent NVIDIA GPU).
@@ -34,6 +63,8 @@ def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
         optimizer.step()
         if step_scheduler is not None:
             step_scheduler.step()
+        if ema is not None:
+            ema.update(model)
         hard = labels.argmax(dim=1) if labels.dim() == 2 else labels
         total_loss += loss.item() * images.size(0)
         correct += (logits.argmax(dim=1) == hard).sum().item()
@@ -69,7 +100,8 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
         optimizer: torch.optim.Optimizer, scheduler: Any, device: torch.device, epochs: int,
         early_stopping_patience: int | None = None, max_batches: int | None = None,
         on_epoch: Callable[[dict[str, float]], None] | None = None, select_by: str = "val_accuracy",
-        amp: bool = False, monitor: dict[str, Iterable] | None = None) -> dict[str, Any]:
+        amp: bool = False, monitor: dict[str, Iterable] | None = None,
+        ema_decay: float | None = None) -> dict[str, Any]:
     """Train for `epochs` and keep the weights of the best epoch by `select_by`
     (val_accuracy, as the baseline did, or val_macro_f1). `monitor` loaders are only scored and
     logged each epoch (e.g. FER-2013 val, to watch for forgetting); they never pick the epoch."""
@@ -79,25 +111,28 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
     best_loss, stale = float("inf"), 0
     # ReduceLROnPlateau reacts to val loss once per epoch; any other scheduler moves every batch.
     per_epoch = isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
+    ema = WeightEMA(model, ema_decay) if ema_decay else None
     for epoch in range(1, epochs + 1):
         lr = optimizer.param_groups[0]["lr"]
         train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device, max_batches,
-                                                amp, None if per_epoch else scheduler)
-        val = evaluate(model, val_loader, device, max_batches, amp)
+                                                amp, None if per_epoch else scheduler, ema)
+        # With EMA, the averaged weights are scored, selected and saved (the live ones keep training).
+        with ema.applied(model) if ema is not None else nullcontext():
+            val = evaluate(model, val_loader, device, max_batches, amp)
+            row = {"epoch": epoch, "lr": lr, "train_loss": train_loss, "train_accuracy": train_acc,
+                   "val_loss": val["loss"], "val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"]}
+            for name, loader in (monitor or {}).items():
+                row[f"monitor_{name}_macro_f1"] = evaluate(model, loader, device, max_batches, amp)["macro_f1"]
+            if row[select_by] > best[select_by]:
+                best = {"val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"], "epoch": epoch}
+                best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         if scheduler is not None and per_epoch:
             scheduler.step(val["loss"])
-        row = {"epoch": epoch, "lr": lr, "train_loss": train_loss, "train_accuracy": train_acc,
-               "val_loss": val["loss"], "val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"]}
-        for name, loader in (monitor or {}).items():
-            row[f"monitor_{name}_macro_f1"] = evaluate(model, loader, device, max_batches, amp)["macro_f1"]
         history.append(row)
         print(f"epoch {epoch}/{epochs} train_loss={train_loss:.4f} val_loss={val['loss']:.4f} "
               f"val_acc={val['accuracy']:.4f} val_macro_f1={val['macro_f1']:.4f}", flush=True)
         if on_epoch is not None:
             on_epoch(row)
-        if row[select_by] > best[select_by]:
-            best = {"val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"], "epoch": epoch}
-            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         if early_stopping_patience is not None:
             stale = 0 if val["loss"] < best_loss - 1e-4 else stale + 1
             best_loss = min(best_loss, val["loss"])

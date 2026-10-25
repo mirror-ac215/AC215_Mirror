@@ -75,7 +75,8 @@ def test_two_sources_start_from_a_checkpoint_and_record_it(tmp_path: Path) -> No
 
     assert main(["--params", str(tmp_path / "params.yaml"), "--data-root", str(root), "--output", str(out),
                  "--epochs", "1", "--max-batches", "1", "--init-checkpoint", str(start),
-                 "--set", "data.sources.fer2013.share=0", "--set", "scheduler.name=cosine"]) == 0
+                 "--set", "data.sources.fer2013.share=0", "--set", "scheduler.name=cosine",
+                 "--set", "training.ema_decay=0.99"]) == 0
 
     checkpoint = torch.load(out, map_location="cpu", weights_only=False)
     assert checkpoint["model_name"] == "cv-vit-b16-v4"

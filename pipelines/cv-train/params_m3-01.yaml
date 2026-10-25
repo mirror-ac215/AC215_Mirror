@@ -4,6 +4,7 @@
 # Run A (video only): --set data.sources.fer2013.share=0
 # Run C (FER+ soft labels): --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true
 # Run C2 (C + cosine schedule, 8 epochs): C's two --set plus --set scheduler.name=cosine --set training.epochs=8
+# Run C3 (C2 + weight averaging): C2's --set plus --set training.ema_decay=0.999
 
 model:
   name: cv-vit-b16
@@ -74,3 +75,4 @@ training:
   select_by: val_macro_f1          # Aff-Wild2 val macro-F1, not FER val accuracy
   amp: true                        # bfloat16 on the GPU
   report_test: false               # held-out test sets are scored once, by cv-eval
+  ema_decay: null                  # Run C3: 0.999 = score/save a running average of the weights

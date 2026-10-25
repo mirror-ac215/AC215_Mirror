@@ -112,3 +112,19 @@ def test_unknown_scheduler_is_rejected() -> None:
     optimizer = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=1.0)
     with pytest.raises(ValueError, match="unknown scheduler"):
         build_scheduler(optimizer, {"name": "cosin"}, total_steps=10)
+
+def test_weight_ema_averages_and_can_be_swapped_in_and_out() -> None:
+    from mirror_cv_train.train import WeightEMA
+
+    model = torch.nn.Linear(1, 1, bias=False)
+    with torch.no_grad():
+        model.weight.fill_(0.0)
+    ema = WeightEMA(model, decay=0.9)
+    with torch.no_grad():
+        model.weight.fill_(1.0)
+    ema.update(model)
+    assert ema.average["weight"].item() == pytest.approx(0.1)  # 0.9 * 0 + 0.1 * 1
+
+    with ema.applied(model):
+        assert model.weight.item() == pytest.approx(0.1)        # scored with the average
+    assert model.weight.item() == pytest.approx(1.0)            # live weights restored
