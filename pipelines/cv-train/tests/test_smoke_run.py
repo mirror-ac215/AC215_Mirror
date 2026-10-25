@@ -92,3 +92,35 @@ def test_a_misspelt_override_is_rejected(tmp_path: Path) -> None:
     assert params["data"]["sources"]["fer2013"]["share"] == 0.25
     with pytest.raises(KeyError, match="no such params key"):
         apply_override(params, "data.sources.fer2013.shares=0")
+
+
+def test_soft_labels_are_read_as_vote_shares(tmp_path: Path) -> None:
+    from mirror_cv_train.data import (
+        ManifestDataset,
+        MixupCutmixCollator,
+        build_eval_transform,
+    )
+
+    data = make_dataset(tmp_path / "data")
+    manifest = data / "manifests" / "train.csv"
+    with manifest.open(encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    votes = {f"votes_{label}": 0 for label in CLASSES}
+    with manifest.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["path", "label", "split", *votes])
+        writer.writeheader()
+        writer.writerows([{**row, **votes, "votes_neutral": 8, "votes_sad": 2} for row in rows])
+    transform = build_eval_transform({"data": {"image_size": 224}})
+
+    soft = ManifestDataset(data, "train", CLASSES, transform, soft_labels=True)
+    _, target = soft[0]
+    assert target.tolist() == pytest.approx([0, 0, 0, 0, 0.8, 0.2, 0])
+
+    hard = ManifestDataset(data, "train", CLASSES, transform)
+    collator = MixupCutmixCollator(7, prob=0.0, mixup_ratio=0.5, mixup_alpha=0.2, cutmix_alpha=1.0, seed=0)
+    _, targets = collator([soft[0], hard[0]])  # one FER+ photo and one hard-labelled frame
+    assert targets[0].tolist() == pytest.approx([0, 0, 0, 0, 0.8, 0.2, 0])
+    assert targets[1].tolist() == [1, 0, 0, 0, 0, 0, 0]
+
+    with pytest.raises(ValueError, match="no soft-label columns"):
+        ManifestDataset(data, "val", CLASSES, transform, soft_labels=True)

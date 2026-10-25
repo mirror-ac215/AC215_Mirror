@@ -93,7 +93,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     if any(read_class_order(path) != classes for path in dirs.values()):
         raise ValueError("every source must use the same class_order")
     train_parts = [ManifestDataset(dirs[name], "train", classes, build_train_transform(params),
-                                   every_nth=int(source.get("every_nth", 1)))
+                                   every_nth=int(source.get("every_nth", 1)),
+                                   soft_labels=bool(source.get("soft_labels", False)))
                    for name, source in sources.items()]
     train_ds = ConcatDataset(train_parts)
     train_labels = np.concatenate([part.labels for part in train_parts])

@@ -2,6 +2,7 @@
 # Starts from the inherited checkpoint (--init-checkpoint). Everything not listed under
 # "Changed for M3-01" is the M2-17 baseline recipe (params.yaml).
 # Run A (video only): --set data.sources.fer2013.share=0
+# Run C (FER+ soft labels): --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true
 
 model:
   name: cv-vit-b16
@@ -19,10 +20,12 @@ data:
       dir: affwild2/v1
       share: 0.5                   # half of every epoch's draws
       every_nth: 5                 # consecutive video frames are near-duplicates
+      soft_labels: false
     fer2013:
       dir: fer2013/v1
       share: 0.5                   # keeps FER-2013 in memory (guard >= 0.64)
       every_nth: 1
+      soft_labels: false           # Run C: dir=ferplus/v2 + soft_labels=true (FER+ vote shares)
   val_source: affwild2             # picks the best epoch; fer2013 val is only monitored
 
 augmentation:
