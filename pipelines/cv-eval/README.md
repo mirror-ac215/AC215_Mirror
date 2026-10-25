@@ -14,9 +14,9 @@ The same inherited checkpoint (`cv-vit-b16-v3`) and the same evaluator, run with
 |---|---|---|---|---|
 | FER-2013 test (M2-08 guard) | 7,178 | **0.645** | — | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/vqa4ulfz) |
 | Aff-Wild2 official validation videos (`affwild2/v1-test`) | 10,772 frames, 45 videos | **0.260** | 0.362 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/a5z2hsrk) |
-| FER+ relabelled FER-2013 test | — | *pending* | — | — |
+| FER+ relabelled FER-2013 test (`ferplus/v1-test`) | 6,722 | **0.609** | 0.708 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/3luxf8ok) |
 
-**Reading the Aff-Wild2 number:** real video is far harder than posed 48×48 photos. Per-class F1: happy 0.55, neutral 0.35, sad 0.35, surprise 0.31, fear 0.19, angry 0.07, disgust 0.01. The model over-predicts *neutral* (3,967 predictions vs 1,839 true) and reads *angry* mostly as neutral or sad.
+**Reading the FER+ number:** the same 7,178 test photos relabelled by majority vote of 10 annotators (FER+, Microsoft, MIT licence; 456 photos dropped as ties or contempt/unknown/not-a-face). Built with `mirror-prepare-ferplus`, which pixel-matches our images to the original `fer2013.csv` rows. Accuracy rises (0.666 → 0.708: some original "errors" were label errors), but macro-F1 falls because the rare classes get worse: F1 fear 0.50 → 0.30, disgust 0.64 → 0.39 (only 53 FER+ disgust photos). The model learned FER-2013's single-annotator habits: it reads many crowd-neutral faces as sad (544) or fearful (186). FER+ soft labels in M3-01 target this.
 
 **Reproduce:** build the dataset with `mirror-prepare-affwild2` (`pipelines/data-preprocess`; Aff-Wild2 is licensed, so frames stay local), then:
 
