@@ -65,6 +65,8 @@ def test_parser_defaults_keep_the_fer2013_guard() -> None:
     assert args.threshold == 0.64
     assert args.report_only is False
     assert args.device == "auto"
+    assert args.model_version == "cv-vit-b16-v3"
+    assert args.model_uri is None
 
 
 def test_auto_device_uses_the_gpu_only_when_available(monkeypatch) -> None:

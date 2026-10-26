@@ -28,6 +28,8 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--threshold", type=float, default=0.64, help="Macro-F1 regression guard")
     command.add_argument("--report-only", action="store_true", help="Measure only: exit 0 even below the threshold (baselines on new datasets)")
     command.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto", help="auto = GPU when available, like pipelines/cv-train")
+    command.add_argument("--model-version", default="cv-vit-b16-v3", help="Recorded in the report and W&B, e.g. cv-vit-b16-v4")
+    command.add_argument("--model-uri", help="Where the checkpoint is published (default: the dataset metadata's checkpoint)")
     command.add_argument("--wandb-project", help="Optionally log aggregate metrics and configuration to this W&B project")
     return command
 
@@ -106,7 +108,7 @@ def run(args: argparse.Namespace) -> int:
                 y_pred.append(labels[ranked[0]])
                 top2.append(tuple(labels[index] for index in ranked))
     metrics = evaluate_predictions(labels=labels, y_true=tuple(y_true), y_pred=tuple(y_pred), top2=tuple(top2))
-    report = build_report(model_uri=metadata["checkpoint"], model_version="cv-vit-b16-v3", dataset_version=args.dataset_version, code_revision=args.code_revision, class_order=labels, transform=metadata["inference_transform"], threshold=args.threshold, metrics=metrics)
+    report = build_report(model_uri=args.model_uri or metadata["checkpoint"], model_version=args.model_version, dataset_version=args.dataset_version, code_revision=args.code_revision, class_order=labels, transform=metadata["inference_transform"], threshold=args.threshold, metrics=metrics)
     report["runtime"] = {"seconds": round(perf_counter() - started, 3), "batch_size": args.batch_size, "device": device.type}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
