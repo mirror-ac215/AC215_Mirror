@@ -123,6 +123,10 @@ v4 learned what 10 people see rather than what one labeller wrote, so it agrees 
 | C4 | + fully balanced sampling | 0.275 | 0.699 | [19pov8rq](https://wandb.ai/mog941-harvard-university/mirror/runs/19pov8rq) |
 | C5 | + layer-wise lr decay | 0.278 | 0.699 | [afby6xhl](https://wandb.ai/mog941-harvard-university/mirror/runs/afby6xhl) |
 | D | ImageNet start, Aff-Wild2 only | 0.240 | none | [e6610uxr](https://wandb.ai/mog941-harvard-university/mirror/runs/e6610uxr) |
+| HSEmotion | AffectNet-trained EfficientNet-B2 ([HSEmotion](https://github.com/av-savchenko/hsemotion)), no training | 0.314 | | |
+| H1 | C3 recipe from HSEmotion, lr 1e-4 | 0.324 (epoch 1) | 0.651 | [uo8vfsjd](https://wandb.ai/mog941-harvard-university/mirror/runs/uo8vfsjd) |
+| H2 | H1 with lr 2e-5 | 0.319 (epoch 1) | 0.614 | [72v5gxax](https://wandb.ai/mog941-harvard-university/mirror/runs/72v5gxax) |
+| H3 | H1 training only the classifier (frozen features) | 0.316 (epoch 1) | ~0.62 | [b86ac03q](https://wandb.ai/mog941-harvard-university/mirror/runs/b86ac03q) |
 
 Why C3: within the noise of the best video score, the best FER+ score, and the steadiest curve (last three epochs within 0.004), so the result does not depend on a lucky epoch. Mirror-image averaging at test time gave no gain.
 
@@ -130,4 +134,5 @@ Why C3: within the noise of the best video score, the best FER+ score, and the s
 - Starting from v3 helps: the same video-only training from ImageNet (D) is about 20 % worse and overfits (train 0.91 vs val 0.47 accuracy).
 - Mixing in photos costs no video quality and stops the model forgetting them (A vs B).
 - The limit is data, not settings: on video, fear is read as surprise and sadness as neutral in every run, and balancing (C4) or freezing (C5) did not change it. Aff-Wild2 has only 16-28 training people per rare emotion. More people per emotion (RAF-DB, AffectNet, our consented M3-20 sessions) is the next lever, plus face alignment in `cv-service` to match Aff-Wild2's aligned crops.
+- A model pre-trained on ~400k AffectNet faces (HSEmotion) reaches the same ceiling: used as-is it scores 0.314, and every way of training it on our data (H1-H3) peaks at the first epoch within 0.01 of that, with lower photo scores than v4. It is better at fear, worse at anger. v4 stays the model: equal on video, better on photos, a drop-in for cv-service, and our own licence (HSEmotion weights are research-only). The EfficientNet support (`model.architecture`, `model.global_pool`, `model.train_only_head`) stays in cv-train, off by default, for when more data arrives. The HSEmotion start checkpoint is rebuilt from its ONNX release with `scripts/convert_hsemotion.py` (no pickle; output identical to the original).
 - v4 is published but **not yet served**: switching `cv-service` is integration work (M3-03/M3-10).
