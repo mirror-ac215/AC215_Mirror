@@ -85,13 +85,49 @@ Inputs are the DVC-tracked `data/processed/fer2013/v1` (`fer2013_preprocess` sta
 ## Verification
 ```bash
 uv run ruff check .
-uv run pytest -v        # 10 tests: loss, class weights, sampler, Mixup/CutMix, transforms, head shape,
-                        # a one-epoch end-to-end run on a tiny fake dataset, bad-label rejection
+uv run pytest -v        # 19 tests: loss, class weights, samplers, Mixup/CutMix, soft labels, schedules,
+                        # weight averaging, layer decay, end-to-end runs on tiny fake datasets
 ```
 
-## Next iteration (MS3, M3-01)
-FER-2013 is small and posed; MS1 feedback asked for more and more realistic data.
-- Fine-tune on **Aff-Wild2** video frames (real faces in front of a camera, labels on every frame), **split by video, never by frame**.
-- Add **FER+** labels (10 annotators per image) as soft targets.
-- **Targets:** beat 0.6445 on the same test set, and lift the weakest classes (fear 0.50, sad 0.53).
-- Every run is logged to W&B and scored by `cv-eval`. Our own labelled check-in sessions (M3-20) become the real-webcam validation set.
+## M3-01: v4, retrained on real video (MS3)
+FER-2013 is small and posed; MS1 feedback asked for more realistic data. **v4** (`cv-vit-b16-v4`) is v3 fine-tuned on **Aff-Wild2** video frames together with **FER+** photos, whose labels are the vote shares of 10 annotators (soft labels). Recipe: `params_m3-01.yaml` plus the run's `--set` options (recorded in W&B and inside the checkpoint).
+
+```bash
+# v4 (run C3), from pipelines/cv-train; data built with mirror-prepare-affwild2 and mirror-prepare-ferplus
+uv run --no-sync mirror-cv-train --params params_m3-01.yaml --data-root ../../data/processed \
+  --init-checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/vit_b16_v4.pth \
+  --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true \
+  --set scheduler.name=cosine --set training.epochs=8 --set training.ema_decay=0.999 --wandb-project mirror
+```
+
+**Final scores, held-out test sets, scored once with `cv-eval`** (artifact `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`):
+
+| Test set | v3 | **v4** | W&B |
+|---|---|---|---|
+| Aff-Wild2 test (official validation videos, 45 people, real video) | 0.260 | **0.337** | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/u48hqxhw) |
+| FER+ test (10-annotator labels; photo guard >= 0.609, see D-005) | 0.609 | **0.720** | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/ggxg1qqi) |
+| FER-2013 test (single-annotator labels; former guard) | 0.645 | 0.588 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/11d3q8x3) |
+
+v4 learned what 10 people see rather than what one labeller wrote, so it agrees less with FER-2013's labels (M3-18 showed they disagree with the crowd on about a third of the photos). Aff-Wild2 test per class: disgust 0.01 -> 0.36, angry 0.07 -> 0.25, neutral 0.35 -> 0.46, happy 0.55 -> 0.61; fear 0.19 -> 0.05 and sad 0.35 -> 0.30 (3 and 9 test videos).
+
+**Experiments** (one change at a time; model chosen on Aff-Wild2 *validation*, 36 videos of our own split, never on test):
+
+| Run | Change | Aff-Wild2 val | FER+ val | W&B |
+|---|---|---|---|---|
+| v3 | inherited | 0.191 | 0.602 | |
+| A | Aff-Wild2 only, from v3 | 0.301 | forgets photos | [hz8v26sr](https://wandb.ai/mog941-harvard-university/mirror/runs/hz8v26sr) |
+| B | + FER-2013 (50/50) | 0.297 | 0.617 | [0wo6u88k](https://wandb.ai/mog941-harvard-university/mirror/runs/0wo6u88k) |
+| C | FER+ soft labels instead | 0.314 | 0.704 | [uufehscw](https://wandb.ai/mog941-harvard-university/mirror/runs/uufehscw) |
+| C2 | + cosine schedule, 8 epochs | 0.298 | 0.707 | [h8erb3g6](https://wandb.ai/mog941-harvard-university/mirror/runs/h8erb3g6) |
+| **C3 = v4** | **+ weight averaging (EMA)** | **0.290** | **0.711** | [lgeo815r](https://wandb.ai/mog941-harvard-university/mirror/runs/lgeo815r) |
+| C4 | + fully balanced sampling | 0.275 | 0.699 | [19pov8rq](https://wandb.ai/mog941-harvard-university/mirror/runs/19pov8rq) |
+| C5 | + layer-wise lr decay | 0.278 | 0.699 | [afby6xhl](https://wandb.ai/mog941-harvard-university/mirror/runs/afby6xhl) |
+| D | ImageNet start, Aff-Wild2 only | 0.240 | none | [e6610uxr](https://wandb.ai/mog941-harvard-university/mirror/runs/e6610uxr) |
+
+Why C3: within the noise of the best video score, the best FER+ score, and the steadiest curve (last three epochs within 0.004), so the result does not depend on a lucky epoch. Mirror-image averaging at test time gave no gain.
+
+**What we learned**
+- Starting from v3 helps: the same video-only training from ImageNet (D) is about 20 % worse and overfits (train 0.91 vs val 0.47 accuracy).
+- Mixing in photos costs no video quality and stops the model forgetting them (A vs B).
+- The limit is data, not settings: on video, fear is read as surprise and sadness as neutral in every run, and balancing (C4) or freezing (C5) did not change it. Aff-Wild2 has only 16-28 training people per rare emotion. More people per emotion (RAF-DB, AffectNet, our consented M3-20 sessions) is the next lever, plus face alignment in `cv-service` to match Aff-Wild2's aligned crops.
+- v4 is published but **not yet served**: switching `cv-service` is integration work (M3-03/M3-10).
