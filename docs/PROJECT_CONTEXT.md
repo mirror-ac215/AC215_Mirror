@@ -56,8 +56,10 @@ test macro-F1 Aff-Wild2 0.337 (v3 0.260), FER+ 0.720 (v3 0.609), FER-2013 0.588
 (v3 0.645). It is not served yet; switching cv-service is integration work
 (M3-03 / M3-10). Fear and sadness on video stay weak for every model tried (a
 data limit: 16-28 training people per rare emotion), so the face signal must not
-drive those emotions on its own. An experiment starting from HSEmotion
-(AffectNet-trained EfficientNet-B2, research-use weights) is in progress.
+drive those emotions on its own. Starting instead from HSEmotion (an
+EfficientNet-B2 pre-trained on ~400k AffectNet faces, research-use weights) gave
+the same video ceiling (about 0.32 on validation) and weaker photo scores, so v4
+stays the model (details in `pipelines/cv-train/README.md`, #57).
 
 **Data notes:** Aff-Wild2 is licensed and stays local (not in DVC or the
 bucket); FER+ labels come from Microsoft's `fer2013new.csv` (MIT) matched to
