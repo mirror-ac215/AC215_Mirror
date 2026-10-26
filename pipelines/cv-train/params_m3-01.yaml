@@ -6,11 +6,14 @@
 # Run C2 (C + cosine schedule, 8 epochs): C's two --set plus --set scheduler.name=cosine --set training.epochs=8
 # Run C3 (C2 + weight averaging): C2's --set plus --set training.ema_decay=0.999
 # Run C5 (C3 + layer-wise lr decay): C3's --set plus --set optimizer.layer_decay=0.75 --set optimizer.lr=2e-5
+# Run H1 (C3 recipe from HSEmotion): C3's --set plus --set model.architecture=tf_efficientnet_b2
+#   --set model.global_pool=max --set data.image_size=260 --set optimizer.lr=1e-4 --set model.name=cv-enet-b2
 
 model:
   name: cv-vit-b16
   version: v4
-  architecture: vit_b_16
+  architecture: vit_b_16          # Run H1: tf_efficientnet_b2 (HSEmotion start)
+  global_pool: avg                 # EfficientNet pooling; HSEmotion uses max
   head_dropout: 0.5
   pretrained: true                 # ignored when --init-checkpoint is given
 

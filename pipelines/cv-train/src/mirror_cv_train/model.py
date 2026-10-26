@@ -1,4 +1,4 @@
-"""The baseline architecture: ImageNet ViT-B/16 with a new 7-class head."""
+"""Model architectures: the baseline ViT-B/16 (torchvision) and timm EfficientNets (e.g. HSEmotion)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,20 @@ def build_vit(num_classes: int, head_dropout: float, pretrained: bool = True) ->
     for parameter in model.parameters():
         parameter.requires_grad = True
     return model
+
+
+def build_model(architecture: str, num_classes: int, head_dropout: float, pretrained: bool = True,
+                global_pool: str = "avg") -> nn.Module:
+    """vit_b_16: the baseline above. tf_efficientnet_*: a timm EfficientNet, e.g. tf_efficientnet_b2 with
+    global_pool="max" to start from HSEmotion's AffectNet weights (converted, see the README)."""
+    if architecture == "vit_b_16":
+        return build_vit(num_classes, head_dropout, pretrained)
+    if architecture.startswith("tf_efficientnet_"):
+        import timm
+
+        return timm.create_model(architecture, pretrained=pretrained, num_classes=num_classes,
+                                 drop_rate=head_dropout, global_pool=global_pool)
+    raise ValueError(f"unknown architecture: {architecture}")
 
 
 def load_init_checkpoint(model: nn.Module, path: Path) -> nn.Module:

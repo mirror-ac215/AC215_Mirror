@@ -128,3 +128,33 @@ def test_soft_labels_are_read_as_vote_shares(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="no soft-label columns"):
         ManifestDataset(data, "val", CLASSES, transform, soft_labels=True)
+
+def test_efficientnet_trains_from_a_converted_checkpoint(tmp_path: Path) -> None:
+    from mirror_cv_train.model import build_model
+
+    root = tmp_path / "processed"
+    make_dataset(root / "affwild2" / "v1")
+    make_dataset(root / "fer2013" / "v1")
+    start = tmp_path / "hsemotion.pth"
+    torch.save({"model_state_dict": build_model("tf_efficientnet_b2", 7, 0.5, False, "max").state_dict()}, start)
+    params = yaml.safe_load((Path(__file__).parents[1] / "params_m3-01.yaml").read_text(encoding="utf-8"))
+    params["data"]["batch_size"] = 4
+    params["training"]["amp"] = False
+    (tmp_path / "params.yaml").write_text(yaml.safe_dump(params))
+    out = tmp_path / "out" / "model.pth"
+
+    assert main(["--params", str(tmp_path / "params.yaml"), "--data-root", str(root), "--output", str(out),
+                 "--epochs", "1", "--max-batches", "1", "--init-checkpoint", str(start),
+                 "--set", "model.architecture=tf_efficientnet_b2", "--set", "model.global_pool=max",
+                 "--set", "data.image_size=64", "--set", "model.name=cv-enet-b2"]) == 0
+
+    checkpoint = torch.load(out, map_location="cpu", weights_only=False)
+    assert checkpoint["model_name"] == "cv-enet-b2-v4"
+    assert checkpoint["model_state_dict"]["classifier.weight"].shape == (7, 1408)
+
+
+def test_unknown_architecture_is_rejected() -> None:
+    from mirror_cv_train.model import build_model
+
+    with pytest.raises(ValueError, match="unknown architecture"):
+        build_model("resnet50", 7, 0.5, False)

@@ -24,7 +24,7 @@ from mirror_cv_train.data import (
     read_class_order,
 )
 from mirror_cv_train.losses import FocalLoss
-from mirror_cv_train.model import build_vit, load_init_checkpoint
+from mirror_cv_train.model import build_model, load_init_checkpoint
 from mirror_cv_train.train import evaluate, fit, save_checkpoint
 
 
@@ -161,7 +161,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                     for name, path in dirs.items()}
 
     pretrained = params["model"]["pretrained"] and args.init_checkpoint is None
-    model = build_vit(len(classes), params["model"]["head_dropout"], pretrained)
+    model = build_model(params["model"]["architecture"], len(classes), params["model"]["head_dropout"], pretrained,
+                        params["model"].get("global_pool", "avg"))
     if args.init_checkpoint is not None:
         load_init_checkpoint(model, args.init_checkpoint)
         params["model"]["init_checkpoint"] = args.init_checkpoint.name  # recorded in W&B + checkpoint
