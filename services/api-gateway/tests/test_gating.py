@@ -74,7 +74,8 @@ def test_smoothing_ignores_one_odd_frame(settings: Settings) -> None:
 
 
 def test_uncertain_when_top_two_are_close(settings: Settings) -> None:
-    readings = [face(t, sad=0.40, neutral=0.38) for t in range(5)]
+    # Strong enough (0.50 >= 0.45) but only 0.03 ahead of neutral (< 0.05).
+    readings = [face(t, sad=0.50, neutral=0.47) for t in range(5)]
     assert check(gate(readings, settings, camera_on=True))["status"] == "uncertain"
 
 
@@ -83,13 +84,14 @@ def test_uncertain_when_reading_is_weak(settings: Settings) -> None:
     assert check(gate(readings, settings, camera_on=True))["status"] == "uncertain"
 
 
-def test_uncertain_when_frames_flip_between_emotions(settings: Settings) -> None:
-    # Each frame is confident, but they disagree: sad, happy, sad, happy, ... (7 frames).
-    # The average still leans sad, but sad wins only 4 of 7 frames: stability 0.57 < 0.60.
-    readings = [face(t, sad=0.9) if t % 2 == 0 else face(t, happy=0.9) for t in range(7)]
+def test_uncertain_when_most_frames_disagree_with_the_average(settings: Settings) -> None:
+    # 2 frames clearly sad, 3 frames narrowly happy (happy 0.50, sad 0.45). Averaged, sad leads
+    # comfortably (0.63 vs 0.31), but it is the top emotion in only 2 of 5 frames: stability 0.40 < 0.50.
+    readings = [face(t, sad=0.9) for t in range(2)] + [face(t, happy=0.50, sad=0.45) for t in range(2, 5)]
     result = check(gate(readings, settings, camera_on=True))
     assert result["status"] == "uncertain"
-    assert result["stability"] == 0.57
+    assert result["top2"][0][0] == "sad"
+    assert result["stability"] == 0.4
 
 
 def test_dropped_when_too_few_frames(settings: Settings) -> None:

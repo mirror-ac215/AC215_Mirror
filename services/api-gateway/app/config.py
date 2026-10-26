@@ -30,11 +30,13 @@ class Settings(BaseSettings):
 
     # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
     # result is noisy, so the gateway averages the recent ones and decides
-    # whether the reading is steady enough to use. Tuned later with a W&B sweep.
+    # whether the reading is steady enough to use. The three "ok" thresholds were chosen with
+    # a sweep on held-out Aff-Wild2 video (scripts/gate_sweep.py, see the README): "ok" in about
+    # 31 % of 10-second windows and right 64 % of the time (current CV model, cv-vit-b16-v4).
     gate_window_s: float = 10.0  # only frames from the last N seconds count
     gate_min_frames: int = 3  # fewer frames with a face than this -> "dropped"
     gate_min_face_ratio: float = 0.5  # face found in under half the frames -> "dropped"
-    gate_min_top_prob: float = 0.40  # averaged top emotion must reach this for "ok"
-    gate_min_margin: float = 0.10  # ...and lead the second emotion by this much
-    gate_min_stability: float = 0.60  # ...and be the top emotion in this share of frames
+    gate_min_top_prob: float = 0.45  # averaged top emotion must reach this for "ok"
+    gate_min_margin: float = 0.05  # ...and lead the second emotion by this much
+    gate_min_stability: float = 0.50  # ...and be the top emotion in this share of frames
     gate_max_frames: int = 30  # cap per session so memory stays small (about 30-60 s of frames)
