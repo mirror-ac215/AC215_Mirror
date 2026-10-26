@@ -5,6 +5,7 @@
 # Run C (FER+ soft labels): --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true
 # Run C2 (C + cosine schedule, 8 epochs): C's two --set plus --set scheduler.name=cosine --set training.epochs=8
 # Run C3 (C2 + weight averaging): C2's --set plus --set training.ema_decay=0.999
+# Run C5 (C3 + layer-wise lr decay): C3's --set plus --set optimizer.layer_decay=0.75 --set optimizer.lr=2e-5
 
 model:
   name: cv-vit-b16
@@ -59,6 +60,7 @@ optimizer:
   name: adamw
   lr: 1.0e-5
   weight_decay: 1.0e-4
+  layer_decay: null                # Run C5: 0.75 = each lower ViT block learns at 0.75x the one above
 
 scheduler:
   name: plateau                    # Run C2: cosine (smooth decay, every batch)

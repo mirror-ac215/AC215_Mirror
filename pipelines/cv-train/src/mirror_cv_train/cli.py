@@ -78,6 +78,28 @@ def resolve_sources(params: dict, args: argparse.Namespace) -> tuple[dict[str, P
     return dirs, sources, params["data"]["val_source"]
 
 
+def parameter_groups(model: torch.nn.Module, lr: float, layer_decay: float | None) -> list[dict]:
+    """Layer-wise learning-rate decay: the head learns at lr, each of the 12 ViT blocks below it
+    at layer_decay x the one above, and the patch/position embeddings slowest of all. The early,
+    general face features barely move; the top adapts to video. None = one lr for everything."""
+    if not layer_decay:
+        return [{"params": list(model.parameters()), "lr": lr}]
+    blocks = len(model.encoder.layers)
+
+    def depth(name: str) -> int:
+        if name.startswith(("conv_proj", "class_token", "encoder.pos_embedding")):
+            return 0
+        if name.startswith("encoder.layers."):
+            return int(name.split(".")[2].rsplit("_", 1)[1]) + 1  # encoder_layer_<i>
+        return blocks + 1  # final norm and head
+
+    groups: dict[int, list] = {}
+    for name, parameter in model.named_parameters():
+        groups.setdefault(depth(name), []).append(parameter)
+    return [{"params": params, "lr": lr * layer_decay ** (blocks + 1 - level)}
+            for level, params in sorted(groups.items())]
+
+
 def build_scheduler(optimizer: torch.optim.Optimizer, settings: dict, total_steps: int) -> object:
     """plateau (baseline): halve the lr when val loss stalls. cosine: warm up over the first
     warmup_fraction of all batches, then slide smoothly down to min_lr_ratio x the lr."""
@@ -146,8 +168,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     model = model.to(device)
     alpha = compute_class_weights(train_labels, len(classes), params["imbalance"]["class_weights"])
     criterion = FocalLoss(params["loss"]["gamma"], alpha.to(device), params["loss"]["label_smoothing"])
-    optimizer = torch.optim.AdamW(model.parameters(), lr=float(params["optimizer"]["lr"]),
-                                  weight_decay=float(params["optimizer"]["weight_decay"]))
+    groups = parameter_groups(model, float(params["optimizer"]["lr"]), params["optimizer"].get("layer_decay"))
+    optimizer = torch.optim.AdamW(groups, weight_decay=float(params["optimizer"]["weight_decay"]))
     steps_per_epoch = min(len(train_loader), args.max_batches or len(train_loader))
     scheduler = build_scheduler(optimizer, params["scheduler"], steps_per_epoch * int(params["training"]["epochs"]))
     log = None

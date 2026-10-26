@@ -128,3 +128,19 @@ def test_weight_ema_averages_and_can_be_swapped_in_and_out() -> None:
     with ema.applied(model):
         assert model.weight.item() == pytest.approx(0.1)        # scored with the average
     assert model.weight.item() == pytest.approx(1.0)            # live weights restored
+
+
+def test_layer_decay_gives_lower_layers_smaller_learning_rates() -> None:
+    from mirror_cv_train.cli import parameter_groups
+
+    model = build_vit(7, 0.5, pretrained=False)
+    groups = parameter_groups(model, lr=1.0, layer_decay=0.5)
+    lrs = [group["lr"] for group in groups]
+    assert len(groups) == 14                       # embeddings, 12 blocks, norm + head
+    assert lrs[-1] == pytest.approx(1.0)           # head learns at the full lr
+    assert lrs[0] == pytest.approx(0.5 ** 13)      # embeddings slowest
+    assert lrs == sorted(lrs)                      # every layer at most as fast as the one above
+    assert sum(len(g["params"]) for g in groups) == len(list(model.parameters()))  # nothing left out
+
+    single = parameter_groups(model, lr=1.0, layer_decay=None)
+    assert len(single) == 1 and single[0]["lr"] == 1.0

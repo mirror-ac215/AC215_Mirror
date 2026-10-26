@@ -113,7 +113,7 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
     per_epoch = isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
     ema = WeightEMA(model, ema_decay) if ema_decay else None
     for epoch in range(1, epochs + 1):
-        lr = optimizer.param_groups[0]["lr"]
+        lr = optimizer.param_groups[-1]["lr"]  # the head's lr (the top one, with layer decay)
         train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device, max_batches,
                                                 amp, None if per_epoch else scheduler, ema)
         # With EMA, the averaged weights are scored, selected and saved (the live ones keep training).
