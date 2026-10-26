@@ -24,7 +24,7 @@ from mirror_cv_train.data import (
     read_class_order,
 )
 from mirror_cv_train.losses import FocalLoss
-from mirror_cv_train.model import build_model, load_init_checkpoint
+from mirror_cv_train.model import build_model, freeze_all_but_head, load_init_checkpoint
 from mirror_cv_train.train import evaluate, fit, save_checkpoint
 
 
@@ -166,6 +166,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     if args.init_checkpoint is not None:
         load_init_checkpoint(model, args.init_checkpoint)
         params["model"]["init_checkpoint"] = args.init_checkpoint.name  # recorded in W&B + checkpoint
+    if params["model"].get("train_only_head", False):
+        freeze_all_but_head(model)
     model = model.to(device)
     alpha = compute_class_weights(train_labels, len(classes), params["imbalance"]["class_weights"])
     criterion = FocalLoss(params["loss"]["gamma"], alpha.to(device), params["loss"]["label_smoothing"])

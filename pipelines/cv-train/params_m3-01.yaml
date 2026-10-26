@@ -14,6 +14,7 @@ model:
   version: v4
   architecture: vit_b_16          # Run H1: tf_efficientnet_b2 (HSEmotion start)
   global_pool: avg                 # EfficientNet pooling; HSEmotion uses max
+  train_only_head: false           # Run H3: true = linear probe (only the classifier learns)
   head_dropout: 0.5
   pretrained: true                 # ignored when --init-checkpoint is given
 

@@ -50,6 +50,8 @@ def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
         step_scheduler, if given, moves the learning rate after every batch (cosine schedule).
     """
     model.train()
+    if getattr(model, "frozen_backbone", False):
+        model.eval()  # frozen layers keep their BatchNorm statistics; only the head learns
     total_loss, correct, seen = 0.0, 0, 0
     for step, (images, labels) in enumerate(loader):
         if max_batches is not None and step >= max_batches:

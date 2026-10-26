@@ -158,3 +158,31 @@ def test_unknown_architecture_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="unknown architecture"):
         build_model("resnet50", 7, 0.5, False)
+
+
+
+
+def test_train_only_head_leaves_every_feature_layer_unchanged(tmp_path: Path) -> None:
+    from mirror_cv_train.model import build_model
+
+    root = tmp_path / "processed"
+    make_dataset(root / "affwild2" / "v1")
+    make_dataset(root / "fer2013" / "v1")
+    start = tmp_path / "start.pth"
+    before = build_model("tf_efficientnet_b2", 7, 0.5, False, "max").state_dict()
+    torch.save({"model_state_dict": before}, start)
+    params = yaml.safe_load((Path(__file__).parents[1] / "params_m3-01.yaml").read_text(encoding="utf-8"))
+    params["data"]["batch_size"] = 4
+    params["training"]["amp"] = False
+    (tmp_path / "params.yaml").write_text(yaml.safe_dump(params))
+    out = tmp_path / "out" / "model.pth"
+
+    assert main(["--params", str(tmp_path / "params.yaml"), "--data-root", str(root), "--output", str(out),
+                 "--epochs", "1", "--max-batches", "2", "--init-checkpoint", str(start),
+                 "--set", "model.architecture=tf_efficientnet_b2", "--set", "model.global_pool=max",
+                 "--set", "data.image_size=64", "--set", "model.train_only_head=true",
+                 "--set", "optimizer.lr=0.1"]) == 0
+
+    after = torch.load(out, map_location="cpu", weights_only=False)["model_state_dict"]
+    changed = [name for name in before if not torch.equal(before[name], after[name])]
+    assert changed and all(name.startswith("classifier.") for name in changed)  # incl. BatchNorm stats

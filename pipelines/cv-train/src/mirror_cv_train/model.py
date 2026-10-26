@@ -36,6 +36,18 @@ def build_model(architecture: str, num_classes: int, head_dropout: float, pretra
     raise ValueError(f"unknown architecture: {architecture}")
 
 
+def freeze_all_but_head(model: nn.Module) -> nn.Module:
+    """Linear probe: only the final classifier learns; every feature layer keeps the loaded weights.
+    frozen_backbone tells the training loop to keep BatchNorm statistics frozen too."""
+    head = model.heads if hasattr(model, "heads") else model.get_classifier()
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+    for parameter in head.parameters():
+        parameter.requires_grad = True
+    model.frozen_backbone = True
+    return model
+
+
 def load_init_checkpoint(model: nn.Module, path: Path) -> nn.Module:
     """Start from an earlier checkpoint (e.g. cv-vit-b16-v3) instead of plain ImageNet weights."""
     state = torch.load(path, map_location="cpu", weights_only=True)
