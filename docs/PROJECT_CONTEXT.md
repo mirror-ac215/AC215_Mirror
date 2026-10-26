@@ -12,18 +12,57 @@ This document describes the **target architecture and shared contracts**. It
 does not mean that every pictured service, Compose configuration, deployment
 asset, or test is already merged into `main`. Treat the repository's default
 branch as the implementation source of truth and open pull requests as
-unmerged work. At the MS2 foundation stage, `main` contains the contracts,
-reusable Python template, shared CI foundation, DVC metadata and reproducible
-data jobs, the CV evaluation and baseline-training jobs, and the Compose v0
-stack for the frontend, API gateway, database, and mock LLM service. The CV
-service is an explicit credentialed Compose profile. Deployment, end-to-end and
-load testing, and the MS3 orchestration features still land through their own
-reviewed pull requests.
+unmerged work. The next section lists, by date, what is merged and what is
+still in review.
 
 When a component PR merges, update its README, lockfile/runtime declaration,
 Docker and CI handoff, and the relevant contract or documentation in the same
-delivery cycle. This keeps the target diagram from being mistaken for a
-statement that the complete product is already runnable.
+delivery cycle, and update the status section below. This keeps the target
+diagram from being mistaken for a statement that the complete product is
+already runnable.
+
+## Current status (MS3, updated Oct 26, 2026)
+
+**On `main` (merged):** the MS2 foundation: contracts, Python service template,
+shared CI with the required `CI summary` check, DVC metadata and reproducible
+data jobs (FER-2013, persona data), the CV evaluation job (M2-08, FER-2013 guard
+>= 0.64) and the cv-train baseline (M2-17), the Compose v0 stack (frontend,
+api-gateway, db, mock llm-service; cv-service as the credentialed `cv` profile),
+MS2 evidence and mock-up, and the M2-07 crop-alignment evaluation protocol (#41).
+No MS3 feature has merged yet.
+
+**Open pull requests** (merge order matters where noted):
+
+| PR | Task | Owner | What it brings | Waiting on |
+|---|---|---|---|---|
+| #52 | M3-04 smoothing + gating | Mostafa | `api-gateway/app/gating.py`: 10 s window -> `ok` / `uncertain` / `dropped` / `camera_off`; thresholds in config | Owen's review |
+| #55 | M3-18 CV baselines | Mostafa | cv-eval `--dataset-version/--threshold/--report-only/--device`; Aff-Wild2 prep (split by video); FER+ relabel; v3 scores Aff-Wild2 test 0.260, FER+ test 0.609 | Owen's review (merge first) |
+| #56 | M3-01 part 1 | Mostafa | cv-train: several datasets with shares, start from a checkpoint, select by val macro-F1, bf16 | Owen's review (after #55) |
+| #57 | M3-01 parts 2-3 | Mostafa | FER+ soft labels, cosine schedule, weight averaging, cv-eval `--model-version`; **v4** results; D-005; stacked on #55 + #56 | Owen's review (after #56) |
+| #51 | M3-08 prompt template | Julie | context object -> prompt, 20 sample cases; placed in the api-gateway | Julie: add D-004 + Owen's fail-closed rule; then Mostafa runs the 20 cases on the real GPU model |
+| #50 | M3-05 text emotion | Julie | j-hartmann DistilRoBERTa module in the gateway (D-003) | Julie: pin the model revision + Owen's two robustness fixes |
+| #49 | M3-07 crisis check | Julie | deterministic text safety check before the LLM | Julie: recall/false-positive fixes; Mostafa: decide whether `medical`/`support` events stay in M3-07 |
+| #43 | M3-13 GPU VM Stage A | Owen | provisioning, NVIDIA bootstrap, prod Compose, Caddy | Owen: rebase, fix `docker.list`, restrict 80/443 until real auth (M4-02) |
+
+**Decisions in flight:** D-004 (face vs text disagreement: the more concerning
+signal leads, the face only when the gate says ok; arrives with #51) and D-005
+(soft-label CV models are guarded on FER+ test >= 0.609, FER-2013 reported;
+arrives with #57).
+
+**CV model:** cv-service still serves **v3** (`cv-vit-b16-v3`). **v4**
+(`cv-vit-b16-v4`, ViT-B/16 fine-tuned on Aff-Wild2 video frames + FER+ soft
+labels) is published at `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`:
+test macro-F1 Aff-Wild2 0.337 (v3 0.260), FER+ 0.720 (v3 0.609), FER-2013 0.588
+(v3 0.645). It is not served yet; switching cv-service is integration work
+(M3-03 / M3-10). Fear and sadness on video stay weak for every model tried (a
+data limit: 16-28 training people per rare emotion), so the face signal must not
+drive those emotions on its own. An experiment starting from HSEmotion
+(AffectNet-trained EfficientNet-B2, research-use weights) is in progress.
+
+**Data notes:** Aff-Wild2 is licensed and stays local (not in DVC or the
+bucket); FER+ labels come from Microsoft's `fer2013new.csv` (MIT) matched to
+FER-2013 by pixels. Both are rebuilt with `mirror-prepare-affwild2` and
+`mirror-prepare-ferplus` (#55, #57).
 
 **Safety rule:** a deterministic check on the patient's *text* runs before the LLM. When it fires, it shows crisis resources (988), withholds the persona reply, and sets a review flag. The face model never triggers it. There are no real-time alerts and no emergency automation.
 
@@ -31,14 +70,14 @@ Inherited assets:
 
 | Asset | Details |
 |---|---|
-| CV model | PyTorch; FER-2013, 7 classes; best about 67% accuracy, 0.64 macro-F1; ViT-B/16, EfficientNet-B0 and MobileNetV3 checkpoints |
+| CV model | PyTorch; FER-2013, 7 classes; best about 67% accuracy, 0.64 macro-F1; ViT-B/16, EfficientNet-B0 and MobileNetV3 checkpoints (v3). Retrained as v4 in MS3, see Current status |
 | Persona LLM | Qwen2.5-3B-Instruct with a QLoRA adapter (r=32) trained on about 380 prompt/response pairs |
 
 ## Team
 
 | Person | Role |
 |---|---|
-| Mostafa | Coordinator, product and integration: api-gateway orchestration, smoothing/gating and fusion, CV model retraining (cv-train) and CV model card, frontend shell and clinician dashboard (from the Lovable prototype), docker-compose integration, milestone submissions |
+| Mostafa | Coordinator, product and integration: api-gateway orchestration, smoothing/gating and fusion, CV model retraining (cv-train, Aff-Wild2 + FER+) and CV model card, self-report check-in, frontend shell and clinician dashboard (from the Lovable prototype), docker-compose integration, milestone submissions |
 | Owen | Platform and backend: repo, service template, GCP, shared CI/CD, GPU VM deployment, llm-service, database, auth, clinician API, E2E tests; data pipeline and DVC, cv-service serving, CV evaluation; chat endpoint and webcam capture |
 | Julie | LLM and NLP: persona data, LoRA retrain on Vertex AI, prompt template, text-emotion module, crisis-check rules, chat UI, fairness audit, evaluation, load test, monitoring dashboard, demo video |
 
@@ -196,7 +235,7 @@ CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "800
 | MS2 MLOps infrastructure | Oct 5 - 18 | **v0:** every container runs with `/health`; data pipelines are reproducible (DVC); CI runs on PRs |
 | MS3 Integration and deployment | Oct 19 - Nov 8 | **v1:** frame goes through CV, then gate plus text emotion, then the context object, then the LLM; safety check; first deployment on a GCP VM |
 | MS4 Design and development | Nov 9 - 29 | **v2:** dashboard on real data, auth, fallbacks, end-to-end test in CI, CD, load test, monitoring, evaluation, model cards |
-| MS5 Final | Nov 30 - Dec 12 | Polish and demo; at most one stretch feature (RAG, avatar or licensed voice), and only if v2 is stable |
+| MS5 Final | Nov 30 - Dec 12 | Polish and demo; the stretch features (RAG, avatar, licensed voice) stay in scope and are built behind feature flags once v2 is stable |
 
 ## Oral checks (MS2-MS4)
 
