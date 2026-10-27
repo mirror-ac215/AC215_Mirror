@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     mirror_demo_password: str = "mirror-demo"
 
     # Text-emotion module (M3-05). Model chosen in M2-11 (D-003 in docs/decisions.md).
-    # Pinned to an immutable Hugging Face commit, so a rebuild always loads the same weights.
+    # Pinned to an immutable Hugging Face commit: a rebuild always loads the same weights.
     # Change it only on purpose (see "Model pin" in README.md), never back to "main".
     text_emotion_model: str = "j-hartmann/emotion-english-distilroberta-base"
     text_emotion_revision: str = "0e1cd914e3d46199ed785853e12b57304e04178b"
