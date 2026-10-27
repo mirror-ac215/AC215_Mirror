@@ -123,3 +123,50 @@ def test_thresholds_come_from_config(monkeypatch) -> None:
     readings = [face(t, sad=0.6, neutral=0.25) for t in range(5)]
     monkeypatch.setenv("GATE_MIN_TOP_PROB", "0.7")
     assert gate(readings, Settings(), camera_on=True)["status"] == "uncertain"
+
+# Owen (#52): a bad threshold or frame setting must stop the gateway at startup.
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("GATE_MIN_TOP_PROB", "1.5"),
+        ("GATE_MIN_MARGIN", "-0.1"),
+        ("GATE_MIN_STABILITY", "2"),
+        ("GATE_MIN_FACE_RATIO", "1.01"),
+        ("GATE_MIN_FRAMES", "0"),
+        ("GATE_MAX_FRAMES", "0"),
+        ("GATE_WINDOW_S", "0"),
+        ("GATE_MAX_FRAMES", "2"),  # smaller than GATE_MIN_FRAMES (3): could never be "ok"
+    ],
+)
+def test_invalid_gate_settings_are_rejected(monkeypatch, variable: str, value: str) -> None:
+    monkeypatch.setenv(variable, value)
+    with pytest.raises(ValueError):
+        Settings()
+
+
+# Owen (#52): a broken cv-service reply counts as "no face", so it ends in "dropped", never a crash.
+@pytest.mark.parametrize(
+    "bad_probs",
+    [
+        {"sad": 1.0},  # one label only (used to raise IndexError)
+        {k: v for k, v in probs(sad=0.9).items() if k != "fear"},  # a label missing
+        {**probs(sad=0.9), "contempt": 0.0},  # a label cv-service doesn't have
+        probs(sad=float("nan")),
+        probs(sad=1.5),
+        {**probs(sad=0.9), "happy": "0.1"},
+        {**probs(sad=0.9), "happy": True},
+    ],
+    ids=["one label", "missing label", "extra label", "NaN", "above 1", "text", "bool"],
+)
+def test_malformed_probabilities_are_dropped_not_crashed(settings: Settings, bad_probs: dict) -> None:
+    readings = [FrameReading(ts=t, face_found=True, probs=bad_probs) for t in range(5)]
+    assert check(gate(readings, settings, camera_on=True))["status"] == "dropped"
+
+
+def test_one_malformed_frame_is_skipped_and_the_rest_still_count(settings: Settings) -> None:
+    readings = [face(t, sad=0.6, neutral=0.25) for t in range(4)]
+    readings.append(FrameReading(ts=4, face_found=True, probs={"sad": float("nan")}))
+    result = check(gate(readings, settings, camera_on=True))
+    assert result["status"] == "ok"  # 4 good frames of 5: enough faces (0.8 >= 0.5)
+    assert result["top2"][0] == ["sad", 0.6]
+    assert result["n_frames"] == 5

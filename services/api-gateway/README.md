@@ -45,13 +45,45 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `MIRROR_DEMO_PASSWORD` | `mirror-demo` (local demo only; same variable as `services/db`) |
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
 
+| `TEXT_EMOTION_MODEL` | `j-hartmann/emotion-english-distilroberta-base` (D-003) |
+| `TEXT_EMOTION_REVISION` | `0e1cd914e3d46199ed785853e12b57304e04178b` (pinned Hugging Face commit, see Model pin) |
+| `TEXT_EMOTION_MAX_CHARS` | `2000` |
+
 Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
+
+## Text-emotion module (M3-05)
+
+`app/text_emotion.py` turns one chat message into the two most likely emotions, in the shape the context object uses for `text.top2` (`docs/contracts/context_object.schema.json`):
+
+```python
+from app.text_emotion import get_text_emotion
+
+result = get_text_emotion().analyse("I had a really rough day")
+result.as_context()   # {"top2": [["sadness", 0.71], ["fear", 0.12]]}
+result.latency_ms     # time spent scoring this message
+```
+
+- **Model:** `j-hartmann/emotion-english-distilroberta-base`, chosen in M2-11 (D-003 in `docs/decisions.md`). Its 7 labels are the same as the camera model's: face and text can be compared in fusion (M3-06).
+- **CPU only.** torch comes from the CPU wheel index (as in cv-service); the image doesn't carry CUDA.
+- **Loaded lazily:** on the first message, or call `get_text_emotion().warm_up()` at startup to keep the first patient message fast. The model (~330 MB) downloads from Hugging Face on first load; mount a volume on `HF_HOME` to keep it between restarts.
+- **Model pin:** `TEXT_EMOTION_REVISION` defaults to Hugging Face commit `0e1cd914e3d46199ed785853e12b57304e04178b` (the model's latest commit, Jan 2, 2023), not `main`: a rebuild can never silently load different weights. **Deployment handoff:** the VM and docker-compose use this default; do not set `TEXT_EMOTION_REVISION=main` anywhere. To move to a newer model commit, change the default here, in `app/config.py` and in `.env.example` in one PR, and re-run the D-003 evaluation and the latency check before merging.
+- **Failure:** if the model can't load or run, `analyse()` raises `TextEmotionUnavailable`. The chat endpoint (M3-10) should then carry on without a text signal (fallback paths: M4-04).
+- **Safety:** this module only describes tone. The crisis check (M3-07) runs before it and never depends on it.
+- **Privacy:** message text is never logged, only the top label and latency.
+
+Tests: `tests/test_text_emotion.py` uses a fake classifier and runs in CI with no download. The real-model latency check (target: p95 < 100 ms per message on CPU) runs only when asked:
+
+```bash
+RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s
+```
 
 ## Smoothing and gating (M3-04)
 
 `app/gating.py` keeps the last 10 s of cv-service readings per session (probabilities only, never frames) and reports `ok`, `uncertain`, `dropped` or `camera_off`. "ok" needs the averaged top emotion to reach `GATE_MIN_TOP_PROB` (0.45), lead the second by `GATE_MIN_MARGIN` (0.05), and be the top emotion in `GATE_MIN_STABILITY` (0.50) of the frames.
 
-**How the thresholds were chosen:** `scripts/gate_sweep.py` replays the 36 held-out Aff-Wild2 validation videos at 1 frame per second (1,951 ten-second windows) through the real `gate()`, scored by the current CV model (`cv-vit-b16-v4`, per-frame scores from `pipelines/cv-eval/scripts/export_frame_probs.py`), and tries 80 combinations ([W&B](https://wandb.ai/mog941-harvard-university/mirror/runs/dposf012)).
+**Provisional (experimental) thresholds.** They were tuned with `cv-vit-b16-v4`, which is not the served model yet (cv-service still serves v3), on Aff-Wild2 video rather than our own users. Treat them as a starting point until the served model changes or our own labelled sessions (M3-20) exist; then re-run the sweep.
+
+**How they were chosen:** `scripts/gate_sweep.py` replays the 36 held-out Aff-Wild2 validation videos at 1 frame per second (1,951 ten-second windows) through the real `gate()`, scored by the current CV model (`cv-vit-b16-v4`, per-frame scores from `pipelines/cv-eval/scripts/export_frame_probs.py`), and tries 80 combinations ([W&B](https://wandb.ai/mog941-harvard-university/mirror/runs/dposf012)).
 
 | Thresholds (top / margin / stability) | "ok" in | right when "ok" |
 |---|---|---|
@@ -61,6 +93,8 @@ Defaults use docker-compose service names. No secrets needed in v0. All variable
 | 0.50 / 0.05 / 0.50 (strict) | 14 % | 69 % |
 
 A single frame without the gate is right 50 % of the time. We chose fewer but more reliable face signals: a wrong hint is worse than none, because Mirror then relies on the text. When the gate says "ok" it reports almost only neutral, happy or surprise; it is almost never "ok" for angry, sad, fear or disgust, so fusion (M3-06) should not let the face lead on those.
+
+**Safety:** out-of-range settings (a probability outside 0-1, a non-positive window or frame count, `GATE_MAX_FRAMES` below `GATE_MIN_FRAMES`) stop the gateway at startup. A cv-service reading without exactly the 7 labels, each a number between 0 and 1, is treated as a frame without a face, so a broken reply ends in `dropped`, never a crash.
 
 Re-run after a model change: export the frame scores with the new checkpoint, then `uv run --with wandb python -m scripts.gate_sweep <frames.csv> --wandb-project mirror`.
 
