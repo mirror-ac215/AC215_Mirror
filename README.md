@@ -1,80 +1,101 @@
-# Mirror
+# api-gateway
 
-An emotion-aware conversational companion with a clinician view.
-AC215 (Harvard, Fall 2026) course project. **A prototype, not a clinical product.**
+The only service the frontend calls. v0 (MS2): every endpoint from `docs/contracts/api-gateway.openapi.yaml` exists with the right shapes and status codes, but returns fake data. The real CV call, safety check, fusion and LLM call arrive in MS3.
 
-A patient chats with a supportive persona. With consent, their webcam gives a facial-expression signal and their text gives a tone signal. Both are smoothed, gated and fused into one short, uncertainty-labelled context note per message, and that note shapes the reply. A deterministic text-only safety check runs before the model: if it fires, the app shows crisis resources (988) and flags the conversation for the clinician. The clinician dashboard shows affect trends between sessions.
+## Run locally
 
-Team: Mostafa Galal, Owen Chong, Julie Lander.
+```bash
+uv sync
+uv run uvicorn app.main:app --port 8000 --reload
+```
 
-## Repository layout
+Interactive API docs: http://localhost:8000/docs. Click **Authorize** and enter a demo token:
 
-| Folder | What lives there |
+| User | Email | Token |
+|---|---|---|
+| Dr. Ada Chen (clinician) | `clinician.ada@example.test` | `dev-clinician-token` |
+| Alex Rivera (patient) | `patient.alex@example.test` | `dev-patient-token` |
+| Bri Santos (patient) | `patient.bri@example.test` | `dev-patient-b-token` |
+
+Or get the token from `POST /auth/login` with one of these emails and the demo password.
+
+## Endpoints (v0)
+
+| Endpoint | Returns |
 |---|---|
-| `services/` | Long-running containers: `frontend`, `api-gateway`, `cv-service`, `llm-service`, `db`, plus `_template` to copy from |
-| `pipelines/` | Jobs that run on demand: data preprocessing, training, fairness audit, evaluation |
-| `infra/` | docker-compose, reverse proxy, monitoring, deployment config |
-| `tests/` | End-to-end (`e2e`) and load (`load`) tests |
-| `docs/` | Architecture and project context, API contracts, model cards, decisions |
-| `secrets/` | Keys and credentials. **Never committed**; see `secrets/README.md` |
+| `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200 so Docker doesn't restart the gateway when a dependency is down |
+| `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
+| `POST /sessions` | 201, in-memory session (database: MS3) |
+| `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
+| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done` |
 
-Start with [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). It covers:
-- the architecture;
-- what happens on one chat turn;
-- the API contracts;
-- our conventions.
+Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session, 404 unknown session, 409 no camera consent, 413 frame too large, 415 not a JPEG, 422 malformed request.
 
-## Quick start
+## Configuration (environment variables)
 
-The local stack (frontend, api-gateway, llm-service in mock mode, db) runs with Docker Compose. Details,
-configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
+| Variable | Default |
+|---|---|
+| `APP_NAME` | `mirror-api-gateway` |
+| `LOG_LEVEL` | `INFO` |
+| `CV_SERVICE_URL` | `http://cv-service:8001` |
+| `LLM_SERVICE_URL` | `http://llm-service:8002` |
+| `DB_HOST` / `DB_PORT` | `db` / `5432` |
+| `DEPENDENCY_TIMEOUT_S` | `2.0` |
+| `MAX_FRAME_BYTES` | `1000000` |
+| `MIRROR_DEMO_PASSWORD` | `mirror-demo` (local demo only; same variable as `services/db`) |
+| `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
 
-```bash
-git clone https://github.com/mirror-ac215/mirror.git
-cd mirror
-cp infra/.env.example infra/.env   # fill in the two values
-docker compose -f infra/compose.yml up --build -d
-```
+Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
 
-Then open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API).
-`cv-service` is opt-in (`--profile cv`) because it downloads the model from GCS; see `infra/README.md`.
-
-## Data setup with DVC
-
-Raw datasets are versioned with DVC, while the actual content is stored in the team's GCS bucket. Raw data is never committed to Git.
-
-Install DVC once (with its Google Cloud Storage plugin), authenticate once for the GCS backend, then retrieve the tracked dataset version:
+## Checks
 
 ```bash
-uv tool install --reinstall --with dvc-gs dvc
-gcloud auth application-default login
-dvc pull
+uv run ruff check .
+uv run pytest -q
 ```
 
-`dvc pull` restores these raw inputs, plus the processed outputs of both pipeline stages (`data/processed/fer2013/v1`, `data/processed/persona/v1`):
+## Prompt template (M3-08)
 
-```text
-data/raw/fer2013/archive.zip
-data/raw/persona/jbp_clean_full.csv
-data/raw/persona/jbp_train.csv
-data/raw/persona/jbp_val.csv
-data/raw/persona/jbp_test.csv
-```
+`app/prompt.py` turns one context object and the patient's message into the messages the gateway sends to llm-service. It lives in the gateway, not in llm-service (see `docs/architecture.md`): the gateway owns the context object, and llm-service stays a plain model server.
 
-To check that code, parameters and data are in sync, and to rebuild a stage from the raw data:
+**What the model gets each turn**
+
+1. Fixed rules: 2 to 4 sentences, at most one question, never claims to be a person or a clinician, no medical advice, never mentions cameras or numbers.
+2. The mode, set by fusion (M3-06): **supportive** by default (listen, no advice), **coach** (encouraging, one small next step) only after sustained steady signals.
+3. This turn's signals, as words and never as numbers, for example:
+   - `Face: their expression may look sad. This is an estimate.`
+   - `Face: the camera is off. Do not mention facial expression.`
+   - `The face and the words point in different directions. Lean towards the more concerning one: check in once, gently ... If they have already answered, take their word for it and do not ask again.` (D-004)
+4. The last 6 messages of the conversation, then the patient's new message.
+
+**Why words, not numbers:** "0.46 sad" invites the model to say "you are 46% sad". Plain words plus "this is an estimate" keep it guessing and asking, the way the persona rules require.
+
+**Weak readings are hidden, with no exceptions:** a top label under 0.40, or a label the template doesn't know, becomes "unclear". An `uncertain`, `dropped` or `camera_off` face reading always becomes "do not mention facial expression", even if the patient brings it up. An unknown label never fails the patient's turn.
+
+**Safety:** the patient's text only goes in the `user` message, never in the system prompt. The history can't carry a `system` message. The crisis check (M3-07) runs before any of this.
+
+**Review the 20 sample cases** (`tests/prompt_cases.json`):
 
 ```bash
-dvc status                      # "Data and pipelines are up to date."
-dvc repro persona_clean         # or fer2013_preprocess; `dvc repro` runs both
+uv run python -m scripts.prompt_samples > prompt_samples.md
+uv run python -m scripts.prompt_samples --llm-url http://localhost:8002 > prompt_samples.md
 ```
 
-The stages are defined in `dvc.yaml` (`fer2013_preprocess`: FER-2013 split and resize; `persona_clean`: persona filter, dedupe and split). Rebuilding gives byte-identical outputs on Linux, macOS and Windows, so `dvc.lock` does not change.
+The first command shows only the prompts. The second also asks llm-service for Mirror's reply to each case, giving 20 short transcripts for the team to review.
 
-The DVC remote is `mirror_gcs` at `gs://mirror-ac215-data/dvc`. Do not run `git add data/`; commit only the DVC configuration and `.dvc` metadata files.
+## Docker
 
-## How we work
+Build and run from this directory:
 
-- **One task, one branch, one pull request.** Name the branch `<initials>/<task-id>-short-name`, for example `mg/M1-03-repo-skeleton`.
-- **Merging into `main`.** Every pull request needs green CI and an approval from a maintainer (Mostafa or Owen, see `.github/CODEOWNERS`). No direct pushes.
-- **Environments.** Every Python component is its own uv project: `pyproject.toml` and `uv.lock` are committed, and `.venv/` is not.
-- **What stays out of git.** Secrets, raw data and model weights never go in. Data is tracked with DVC and models are stored in GCS.
+```bash
+docker build -t mirror-api-gateway .
+docker run --rm -p 8000:8000 mirror-api-gateway
+```
+
+Check it from a second terminal:
+
+```bash
+curl -f http://localhost:8000/health
+```
+
+Run on its own, `/health` reports `degraded` because cv-service, llm-service and db aren't running. That's expected: the status code is still 200, so the container stays healthy. Inside docker-compose (M2-03) the dependencies resolve by service name.
