@@ -29,16 +29,16 @@ def test_curated_case(case: dict) -> None:
 def test_curated_set_is_big_enough_and_covers_every_outcome() -> None:
     expects = [c["expect"] for c in CASES]
     assert len(CASES) >= 50
-    assert {"crisis", "medical", "support", "none"} <= set(expects)
+    assert {"crisis", "none"} <= set(expects)
 
 
 def test_every_rule_is_covered_by_a_case() -> None:
     fired = {safety.check(c["text"]).rule_id for c in CASES}
-    rules = {rid for rid, _ in safety.CRISIS_RULES + safety.MEDICAL_RULES + safety.SUPPORT_RULES}
+    rules = {rid for rid, _ in safety.CRISIS_RULES}
     assert rules - fired == set(), "add a case for each new rule"
 
 
-def test_crisis_wins_over_medical() -> None:
+def test_overdose_question_is_crisis() -> None:
     assert safety.check("how many pills should I take to overdose").kind == "crisis"
 
 
@@ -46,7 +46,6 @@ def test_payloads_match_the_contract() -> None:
     crisis = safety.crisis_payload(review_flag_created=True)
     assert set(crisis) == {"message", "resources", "review_flag_created"}
     assert any("988" in r["contact"] for r in crisis["resources"])
-    assert set(safety.medical_payload()) == {"message"}
 
 
 def events(body: str) -> list[tuple[str, dict]]:
@@ -78,38 +77,6 @@ async def test_crisis_turn_streams_only_crisis_and_creates_a_review_flag() -> No
     assert flag["rule_id"] == "not-alive"
     assert flag["urgency"] == "urgent"
     assert "text" not in flag  # the flag points at the message, it doesn't copy it
-
-
-@pytest.mark.anyio
-async def test_medical_turn_streams_only_medical_and_no_flag() -> None:
-    before = len(chat.review_flags)
-    stream = await send("can I take ibuprofen with my zoloft?")
-
-    assert [name for name, _ in stream] == ["medical"]
-    assert len(chat.review_flags) == before
-
-
-@pytest.mark.anyio
-async def test_support_turn_offers_a_person_then_keeps_talking(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(chat.settings, "clinic_booking_url", "https://clinic.example.test/book")
-    monkeypatch.setattr(chat.settings, "clinic_phone", "555-0100")
-    before = len(chat.review_flags)
-    stream = await send("I need to talk to a real person")
-
-    names = [name for name, _ in stream]
-    assert names[0] == "support" and "token" in names and names[-1] == "done"
-    actions = {a["type"]: a for a in stream[0][1]["actions"]}
-    assert actions["schedule"]["url"] == "https://clinic.example.test/book"
-    assert actions["call"]["contact"] == "555-0100"
-    assert actions["live"]["available"] is False
-    assert len(chat.review_flags) == before + 1
-    assert chat.review_flags[-1]["urgency"] == "routine"
-
-
-def test_support_actions_only_show_what_the_clinic_configured() -> None:
-    payload = safety.support_payload(booking_url="", phone="", live_available=False)
-    assert [a["type"] for a in payload["actions"]] == ["live"]
-    assert "988" in payload["message"]
 
 
 @pytest.mark.anyio
