@@ -21,50 +21,19 @@ delivery cycle, and update the status section below. This keeps the target
 diagram from being mistaken for a statement that the complete product is
 already runnable.
 
-## Current status (MS3, updated Oct 26, 2026)
+## Current status (MS3, updated Oct 27, 2026)
 
-**On `main` (merged):** the MS2 foundation: contracts, Python service template,
-shared CI with the required `CI summary` check, DVC metadata and reproducible
-data jobs (FER-2013, persona data), the CV evaluation job (M2-08, FER-2013 guard
->= 0.64) and the cv-train baseline (M2-17), the Compose v0 stack (frontend,
-api-gateway, db, mock llm-service; cv-service as the credentialed `cv` profile),
-MS2 evidence and mock-up, and the M2-07 crop-alignment evaluation protocol (#41).
-No MS3 feature has merged yet.
+This section changes often; the open pull requests on GitHub and the team board are the live view.
 
-**Open pull requests** (merge order matters where noted):
+**Merged baseline (on `main`):** the MS2 foundation (contracts, service template, shared CI with the required `CI summary` check, DVC data jobs, cv-eval with the FER-2013 guard >= 0.64, the cv-train baseline, the Compose v0 stack), the M2-07 crop-alignment protocol, the text-emotion module (M3-05) and the Stage A GPU VM deployment scripts (M3-13). cv-service serves **v3** (`cv-vit-b16-v3`).
 
-| PR | Task | Owner | What it brings | Waiting on |
-|---|---|---|---|---|
-| #52 | M3-04 smoothing + gating | Mostafa | `api-gateway/app/gating.py`: 10 s window -> `ok` / `uncertain` / `dropped` / `camera_off`; thresholds in config | Owen's review |
-| #55 | M3-18 CV baselines | Mostafa | cv-eval `--dataset-version/--threshold/--report-only/--device`; Aff-Wild2 prep (split by video); FER+ relabel; v3 scores Aff-Wild2 test 0.260, FER+ test 0.609 | Owen's review (merge first) |
-| #56 | M3-01 part 1 | Mostafa | cv-train: several datasets with shares, start from a checkpoint, select by val macro-F1, bf16 | Owen's review (after #55) |
-| #57 | M3-01 parts 2-3 | Mostafa | FER+ soft labels, cosine schedule, weight averaging, cv-eval `--model-version`; **v4** results; D-005; stacked on #55 + #56 | Owen's review (after #56) |
-| #51 | M3-08 prompt template | Julie | context object -> prompt, 20 sample cases; placed in the api-gateway | Julie: add D-004 + Owen's fail-closed rule; then Mostafa runs the 20 cases on the real GPU model |
-| #50 | M3-05 text emotion | Julie | j-hartmann DistilRoBERTa module in the gateway (D-003) | Julie: pin the model revision + Owen's two robustness fixes |
-| #49 | M3-07 crisis check | Julie | deterministic text safety check before the LLM | Julie: recall/false-positive fixes; Mostafa: decide whether `medical`/`support` events stay in M3-07 |
-| #43 | M3-13 GPU VM Stage A | Owen | provisioning, NVIDIA bootstrap, prod Compose, Caddy | Owen: rebase, fix `docker.list`, restrict 80/443 until real auth (M4-02) |
+**Open experiments (in review, not accepted serving direction):**
+- CV retraining (M3-18, M3-01): Aff-Wild2 and FER+ evaluation data, multi-source training, and a candidate model **v4** (`cv-vit-b16-v4`, stored at `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`; candidate test macro-F1: Aff-Wild2 0.337 vs v3 0.260, FER+ 0.720 vs 0.609, FER-2013 0.588 vs 0.645). An HSEmotion start reached the same video ceiling, so it was not taken further. Proposed decision D-005 (judge soft-label models on FER+ test >= 0.609) arrives with that work.
+- Gateway pipeline (M3-04, M3-06, M3-07, M3-08): smoothing and gating with provisional thresholds, fusion, the crisis check, the prompt template; proposed decision D-004 (the more concerning signal leads).
 
-**Decisions in flight:** D-004 (face vs text disagreement: the more concerning
-signal leads, the face only when the gate says ok; arrives with #51) and D-005
-(soft-label CV models are guarded on FER+ test >= 0.609, FER-2013 reported;
-arrives with #57).
+**Pending handoff (training -> serving):** v4 is not served. Switching needs the final cv-eval record, then a serving change by the cv-service owner that sets `MODEL_OBJECT` and `MODEL_VERSION` together in one reviewed config change (see `pipelines/cv-train/README.md`).
 
-**CV model:** cv-service still serves **v3** (`cv-vit-b16-v3`). **v4**
-(`cv-vit-b16-v4`, ViT-B/16 fine-tuned on Aff-Wild2 video frames + FER+ soft
-labels) is published at `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`:
-test macro-F1 Aff-Wild2 0.337 (v3 0.260), FER+ 0.720 (v3 0.609), FER-2013 0.588
-(v3 0.645). It is not served yet; switching cv-service is integration work
-(M3-03 / M3-10). Fear and sadness on video stay weak for every model tried (a
-data limit: 16-28 training people per rare emotion), so the face signal must not
-drive those emotions on its own. Starting instead from HSEmotion (an
-EfficientNet-B2 pre-trained on ~400k AffectNet faces, research-use weights) gave
-the same video ceiling (about 0.32 on validation) and weaker photo scores, so v4
-stays the model (details in `pipelines/cv-train/README.md`, #57).
-
-**Data notes:** Aff-Wild2 is licensed and stays local (not in DVC or the
-bucket); FER+ labels come from Microsoft's `fer2013new.csv` (MIT) matched to
-FER-2013 by pixels. Both are rebuilt with `mirror-prepare-affwild2` and
-`mirror-prepare-ferplus` (#55, #57).
+**Data notes:** Aff-Wild2 is licensed and stays local (not in DVC or the bucket); FER+ labels come from Microsoft's `fer2013new.csv` (MIT), matched to FER-2013 by pixels.
 
 **Safety rule:** a deterministic check on the patient's *text* runs before the LLM. When it fires, it shows crisis resources (988), withholds the persona reply, and sets a review flag. The face model never triggers it. There are no real-time alerts and no emergency automation.
 
@@ -237,7 +206,7 @@ CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "800
 | MS2 MLOps infrastructure | Oct 5 - 18 | **v0:** every container runs with `/health`; data pipelines are reproducible (DVC); CI runs on PRs |
 | MS3 Integration and deployment | Oct 19 - Nov 8 | **v1:** frame goes through CV, then gate plus text emotion, then the context object, then the LLM; safety check; first deployment on a GCP VM |
 | MS4 Design and development | Nov 9 - 29 | **v2:** dashboard on real data, auth, fallbacks, end-to-end test in CI, CD, load test, monitoring, evaluation, model cards |
-| MS5 Final | Nov 30 - Dec 12 | Polish and demo; the stretch features (RAG, avatar, licensed voice) stay in scope and are built behind feature flags once v2 is stable |
+| MS5 Final | Nov 30 - Dec 12 | Polish and demo; after the v2 freeze, the stretch features (RAG, avatar, licensed voice) are ordered by value and built as time allows, each behind a feature flag |
 
 ## Oral checks (MS2-MS4)
 
