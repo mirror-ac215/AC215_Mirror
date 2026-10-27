@@ -5,7 +5,7 @@ base_model:
   # Full 40-character Hugging Face commit: a rerun then loads the same weights.
   # Copy it from the model page ("Files and versions" -> latest commit). Training
   # refuses to start while this is empty.
-  revision: ""
+  revision: "aa8e72537993ba99e69dfaafa59ed015b17504d1"
 
 data:
   dir: data/processed/persona/v1      # output of `dvc repro persona_clean` (M2-09)

@@ -8,6 +8,10 @@ RUN uv sync --frozen --no-install-project --no-dev --extra train
 COPY src ./src
 COPY params.yaml ./
 RUN uv sync --frozen --no-dev --extra train
+# The commit this image was built from, recorded in mirror_adapter.json; training
+# refuses to start without it. Build with --build-arg GIT_SHA=$(git rev-parse HEAD).
+ARG GIT_SHA=""
+ENV GIT_SHA=$GIT_SHA
 # Data and outputs come from GCS at run time (Cloud Storage FUSE); nothing is baked in.
 ENTRYPOINT ["uv", "run", "--no-sync", "mirror-llm-finetune", "--params", "params.yaml"]
 

@@ -13,11 +13,39 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from mirror_llm_finetune.config import check, gcs_to_fuse
+from mirror_llm_finetune.config import COMMIT, check, gcs_to_fuse
 from mirror_llm_finetune.data import fingerprint, read_split, to_example
 
 
-def adapter_metadata(params: dict[str, Any], data_sha: str, run_url: str | None) -> dict[str, Any]:
+def preflight(data_dir: Path, env: dict[str, str], *, upload: bool) -> tuple[str, str]:
+    """Refuse to start (before any GPU time) unless the run is reproducible.
+
+    GIT_SHA is baked into the train image at build time (Dockerfile), thus it names
+    the code that actually runs. EXPECTED_DATA_SHA256 is the fingerprint `submit`
+    computed on the DVC-pulled data; the job refuses data that differs from it.
+    Returns (git_sha, data_sha256).
+    """
+    git_sha = env.get("GIT_SHA", "")
+    if not COMMIT.fullmatch(git_sha):
+        raise ValueError(
+            "GIT_SHA must be the 40-character commit the code was built from: "
+            "docker build --build-arg GIT_SHA=$(git rev-parse HEAD) (or export it for a local run)"
+        )
+    data_sha = fingerprint(data_dir)
+    expected = env.get("EXPECTED_DATA_SHA256", "")
+    if upload and not expected:
+        raise ValueError("EXPECTED_DATA_SHA256 is required to publish an adapter: submit sets it")
+    if expected and data_sha != expected:
+        raise ValueError(
+            f"data in {data_dir} does not match the DVC version: "
+            f"sha256 {data_sha} != expected {expected}"
+        )
+    return git_sha, data_sha
+
+
+def adapter_metadata(
+    params: dict[str, Any], data_sha: str, git_sha: str, run_url: str | None
+) -> dict[str, Any]:
     """Written next to the adapter: what it was trained from, for reproducibility."""
     return {
         "adapter_name": params["output"]["adapter_name"],
@@ -25,7 +53,7 @@ def adapter_metadata(params: dict[str, Any], data_sha: str, run_url: str | None)
         "base_revision": params["base_model"]["revision"],
         "data_version": params["data"]["version"],
         "data_sha256": data_sha,
-        "git_sha": os.environ.get("GIT_SHA", "unknown"),
+        "git_sha": git_sha,
         "wandb_run": run_url,
         "lora": params["lora"],
         "training": params["training"],
@@ -39,6 +67,7 @@ def run(params: dict[str, Any], data_dir: Path, out_dir: Path, upload: bool) -> 
     if upload and target.exists():
         # Adapters are versioned, never overwritten: bump output.adapter_name instead.
         raise FileExistsError(f"{target} already exists")
+    git_sha, data_sha = preflight(data_dir, dict(os.environ), upload=upload)
 
     import torch
     from datasets import Dataset
@@ -108,7 +137,7 @@ def run(params: dict[str, Any], data_dir: Path, out_dir: Path, upload: bool) -> 
     import wandb
 
     run_url = wandb.run.url if wandb.run else None
-    meta = adapter_metadata(params, fingerprint(data_dir), run_url)
+    meta = adapter_metadata(params, data_sha, git_sha, run_url)
     (adapter_dir / "mirror_adapter.json").write_text(json.dumps(meta, indent=2) + "\n")
     if upload:
         shutil.copytree(adapter_dir, target)

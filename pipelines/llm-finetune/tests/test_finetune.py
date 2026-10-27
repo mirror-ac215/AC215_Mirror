@@ -9,7 +9,7 @@ import pytest
 from mirror_llm_finetune.cli import main
 from mirror_llm_finetune.config import check, gcs_to_fuse, load_params, problems
 from mirror_llm_finetune.data import fingerprint, read_split, to_example
-from mirror_llm_finetune.train import adapter_metadata
+from mirror_llm_finetune.train import adapter_metadata, preflight
 from mirror_llm_finetune.vertex import job_spec
 
 PARAMS_FILE = Path(__file__).parents[1] / "params.yaml"
@@ -77,8 +77,9 @@ def test_fingerprint_changes_when_the_data_changes(tmp_path: Path) -> None:
 
 
 def test_metadata_records_what_the_adapter_came_from(params: dict) -> None:
-    meta = adapter_metadata(params, "f" * 64, "https://wandb.ai/run")
+    meta = adapter_metadata(params, "f" * 64, "b" * 40, "https://wandb.ai/run")
     assert meta["base_revision"] == PIN
+    assert meta["git_sha"] == "b" * 40
     assert meta["data_version"] == "persona/v1" and meta["data_sha256"] == "f" * 64
     assert meta["lora"]["r"] == 32
 
@@ -113,7 +114,55 @@ def test_dry_run_prints_the_spec_without_secrets(
     path = tmp_path / "params.yaml"
     path.write_text(yaml.safe_dump(params))
     monkeypatch.setenv("WANDB_API_KEY", "secret-key")
-    assert main(["--params", str(path), "submit", "--data-uri", "gs://b/d", "--dry-run"]) == 0
-    out = capsys.readouterr().out
-    assert "secret-key" not in out
-    assert json.loads(out)["display_name"] == "mirror-llm-finetune-adapter-v2"
+    monkeypatch.setenv("GIT_SHA", "c" * 40)
+    data = write_splits(tmp_path)
+    argv = ["--params", str(path), "submit", "--data-uri", "gs://b/d", "--local-data-dir", str(data)]
+    assert main([*argv, "--dry-run"]) == 0
+    captured = capsys.readouterr()
+    assert "secret-key" not in captured.out
+    spec = json.loads(captured.out)
+    assert spec["display_name"] == "mirror-llm-finetune-adapter-v2"
+    names = {e["name"] for e in spec["worker_pool_specs"][0]["container_spec"]["env"]}
+    assert names == {"WANDB_API_KEY", "EXPECTED_DATA_SHA256"}  # GIT_SHA comes from the image
+    assert fingerprint(data) in captured.err
+
+
+def test_submit_needs_the_local_dvc_data(params: dict, tmp_path: Path) -> None:
+    import yaml
+
+    path = tmp_path / "params.yaml"
+    path.write_text(yaml.safe_dump(params))
+    argv = ["--params", str(path), "submit", "--data-uri", "gs://b/d"]
+    with pytest.raises(FileNotFoundError, match="dvc pull"):
+        main([*argv, "--local-data-dir", str(tmp_path / "missing"), "--dry-run"])
+
+
+@pytest.mark.parametrize("git_sha", [None, "", "unknown", "abc123"])
+def test_training_refuses_without_the_image_git_sha(tmp_path: Path, git_sha: str | None) -> None:
+    data = write_splits(tmp_path)
+    env = {"EXPECTED_DATA_SHA256": fingerprint(data)}
+    if git_sha is not None:
+        env["GIT_SHA"] = git_sha
+    with pytest.raises(ValueError, match="GIT_SHA"):
+        preflight(data, env, upload=True)
+
+
+def test_training_refuses_data_that_differs_from_dvc(tmp_path: Path) -> None:
+    data = write_splits(tmp_path)
+    env = {"GIT_SHA": "b" * 40, "EXPECTED_DATA_SHA256": "0" * 64}
+    with pytest.raises(ValueError, match="does not match the DVC version"):
+        preflight(data, env, upload=True)
+
+
+def test_publishing_needs_the_expected_data_sha(tmp_path: Path) -> None:
+    data = write_splits(tmp_path)
+    with pytest.raises(ValueError, match="EXPECTED_DATA_SHA256"):
+        preflight(data, {"GIT_SHA": "b" * 40}, upload=True)
+    # A local run without --upload may skip it; the sha is still recorded.
+    assert preflight(data, {"GIT_SHA": "b" * 40}, upload=False) == ("b" * 40, fingerprint(data))
+
+
+def test_preflight_passes_on_matching_data(tmp_path: Path) -> None:
+    data = write_splits(tmp_path)
+    env = {"GIT_SHA": "b" * 40, "EXPECTED_DATA_SHA256": fingerprint(data)}
+    assert preflight(data, env, upload=True) == ("b" * 40, fingerprint(data))
