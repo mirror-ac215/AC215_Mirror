@@ -39,7 +39,15 @@ CRISIS_RULES: list[tuple[str, str]] = [
                    r"|\bwish (i'd never been|i had never been|i was never|i were never) born\b")),
     ("better-dead", (r"\bbetter off (dead|without me|if i (was|were|wasn't|weren't|just|had)"
                      r"( \w+)? (gone|dead|here|around|alive|disappeared|died|never been born))\b")),
-    ("not-alive", r"\b(don't|do not|dont) want to (be alive|live|exist|wake up)\b"),
+    ("not-alive", (r"\b(don't|do not|dont) want to (be alive|live|exist|wake up)\b"
+                   r"|\b(want|wanna) to stop (existing|living|being alive)\b")),
+    ("rather-dead", r"\b((i'd|i would) rather be dead|(might|may) as well be dead)\b"),
+    ("not-worth-living", (r"\blife (isn't|is not|isnt|ain't) worth living\b"
+                          # not "tired of living with roommates"
+                          r"|\b(tired|sick) of (living|being alive)\b(?! (in|with|at|near|on|like|out of)\b)")),
+    ("nobody-miss", (r"\b(nobody|no one|no-one) (would|will|'d)( even)? (miss me|notice|care) "
+                     r"if i (died|was gone|were gone|disappeared|wasn't here|weren't here|wasn't around)\b")),
+    ("never-wake", r"\b(sleep|go to sleep|fall asleep) and never wake up\b"),
     ("no-reason-live", r"\b(no|nothing( left)?) (reason |point )?to live( for)?\b"),
     ("point-living", (r"\bpoint (of|in) (living|being alive|going on|life anymore|being here)\b"
                       # not "the point of living in a city this expensive"
@@ -50,18 +58,23 @@ CRISIS_RULES: list[tuple[str, str]] = [
     ("end-it", (r"\b(end(ing)? it all|(want|wanna|going|gonna|plan(ning)?|ready|thinking about|"
                 r"think about|about|be) (to )?end(ing)? (it|things|everything)\b"
                 # not "end it with him", "end it on a good note", "end it here for today"
-                r"(?! (with|between|off|early|on|at|here|now|for (today|now|the day|tonight|the night))\b))")),
+                r"(?! (with|between|off|early|on|at|here|now|for (today|now|the day|tonight|the night))\b))"
+                r"|\b(want|wish|need) (it all|everything|my life) to (end|stop|be over)\b"
+                # not "I need everything to end on time", "my life to stop being so busy"
+                r"(?! (on|at|by|being|so|early|soon|before|after)\b)")),
     ("kms", r"\b(kms|unalive (my ?self|me))\b"),
-    ("method", (r"\b(hang(ing)? my ?self|jump(ing)? (off|from) (a|the|my) (bridge|building|roof|"
+    ("method", (r"\b(hang(ing)? my ?self|shoot(ing)? my ?self|slit(ting)? my (wrists?|throat)|"
+                r"jump(ing)? (off|from) (a|the|my) (bridge|building|roof|"
                 r"cliff|balcony|tower)|(in front of|under) (a|the) (train|bus|truck)|"
                 r"(took|take|taking|swallowed|swallow(ing)?) (all|a bunch|a handful|the whole bottle) "
                 r"(of )?(my |the )?(pills|meds|medication|tablets))\b")),
-    ("self-harm", r"\b(self[- ]?harm(ing)?|cut(ting)? myself|hurt(ing)? myself|harm(ing)? myself)\b"),
+    ("self-harm", (r"\b(self[- ]?harm(ing)?|cut(ting)? myself|hurt(ing)? myself|harm(ing)? myself"
+                   r"|cutting( myself)? again)\b")),
     ("overdose", r"\b(overdos(e|ing)|od on)\b"),
     ("cant-go-on", r"\b(can't|cannot|cant|can not) go on( anymore| living| like this)?\b"),
     ("goodbye-note", r"\b(suicide|goodbye) (note|letter)\b"),
     ("harm-other", r"\b(kill|killing|stab|stabbing|shoot|shooting) (him|her|them|someone|somebody|people|my \w+)\b"),
-    ("hurt-other", r"\b(want|going|gonna|plan(ning)?) to (hurt|harm) (him|her|them|someone|somebody|people)\b"),
+    ("hurt-other", r"\b(want|going|gonna|plan(ning)?) to (hurt|harm) (him|her|them|someone|somebody|people|my \w+)\b"),
 ]
 
 # Common phrases that look like a crisis rule but are not. Each one is blanked
@@ -89,8 +102,14 @@ CRISIS_EXCEPTIONS: dict[str, list[str]] = {
         r"\bkill(ing)? my (vibe|mood|buzz|battery|time|appetite|motivation|joy|plants?)\b",
     ],
     "method": [
+        r"\bshoot(ing)? my ?self in the foot\b",  # "I'll shoot myself in the foot if I say yes"
         (r"\btook all my (pills|meds|medication) (on time|as prescribed|like (i was supposed to|"
          r"(my|the) doctor said))\b"),
+    ],
+    "hurt-other": [
+        # "I'm going to hurt my back lifting that"
+        (r"\b(hurt|harm) my (back|knee|knees|neck|shoulder|ankle|wrist|leg|arm|foot|feet|hand|head|"
+         r"eyes|chances|grades?|career|reputation|credit)\b"),
     ],
     "self-harm": [r"\bhurt myself (at the gym|playing \w+|running|lifting|skiing|cooking|moving)\b"],
 }

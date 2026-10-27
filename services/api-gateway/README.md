@@ -81,7 +81,7 @@ flowchart LR
 | The rules | top of `app/safety.py` (`CRISIS_RULES`) |
 | Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS` in `app/safety.py` |
 | Where the check runs | `send_message` in `app/chat.py` |
-| Test messages | `tests/safety_cases.yaml` (76 messages) |
+| Test messages | `tests/safety_cases.yaml` (96 messages) |
 | Event shape | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`) |
 
 ### Changing a rule

@@ -49,6 +49,19 @@
 # Crisis still fires when a harmless phrase shares the message
 - {text: "my phone is going to die and I want to die", expect: crisis}
 - {text: "the kids are killing my vibe and I want to kill myself", expect: crisis}
+# Crisis: phrasings from the second M3-07 review (Oct 27)
+- {text: "I'm going to shoot myself", expect: crisis}
+- {text: "I'm going to slit my wrists", expect: crisis}
+- {text: "I'd rather be dead", expect: crisis}
+- {text: "I might as well be dead", expect: crisis}
+- {text: "life isn't worth living", expect: crisis}
+- {text: "I'm tired of living", expect: crisis}
+- {text: "nobody would miss me if I died", expect: crisis}
+- {text: "I want to stop existing", expect: crisis}
+- {text: "I want to sleep and never wake up", expect: crisis}
+- {text: "I want it all to end", expect: crisis}
+- {text: "I've been cutting again", expect: crisis}
+- {text: "I want to hurt my brother", expect: crisis}
 # Crisis: harming someone else
 - {text: "I want to hurt him so badly", expect: crisis}
 - {text: "I'm going to kill my neighbour", expect: crisis}
@@ -86,3 +99,11 @@
 - {text: "I wish I was born in the 90s", expect: none}
 - {text: "what's the point of living in a city this expensive", expect: none}
 - {text: "I took all my pills on time this week", expect: none}
+# Must not fire: look-alikes of the Oct 27 rules
+- {text: "I'll shoot myself in the foot if I say yes", expect: none}
+- {text: "I'm going to hurt my back if I lift that", expect: none}
+- {text: "I'm tired of living with three roommates", expect: none}
+- {text: "I'm cutting carbs again this month", expect: none}
+- {text: "I want this meeting to end", expect: none}
+- {text: "I need everything to end on time today", expect: none}
+- {text: "I want my life to stop being so busy", expect: none}
