@@ -15,7 +15,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from app import safety
+from app import metrics, safety
 from app.auth import DemoUser, demo_login, require_patient
 from app.config import Settings
 from app.logging_config import request_id_context
@@ -151,6 +151,7 @@ def send_message(
         # Log the rule, never the text.
         logger.info("safety_hit kind=%s rule=%s", result.kind, result.rule_id)
     if result.kind == "crisis":
+        metrics.CRISIS_HITS.labels(rule=result.rule_id).inc()
         review_flags.append(
             {
                 "patient_id": user.user_id,

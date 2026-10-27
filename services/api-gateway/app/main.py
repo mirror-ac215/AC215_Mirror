@@ -1,8 +1,10 @@
+import time
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import metrics as gateway_metrics
 from app.chat import router as chat_router
 from app.config import Settings
 from app.health import check_dependencies
@@ -26,9 +28,12 @@ app.include_router(chat_router)
 async def add_request_id(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     token = request_id_context.set(request_id)
+    started = time.perf_counter()
+    status = 500  # stays 500 if the app raises before answering
 
     try:
         response = await call_next(request)
+        status = response.status_code
         response.headers["X-Request-ID"] = request_id
         logger.info(
             "request_completed",
@@ -36,6 +41,10 @@ async def add_request_id(request: Request, call_next):
         )
         return response
     finally:
+        # M3-15: count every request by route pattern (no session ids in metrics).
+        route = gateway_metrics.route_of(request)
+        gateway_metrics.REQUESTS.labels(route=route, method=request.method, status=str(status)).inc()
+        gateway_metrics.REQUEST_SECONDS.labels(route=route).observe(time.perf_counter() - started)
         request_id_context.reset(token)
 
 
@@ -50,9 +59,6 @@ async def health() -> dict[str, object]:
 
 @app.get("/metrics")
 def metrics() -> Response:
-    """Placeholder for service-specific metrics added by each component owner."""
-
-    return Response(
-        content="# Service-specific metrics are added by each component owner.\n",
-        media_type="text/plain; version=0.0.4",
-    )
+    """Prometheus metrics (M3-15): requests, latency, crisis hits, text emotion, gate and fusion."""
+    body, content_type = gateway_metrics.render()
+    return Response(content=body, media_type=content_type)

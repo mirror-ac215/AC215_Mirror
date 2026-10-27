@@ -126,6 +126,22 @@ Tests: `tests/test_text_emotion.py` uses a fake classifier and runs in CI with n
 RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s
 ```
 
+## Metrics (M3-15)
+
+`GET /metrics` serves Prometheus text format (`app/metrics.py`, `prometheus-client`), for the monitoring dashboard (M4-08):
+
+| Metric | Labels | What it counts |
+|---|---|---|
+| `mirror_gateway_requests_total` | `route`, `method`, `status` | every HTTP request; `route` is the pattern (`/sessions/{session_id}/messages`), never a real session id |
+| `mirror_gateway_request_seconds` | `route` | time to answer (for streams: until the first byte); histogram, so p50/p95 can be computed |
+| `mirror_gateway_crisis_hits_total` | `rule` | crisis-check hits by rule id (never the message text) |
+| `mirror_gateway_text_emotion_seconds` | | time to score one message |
+| `mirror_gateway_text_emotion_unavailable_total` | | messages that went on without a text reading (fallback) |
+| `mirror_gateway_gate_total` | `status` | gate outcome per turn (ok / uncertain / dropped / camera_off) |
+| `mirror_gateway_fusion_total` | `agreement`, `tone_mode`, `main_signal` | fusion outcome per turn |
+
+Errors are the requests with a 5xx `status`. The gate and fusion counters fill once the chat endpoint (M3-10) calls `metrics.record_gate(visual)` and `metrics.record_fusion(context)`, one line each, where it calls `gate()` and `fuse()`. Every log line already carries the request's `request_id` (JSON logs).
+
 ## Checks
 
 ```bash
