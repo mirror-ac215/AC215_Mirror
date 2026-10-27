@@ -38,7 +38,8 @@ class ManifestDataset(Dataset):
                  transform: Callable[[Image.Image], torch.Tensor], every_nth: int = 1) -> None:
         manifest = data_dir / "manifests" / f"{split}.csv"
         with manifest.open(encoding="utf-8", newline="") as handle:
-            # Manifests are sorted by label then file, so [::n] keeps every n-th frame of each video.
+            # Manifests are sorted by label then file, so [::n] keeps every n-th row of each label: roughly
+            # every n-th frame of each video, but the count carries over from one video to the next.
             rows = list(csv.DictReader(handle))[::every_nth]
         index = {name: i for i, name in enumerate(class_order)}
         unknown = {row["label"] for row in rows} - set(index)

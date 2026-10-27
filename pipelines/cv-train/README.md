@@ -124,6 +124,8 @@ uv run --no-sync --project pipelines/cv-train mirror-cv-train \
 
 On a GPU machine, install the CUDA build of torch/torchvision into that environment after `uv sync` (the lockfile pins the CPU build), then keep `--no-sync` so uv doesn't swap it back. Run A (video only) adds `--set data.sources.fer2013.share=0`. With Docker, pass `--params params_m3-01.yaml` after the image name: the entrypoint already passes `--params params.yaml`, and the last one wins.
 
+**Epoch length:** one M3-01 epoch draws as many samples as all sources' training rows together (after `every_nth`), split between the sources by `share`. So "6 epochs" here is not the same amount of training as the baseline's 8 epochs over FER-2013 alone; compare runs by W&B step or samples seen, not by epoch number.
+
 **Output identity:** one local `.pth` with the same keys as the baseline, plus the exact `params` and overrides used (also logged to W&B). `report_test: false`, so no held-out test set is scored during training. **Nothing is published from this step.**
 
 **From candidate to served model** (in this order):
