@@ -96,14 +96,49 @@ def test_weak_text_reading_is_unclear():
     assert "tone of their message is unclear" in system
 
 
-def test_disagreement_asks_instead_of_picking():
+def test_disagreement_checks_in_once_then_respects_the_answer():
+    # D-004: the more concerning signal leads, Mirror checks in once.
     system = build_system_prompt(make_context(agreement="disagree"))
-    assert "Do not pick one" in system
-    assert "ask how they are feeling" in system
+    assert "more concerning one" in system
+    assert "check in once" in system
+    assert "do not ask again" in system
 
 
 def test_agreement_adds_no_extra_line():
-    assert "Do not pick one" not in build_system_prompt(make_context(agreement="agree"))
+    system = build_system_prompt(make_context(agreement="agree"))
+    assert "different directions" not in system
+
+
+@pytest.mark.parametrize(
+    "visual",
+    [
+        {"status": "camera_off"},
+        {"status": "dropped"},
+        {"status": "uncertain", "top2": [["sad", 0.9], ["neutral", 0.05]]},
+        {"status": "ok", "top2": [["sad", 0.2], ["neutral", 0.1]]},
+    ],
+)
+def test_unreliable_face_never_allows_talking_about_it(visual):
+    # Fail closed: no exception, not even if the patient brings it up.
+    system = build_system_prompt(make_context(visual=visual))
+    line = system.split("Signals for this turn:")[1]
+    assert "Do not mention facial expression." in line
+    assert "unless" not in line
+    assert "may look" not in line
+
+
+def test_unknown_face_label_degrades_to_unclear():
+    system = build_system_prompt(
+        make_context(visual={"status": "ok", "top2": [["contempt", 0.9]]})
+    )
+    assert "the reading is unclear. Do not mention facial expression." in system
+    assert "contempt" not in system
+
+
+def test_unknown_text_label_degrades_to_unclear():
+    system = build_system_prompt(make_context(text={"top2": [["confused", 0.9]]}))
+    assert "tone of their message is unclear" in system
+    assert "confused" not in system
 
 
 @pytest.mark.parametrize("mode", ["coach", "supportive"])
@@ -136,7 +171,6 @@ def test_history_cannot_hold_a_system_message():
         {"tone_mode": "angry"},
         {"agreement": "maybe"},
         {"visual": {"status": "blurry"}},
-        {"text": {"top2": [["confused", 0.9]]}},
     ],
 )
 def test_unknown_values_fail_loudly(changes):
