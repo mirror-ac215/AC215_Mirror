@@ -98,19 +98,28 @@ def evaluate(model: nn.Module, loader: Iterable, device: torch.device,
     }
 
 
+# Metrics that can pick the best epoch; early stopping may also watch the validation loss.
+SELECT_METRICS = ("val_accuracy", "val_macro_f1")
+STOP_METRICS = (*SELECT_METRICS, "val_loss")
+
+
 def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterion: nn.Module,
         optimizer: torch.optim.Optimizer, scheduler: Any, device: torch.device, epochs: int,
         early_stopping_patience: int | None = None, max_batches: int | None = None,
         on_epoch: Callable[[dict[str, float]], None] | None = None, select_by: str = "val_accuracy",
         amp: bool = False, monitor: dict[str, Iterable] | None = None,
-        ema_decay: float | None = None) -> dict[str, Any]:
+        ema_decay: float | None = None, stop_by: str | None = None) -> dict[str, Any]:
     """Train for `epochs` and keep the weights of the best epoch by `select_by`
     (val_accuracy, as the baseline did, or val_macro_f1). `monitor` loaders are only scored and
-    logged each epoch (e.g. FER-2013 val, to watch for forgetting); they never pick the epoch."""
+    logged each epoch (e.g. FER-2013 val, to watch for forgetting); they never pick the epoch.
+    Early stopping watches `stop_by`, which defaults to `select_by`, so a run can't stop while the
+    number that picks the best epoch is still improving."""
     history: list[dict[str, float]] = []
     best = {"val_accuracy": -1.0, "val_macro_f1": -1.0, "epoch": 0}
     best_state: dict[str, torch.Tensor] | None = None
-    best_loss, stale = float("inf"), 0
+    stop_by = stop_by or select_by
+    sign = -1.0 if stop_by == "val_loss" else 1.0  # loss: lower is better; accuracy and F1: higher
+    best_stop, stale = float("-inf"), 0
     # ReduceLROnPlateau reacts to val loss once per epoch; any other scheduler moves every batch.
     per_epoch = isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
     ema = WeightEMA(model, ema_decay) if ema_decay else None
@@ -136,8 +145,9 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
         if on_epoch is not None:
             on_epoch(row)
         if early_stopping_patience is not None:
-            stale = 0 if val["loss"] < best_loss - 1e-4 else stale + 1
-            best_loss = min(best_loss, val["loss"])
+            score = sign * row[stop_by]
+            stale = 0 if score > best_stop + 1e-4 else stale + 1
+            best_stop = max(best_stop, score)
             if stale >= early_stopping_patience:
                 print(f"early stopping at epoch {epoch}", flush=True)
                 break

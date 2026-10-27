@@ -90,6 +90,8 @@ uv run pytest -v        # 19 tests: loss, class weights, samplers, Mixup/CutMix,
 ```
 
 ## M3-01: v4, retrained on real video (MS3)
+> **Status: experimental.** v4 is published to GCS but not served: cv-service still serves `cv-vit-b16-v3` until the serving handoff (M3-03/M3-10). The scores below are candidate results, not an accepted serving decision.
+
 FER-2013 is small and posed; MS1 feedback asked for more realistic data. **v4** (`cv-vit-b16-v4`) is v3 fine-tuned on **Aff-Wild2** video frames together with **FER+** photos, whose labels are the vote shares of 10 annotators (soft labels). Recipe: `params_m3-01.yaml` plus the run's `--set` options (recorded in W&B and inside the checkpoint).
 
 ```bash
@@ -136,3 +138,41 @@ Why C3: within the noise of the best video score, the best FER+ score, and the s
 - The limit is data, not settings: on video, fear is read as surprise and sadness as neutral in every run, and balancing (C4) or freezing (C5) did not change it. Aff-Wild2 has only 16-28 training people per rare emotion. More people per emotion (RAF-DB, AffectNet, our consented M3-20 sessions) is the next lever, plus face alignment in `cv-service` to match Aff-Wild2's aligned crops.
 - A model pre-trained on ~400k AffectNet faces (HSEmotion) reaches the same ceiling: used as-is it scores 0.314, and every way of training it on our data (H1-H3) peaks at the first epoch within 0.01 of that, with lower photo scores than v4. It is better at fear, worse at anger. v4 stays the model: equal on video, better on photos, a drop-in for cv-service, and our own licence (HSEmotion weights are research-only). The EfficientNet support (`model.architecture`, `model.global_pool`, `model.train_only_head`) stays in cv-train, off by default, for when more data arrives. The HSEmotion start checkpoint is rebuilt from its ONNX release with `scripts/convert_hsemotion.py` (no pickle; output identical to the original).
 - v4 is published but **not yet served**: switching `cv-service` is integration work (M3-03/M3-10).
+
+## M3-01: multi-source training (experimental)
+
+> **Status: experimental.** This recipe produces candidate checkpoints only. It does not change the served model: cv-service still serves `cv-vit-b16-v3` until a candidate passes the final cv-eval and is handed to serving (below).
+
+**Inputs (all must exist before a run):**
+
+| Input | Where it comes from | Identity |
+|---|---|---|
+| FER-2013 v1 | `dvc pull` (`fer2013_preprocess` stage) | hash in `dvc.lock` |
+| Aff-Wild2 v1 | built locally with `mirror-prepare-affwild2` (M3-18, `pipelines/data-preprocess`); Aff-Wild2 is licensed, so frames never leave the machine | source checksums + test-manifest hash in [`pipelines/cv-eval/provenance/m3-18-affwild2.json`](../cv-eval/provenance/m3-18-affwild2.json) |
+| Starting model (v3) | `gs://mirror-ac215-data/models/cv/inherited-v3/vit_b16_v3_best.pth` | SHA-256 `f2e13fa8308b138714902c2d6995042572eef11192ffcc80a4fe137aa4815990` (343,278,498 bytes) |
+
+Check the downloaded checkpoint before training: `(Get-FileHash -Algorithm SHA256 vit_b16_v3_best.pth).Hash` (PowerShell) or `sha256sum vit_b16_v3_best.pth`.
+
+**Exact invocation** (from the repository root, dependencies as locked in `uv.lock`):
+
+```bash
+uv sync --frozen --project pipelines/cv-train
+uv run --no-sync --project pipelines/cv-train mirror-cv-train \
+  --params pipelines/cv-train/params_m3-01.yaml \
+  --data-root data/processed \
+  --init-checkpoint /secure/path/vit_b16_v3_best.pth \
+  --output /secure/path/m3-01-<run>.pth \
+  --wandb-project mirror
+```
+
+On a GPU machine, install the CUDA build of torch/torchvision into that environment after `uv sync` (the lockfile pins the CPU build), then keep `--no-sync` so uv doesn't swap it back. Run A (video only) adds `--set data.sources.fer2013.share=0`. With Docker, pass `--params params_m3-01.yaml` after the image name: the entrypoint already passes `--params params.yaml`, and the last one wins.
+
+**Epoch length:** one M3-01 epoch draws as many samples as all sources' training rows together (after `every_nth`), split between the sources by `share`. So "6 epochs" here is not the same amount of training as the baseline's 8 epochs over FER-2013 alone; compare runs by W&B step or samples seen, not by epoch number.
+
+**Output identity:** one local `.pth` with the same keys as the baseline, plus the exact `params` and overrides used (also logged to W&B). `report_test: false`, so no held-out test set is scored during training. **Nothing is published from this step.**
+
+**From candidate to served model** (in this order):
+1. Score the candidate once with `pipelines/cv-eval` on the three held-out test sets (FER-2013 guard ≥ 0.64, Aff-Wild2 test videos, FER+ test), with `--model-version` set to the candidate's name and a W&B run each.
+2. Record a provenance file per result (like `pipelines/cv-eval/provenance/`).
+3. Upload the checkpoint to `gs://mirror-ac215-data/models/cv/<version>/` and record its SHA-256 in `docs/artifacts.md`.
+4. Serving handoff to Owen (cv-service owner): the new `MODEL_OBJECT` and `MODEL_VERSION`, changed together in one reviewed config change.

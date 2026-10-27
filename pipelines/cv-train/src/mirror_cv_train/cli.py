@@ -25,7 +25,13 @@ from mirror_cv_train.data import (
 )
 from mirror_cv_train.losses import FocalLoss
 from mirror_cv_train.model import build_model, freeze_all_but_head, load_init_checkpoint
-from mirror_cv_train.train import evaluate, fit, save_checkpoint
+from mirror_cv_train.train import (
+    SELECT_METRICS,
+    STOP_METRICS,
+    evaluate,
+    fit,
+    save_checkpoint,
+)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -129,6 +135,13 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         params["training"]["epochs"] = args.epochs
     if args.no_pretrained:
         params["model"]["pretrained"] = False
+    # Check the metric names now: a typo would otherwise only fail after the first full epoch.
+    select_by = params["training"].get("select_by", "val_accuracy")
+    stop_by = params["training"].get("stop_by") or select_by
+    if select_by not in SELECT_METRICS:
+        raise SystemExit(f"training.select_by must be one of {SELECT_METRICS}, got {select_by!r}")
+    if stop_by not in STOP_METRICS:
+        raise SystemExit(f"training.stop_by must be one of {STOP_METRICS}, got {stop_by!r}")
     generator = seed_everything(int(params["training"]["seed"]))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -185,18 +198,17 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                  epochs=int(params["training"]["epochs"]),
                  early_stopping_patience=params["training"]["early_stopping_patience"],
                  max_batches=args.max_batches, on_epoch=log.log if log else None,
-                 select_by=params["training"].get("select_by", "val_accuracy"),
+                 select_by=select_by, stop_by=stop_by,
                  amp=bool(params["training"].get("amp", False)), monitor=monitor,
                  ema_decay=params["training"].get("ema_decay"))
     # report_test: false keeps held-out test sets untouched until the final cv-eval run.
     tests = ({name: evaluate(model, loader, device, args.max_batches) for name, loader in test_loaders.items()}
              if params["training"].get("report_test", True) else {})
-    test = tests.get("main", tests)
     version = f"{params['model']['name']}-{params['model']['version']}"
     save_checkpoint(args.output, model, result, classes, version, params)
 
     summary = {"model_version": version, "best_epoch": result["best"]["epoch"],
-               "best_val_accuracy": result["best"]["val_accuracy"], "test": test,
+               "best_val_accuracy": result["best"]["val_accuracy"], "tests": tests,
                "checkpoint": str(args.output)}
     if log:
         for name, scores in tests.items():

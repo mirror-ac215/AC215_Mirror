@@ -186,3 +186,35 @@ def test_train_only_head_leaves_every_feature_layer_unchanged(tmp_path: Path) ->
     after = torch.load(out, map_location="cpu", weights_only=False)["model_state_dict"]
     changed = [name for name in before if not torch.equal(before[name], after[name])]
     assert changed and all(name.startswith("classifier.") for name in changed)  # incl. BatchNorm stats
+
+
+def test_a_misspelt_select_by_fails_before_any_training(tmp_path: Path) -> None:
+    # Julie (#56): a typo used to fail only after the first full epoch.
+    params = yaml.safe_load((Path(__file__).parents[1] / "params.yaml").read_text(encoding="utf-8"))
+    params["training"]["select_by"] = "val_macro_F1"
+    (tmp_path / "params.yaml").write_text(yaml.safe_dump(params))
+    with pytest.raises(SystemExit, match="select_by must be one of"):
+        main(["--params", str(tmp_path / "params.yaml"), "--data-dir", str(tmp_path / "missing"),
+              "--output", str(tmp_path / "model.pth")])
+
+
+def test_early_stopping_watches_the_selection_metric_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Julie (#56): val loss gets worse every epoch while macro-F1 keeps improving
+    # (focal loss + class weights can do this). Stopping on the loss would end the run too early.
+    from torch import nn
+
+    from mirror_cv_train import train
+
+    epochs = [{"loss": 1.0 + e, "accuracy": 0.5, "macro_f1": 0.2 + 0.1 * e} for e in range(3)]
+    scores = iter(epochs + epochs)
+    monkeypatch.setattr(train, "train_one_epoch", lambda *args, **kwargs: (0.0, 0.0))
+    monkeypatch.setattr(train, "evaluate", lambda *args, **kwargs: next(scores))
+
+    def run(**kwargs: str) -> dict:
+        model = nn.Linear(1, 1)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)  # fit() logs the lr each epoch
+        return train.fit(model, [], [], None, optimizer, None, torch.device("cpu"), epochs=3,
+                         early_stopping_patience=1, select_by="val_macro_f1", **kwargs)
+
+    assert len(run()["history"]) == 3  # F1 still rising: runs to the end
+    assert len(run(stop_by="val_loss")["history"]) == 2  # the old behaviour: stops after one worse loss
