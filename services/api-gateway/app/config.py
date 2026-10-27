@@ -27,10 +27,3 @@ class Settings(BaseSettings):
     # Demo login password for all seeded users (same env var as services/db/seed.sh).
     # Local development only; M4-02 replaces this with real password hashes.
     mirror_demo_password: str = "mirror-demo"
-
-    # Clinic contact for the safety check's in-between "support" note (M3-07).
-    # Empty means the button is not shown; never put a made-up number here.
-    clinic_booking_url: str = ""
-    clinic_phone: str = ""
-    # True only when a staff member is actually on hand to talk live.
-    live_support_available: bool = False

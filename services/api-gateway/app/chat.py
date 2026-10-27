@@ -41,10 +41,9 @@ sessions: dict[str, Session] = {}
 # response shape still matches the contract.
 session_owners: dict[str, str] = {}
 
-# Review flags for the patient's clinician: "urgent" from the crisis rules,
-# "routine" from the support rules.
-# In memory for now; M3-10 writes them to the review_flags table instead
-# (and sets messages.safety_hit).
+# Review flags for the patient's clinician, one per crisis turn.
+# In memory only for now: they are lost when the gateway restarts. M3-10 writes
+# them to the review_flags table instead (and sets messages.safety_hit).
 review_flags: list[dict] = []
 
 logger = logging.getLogger("mirror")
@@ -132,7 +131,7 @@ async def receive_frame(
     response_class=StreamingResponse,
     responses={
         200: {
-            "description": "Server-sent Events: [support], token events, done; or one crisis or medical event",
+            "description": "Server-sent Events: token events, then done; or one crisis event",
             "content": {"text/event-stream": {}},
         },
         401: {"description": "Not logged in"},
@@ -151,39 +150,25 @@ def send_message(
     if result.hit:
         # Log the rule, never the text.
         logger.info("safety_hit kind=%s rule=%s", result.kind, result.rule_id)
-    if result.kind in ("crisis", "support"):
+    if result.kind == "crisis":
         review_flags.append(
             {
                 "patient_id": user.user_id,
                 "session_id": session_id,
                 "message_id": message_id,
                 "rule_id": result.rule_id,
-                "urgency": "urgent" if result.kind == "crisis" else "routine",
+                "urgency": "urgent",
                 "request_id": request_id_context.get(),
                 "created_at": datetime.now(UTC).isoformat(),
             }
         )
-    if result.kind == "crisis":
+        # True means "recorded in this gateway's memory", not saved to the database (M3-10).
         payload = safety.crisis_payload(review_flag_created=True)
         return StreamingResponse(
             iter([sse("crisis", payload)]), media_type="text/event-stream"
         )
-    if result.kind == "medical":
-        return StreamingResponse(
-            iter([sse("medical", safety.medical_payload())]), media_type="text/event-stream"
-        )
 
     async def events() -> AsyncIterator[str]:
-        if result.kind == "support":
-            # The in-between: offer a person first, then keep the conversation going.
-            yield sse(
-                "support",
-                safety.support_payload(
-                    settings.clinic_booking_url,
-                    settings.clinic_phone,
-                    settings.live_support_available,
-                ),
-            )
         for word in STUB_REPLY.split(" "):
             yield sse("token", {"text": word + " "})
             await asyncio.sleep(0.03)
