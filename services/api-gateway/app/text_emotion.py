@@ -114,7 +114,7 @@ class TextEmotion:
     def __init__(
         self,
         model_name: str = "j-hartmann/emotion-english-distilroberta-base",
-        revision: str = "main",
+        revision: str = "0e1cd914e3d46199ed785853e12b57304e04178b",
         max_chars: int = 2000,
         max_tokens: int = 256,
         classifier: Classifier | None = None,
