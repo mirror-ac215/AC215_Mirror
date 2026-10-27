@@ -51,7 +51,6 @@ services:
       - "443:443"
     environment:
       CADDY_DOMAIN: ${CADDY_DOMAIN:?set CADDY_DOMAIN in infra/.env.prod}
-      CADDY_EMAIL: ${CADDY_EMAIL:?set CADDY_EMAIL in infra/.env.prod}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

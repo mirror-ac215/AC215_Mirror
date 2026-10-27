@@ -15,6 +15,33 @@ fail_drift() {
   exit 65
 }
 
+validate_public_source_ranges() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import sys
+
+raw_ranges = sys.argv[1].split(",")
+normalized_ranges = []
+for raw_range in raw_ranges:
+    value = raw_range.strip()
+    if not value:
+        print("M3_13_PUBLIC_SOURCE_RANGES must name approved narrow source ranges, not Internet-wide access.", file=sys.stderr)
+        raise SystemExit(64)
+    try:
+        network = ipaddress.ip_network(value, strict=True)
+    except ValueError:
+        print("M3_13_PUBLIC_SOURCE_RANGES must name approved narrow source ranges, not Internet-wide access.", file=sys.stderr)
+        raise SystemExit(64)
+    minimum_prefix = 24 if network.version == 4 else 64
+    if network.prefixlen < minimum_prefix:
+        print("M3_13_PUBLIC_SOURCE_RANGES must name approved narrow source ranges, not Internet-wide access.", file=sys.stderr)
+        raise SystemExit(64)
+    normalized_ranges.append(str(network))
+
+print(",".join(normalized_ranges))
+PY
+}
+
 for variable in M3_13_PROJECT_ID M3_13_ZONE M3_13_SERVICE_ACCOUNT_EMAIL M3_13_PUBLIC_SOURCE_RANGES; do
   require "$variable"
 done
@@ -32,14 +59,7 @@ M3_13_IMAGE_PROJECT="${M3_13_IMAGE_PROJECT:-ubuntu-os-cloud}"
 M3_13_HTTP_FIREWALL_RULE="${M3_13_HTTP_FIREWALL_RULE:-mirror-allow-public-http}"
 M3_13_HTTPS_FIREWALL_RULE="${M3_13_HTTPS_FIREWALL_RULE:-mirror-allow-public-https}"
 M3_13_IAP_SSH_FIREWALL_RULE="${M3_13_IAP_SSH_FIREWALL_RULE:-mirror-allow-iap-ssh}"
-
-IFS=',' read -r -a public_source_ranges <<< "$M3_13_PUBLIC_SOURCE_RANGES"
-for source_range in "${public_source_ranges[@]}"; do
-  if [[ "$source_range" == "0.0.0.0/0" || "$source_range" == "::/0" ]]; then
-    printf 'M3_13_PUBLIC_SOURCE_RANGES must name approved narrow source ranges, not Internet-wide access.\n' >&2
-    exit 64
-  fi
-done
+M3_13_PUBLIC_SOURCE_RANGES="$(validate_public_source_ranges "$M3_13_PUBLIC_SOURCE_RANGES")"
 
 if [[ "$M3_13_NETWORK" == "default" ]]; then
   printf 'Refusing to use GCP default VPC; select a dedicated custom VPC.\n' >&2

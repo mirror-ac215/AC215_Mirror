@@ -96,16 +96,16 @@ cannot expose the VM. It requires explicit inputs so it cannot accidentally
 deploy into an unknown project or zone.
 
 Before running it, a project administrator must approve billing, a T4-capable
-zone, GPU quota, a narrow VM service account, and a DNS owner. The configured
-service account needs only the eventual artifact-read permissions; do not give
-the VM Owner or Editor.
+zone, GPU quota, a narrow VM service account, and the team CIDRs allowed to
+reach the VM. The configured service account needs only the eventual
+artifact-read permissions; do not give the VM Owner or Editor.
 
 ```bash
 export M3_13_PROJECT_ID='your-project-id'
 export M3_13_ZONE='us-central1-a'             # confirm this zone has T4 quota
 export M3_13_SERVICE_ACCOUNT_EMAIL='mirror-vm@your-project-id.iam.gserviceaccount.com'
 # Comma-separated, approved public source CIDRs, for example your team's fixed egress IPs.
-# Internet-wide ranges (0.0.0.0/0 and ::/0) are rejected while M4-02 authentication is pending.
+# Only narrow canonical ranges are accepted: IPv4 /24 or narrower, IPv6 /64 or narrower.
 export M3_13_PUBLIC_SOURCE_RANGES='203.0.113.10/32,198.51.100.20/32'
 bash infra/gcp/provision-t4-vm.sh
 ```
@@ -117,9 +117,11 @@ It rejects Internet-wide public ingress while the gateway still uses demo
 authentication. Review the planned project and values before executing it:
 provisioning a VM and reserving an IP can incur cost.
 
-Point the approved DNS A record to the printed static IP **before** starting
-Caddy. Public DNS and TCP 80/443 are necessary for Caddy's ACME certificate
-validation.
+Make `CADDY_DOMAIN` resolve to the printed static IP for approved clients,
+using a team DNS zone or controlled local-host mapping. Because TCP 80/443 is
+restricted to approved CIDRs while M4-02 authentication is pending, Stage A
+uses Caddy's private CA rather than public ACME. This is an encrypted,
+team-only deployment, not a public service.
 
 ### 2. Bootstrap Docker and NVIDIA support
 
@@ -164,21 +166,35 @@ in the repository, an image layer, logs, or pull request.
 
 ### 4. Start and validate Stage A
 
-After the DNS record resolves, run the manual deployment helper from the
-checked-out reviewed revision:
+After the team-access hostname resolves, run the manual deployment helper from
+the checked-out reviewed revision:
 
 ```bash
 bash infra/deploy-stage-a.sh
 ```
 
 It validates the combined Compose configuration, starts the stack with health
-checks, and prints the Git revision to record. Then verify from a machine
-outside the VM:
+checks, and prints the Git revision to record. Caddy stores its private CA in
+the persisted `caddy-data` volume.
+
+On the VM, export the root certificate after the stack is healthy:
 
 ```bash
-curl -fsSI "http://$CADDY_DOMAIN"          # expect HTTPS redirect
-curl -fsS "https://$CADDY_DOMAIN/health"   # frontend health
-curl -fsS "https://$CADDY_DOMAIN/api/health" # gateway via Caddy
+docker compose --env-file infra/.env.prod -f infra/compose.yml -f infra/compose.prod.yml \
+  exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > "$HOME/mirror-stage-a-root.crt"
+chmod 600 "$HOME/mirror-stage-a-root.crt"
+```
+
+From the approved client, copy the root certificate through IAP, then import it
+into that client's trust store for browser access or use it directly with
+`curl --cacert`:
+
+```bash
+gcloud compute scp mirror-gpu-prod:~/mirror-stage-a-root.crt "$HOME/mirror-stage-a-root.crt" \
+  --project "$M3_13_PROJECT_ID" --zone "$M3_13_ZONE" --tunnel-through-iap
+curl -fsSI --cacert "$HOME/mirror-stage-a-root.crt" "http://$CADDY_DOMAIN"          # expect HTTPS redirect
+curl -fsS --cacert "$HOME/mirror-stage-a-root.crt" "https://$CADDY_DOMAIN/health"   # frontend health
+curl -fsS --cacert "$HOME/mirror-stage-a-root.crt" "https://$CADDY_DOMAIN/api/health" # gateway via Caddy
 ```
 
 Also record `nvidia-smi`, the Docker GPU test, the real LLM `/health` result,

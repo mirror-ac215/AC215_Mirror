@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -86,6 +87,7 @@ class StageAAssetTests(unittest.TestCase):
             "for variable in M3_13_PROJECT_ID M3_13_ZONE M3_13_SERVICE_ACCOUNT_EMAIL M3_13_PUBLIC_SOURCE_RANGES; do",
             provisioner,
         )
+        self.assertIn("validate_public_source_ranges", provisioner)
         self.assertIn(
             'ensure_firewall_rule "$M3_13_HTTP_FIREWALL_RULE" "$M3_13_PUBLIC_SOURCE_RANGES" "80" "mirror-public"',
             provisioner,
@@ -96,6 +98,47 @@ class StageAAssetTests(unittest.TestCase):
         )
         self.assertNotIn('"0.0.0.0/0" "80"', provisioner)
         self.assertNotIn('"0.0.0.0/0" "443"', provisioner)
+
+    def test_provisioner_rejects_non_narrow_or_invalid_public_source_ranges_before_gcloud(self) -> None:
+        base_env = {
+            **os.environ,
+            "M3_13_PROJECT_ID": "test-project",
+            "M3_13_ZONE": "us-central1-a",
+            "M3_13_SERVICE_ACCOUNT_EMAIL": "mirror-vm@test-project.iam.gserviceaccount.com",
+        }
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fake_gcloud = Path(temporary_directory) / "gcloud"
+            fake_gcloud.write_text("#!/usr/bin/env bash\necho 'gcloud invoked' >&2\nexit 99\n")
+            fake_gcloud.chmod(0o755)
+            test_env = {**base_env, "PATH": f"{temporary_directory}:{os.environ['PATH']}"}
+            for source_ranges in (
+                "0.0.0.0/1,128.0.0.0/1",
+                "::/1,8000::/1",
+                "203.0.113.1/24",
+                "203.0.113.10/32,",
+            ):
+                with self.subTest(source_ranges=source_ranges):
+                    result = run(
+                        "bash",
+                        str(INFRA / "gcp" / "provision-t4-vm.sh"),
+                        env={**test_env, "M3_13_PUBLIC_SOURCE_RANGES": source_ranges},
+                    )
+                    self.assertEqual(result.returncode, 64, result.stderr)
+                    self.assertIn("approved narrow source ranges", result.stderr)
+                    self.assertNotIn("gcloud invoked", result.stderr)
+
+    def test_caddy_uses_internal_tls_while_ingress_is_restricted(self) -> None:
+        caddyfile = (INFRA / "caddy" / "Caddyfile").read_text()
+
+        self.assertIn("tls internal", caddyfile)
+        self.assertNotIn("email {$CADDY_EMAIL}", caddyfile)
+
+    def test_stage_a_readme_separates_vm_ca_export_from_client_verification(self) -> None:
+        readme = (INFRA / "README.md").read_text()
+
+        self.assertIn("On the VM, export the root certificate", readme)
+        self.assertIn("From the approved client, copy the root certificate through IAP", readme)
+        self.assertIn("gcloud compute scp", readme)
 
     def test_stage_a_shell_scripts_parse(self) -> None:
         for script in (INFRA / "deploy-stage-a.sh", INFRA / "gcp" / "bootstrap-vm.sh", INFRA / "gcp" / "provision-t4-vm.sh"):

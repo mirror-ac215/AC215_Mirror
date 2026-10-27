@@ -32,8 +32,11 @@ docker compose --env-file infra/.env.prod \
 docker compose --env-file infra/.env.prod \
   -f infra/compose.yml -f infra/compose.prod.yml ps
 
-printf '\nStage A deployment started. Verify externally after DNS propagates:\n'
-printf '  curl -fsSI http://<domain>\n'
-printf '  curl -fsS https://<domain>/health\n'
-printf '  curl -fsS https://<domain>/api/health\n'
+printf '\nStage A deployment started. It uses Caddy internal TLS while ingress is restricted to team CIDRs.\n'
+printf 'Export the team-only root CA from the running Caddy container before external checks:\n'
+printf '  docker compose --env-file infra/.env.prod -f infra/compose.yml -f infra/compose.prod.yml exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > "$HOME/mirror-stage-a-root.crt"\n'
+printf 'Then verify from an approved source IP:\n'
+printf '  curl -fsSI --cacert "$HOME/mirror-stage-a-root.crt" http://<domain>\n'
+printf '  curl -fsS --cacert "$HOME/mirror-stage-a-root.crt" https://<domain>/health\n'
+printf '  curl -fsS --cacert "$HOME/mirror-stage-a-root.crt" https://<domain>/api/health\n'
 printf '\nRecord this source revision in the deployment notes: %s\n' "$revision"
