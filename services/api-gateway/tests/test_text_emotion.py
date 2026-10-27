@@ -167,6 +167,18 @@ def test_malformed_model_output_becomes_text_emotion_unavailable(bad_output: obj
         module.analyse("hello")
 
 
+@pytest.mark.parametrize(
+    "bad_score",
+    [float("nan"), float("inf"), float("-inf"), "0.9", True],
+    ids=["NaN", "+infinity", "-infinity", "string", "bool"],
+)
+def test_non_finite_score_becomes_text_emotion_unavailable(bad_score: object) -> None:
+    # Owen (#50, Oct 27): {"joy": NaN} must take the text-only fallback, not reach top2.
+    module = TextEmotion(classifier=lambda text: fake_scores(joy=bad_score))
+    with pytest.raises(TextEmotionUnavailable):
+        module.analyse("hello")
+
+
 def test_simultaneous_first_calls_share_one_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     # Owen (#50): two requests at once must not build two instances (two model loads).
     built: list[object] = []

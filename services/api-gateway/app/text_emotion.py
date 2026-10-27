@@ -24,6 +24,7 @@ Design notes (useful for the oral check):
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections.abc import Callable
@@ -76,6 +77,15 @@ def top2_from_scores(scores: dict[str, float]) -> list[list[str | float]]:
         raise ValueError(f"Unexpected emotion labels from the model: {sorted(unknown)}")
     if not scores:
         raise ValueError("The model returned no scores")
+    # NaN or infinity would sort unpredictably and break the JSON sent downstream:
+    # only finite real numbers count as a score (bool is excluded on purpose).
+    for label, score in scores.items():
+        if (
+            isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(score)
+        ):
+            raise ValueError(f"Non-finite or non-numeric score for {label!r}")
 
     # Sort by score (highest first); ties broken by label name for stable results.
     ranked = sorted(scores.items(), key=lambda item: (-item[1], item[0]))
