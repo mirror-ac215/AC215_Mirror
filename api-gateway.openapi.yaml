@@ -1,0 +1,284 @@
+openapi: 3.1.0
+info:
+  title: Mirror api-gateway
+  version: 0.1.0
+  description: >
+    The only service the frontend calls. Handles login, sessions, webcam frames
+    (smoothed and gated per session), chat turns (safety check first, then
+    fusion into a context object, then the llm-service), and clinician views.
+    Endpoints marked (MS4) are planned, not built in MS2.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Liveness check, including downstream services
+      security: []
+      responses:
+        "200":
+          description: Gateway is up; each dependency reported separately
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, dependencies]
+                properties:
+                  status: { type: string, enum: [ok, degraded] }
+                  dependencies:
+                    type: object
+                    additionalProperties: { type: string, enum: [ok, down] }
+                    example: { cv-service: ok, llm-service: ok, db: ok }
+
+  /auth/login:
+    post:
+      summary: Log in (patient or clinician) and get a token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, role, user_id]
+                properties:
+                  access_token: { type: string, description: "JWT; send as Authorization: Bearer <token>" }
+                  role: { type: string, enum: [patient, clinician] }
+                  user_id: { type: string }
+        "401": { description: Wrong email or password }
+
+  /sessions:
+    post:
+      summary: Start a chat session (patient only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [camera_consent]
+              properties:
+                camera_consent: { type: boolean }
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { description: Not logged in }
+        "403": { description: Not a patient }
+
+  /sessions/{session_id}/frames:
+    post:
+      summary: Send one webcam frame (only if camera_consent is true)
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, contentMediaType: image/jpeg }
+      responses:
+        "202":
+          description: Frame accepted into the session's smoothing window (never stored)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [visual_status]
+                properties:
+                  visual_status: { type: string, enum: [ok, uncertain, dropped, camera_off] }
+        "401": { description: Not logged in or token is invalid }
+        "403": { description: Not the patient who owns this session }
+        "404": { description: Unknown session }
+        "409": { description: Camera consent was not given for this session }
+        "413": { description: Frame larger than the gateway's maximum frame size }
+        "415": { description: Frame is not a JPEG image }
+
+  /sessions/{session_id}/messages:
+    post:
+      summary: Send the patient's message and stream the reply
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        "200":
+          description: >
+            Server-Sent Events. Every `data:` line is JSON (so newlines in the reply are safe).
+            Event types:
+              crisis: data = CrisisPayload; no persona reply, the stream ends
+              token:  data = TokenPayload, the next piece of reply text
+              done:   data = DonePayload; the stream ends
+
+            Example, normal turn:
+              event: token
+              data: {"text": "I hear you."}
+
+              event: token
+              data: {"text": " What made today hard?"}
+
+              event: done
+              data: {"message_id": "m-123", "context": {...}}
+
+            Example, crisis turn:
+              event: crisis
+              data: {"message": "...", "resources": [{"name": "988 Suicide & Crisis Lifeline", "contact": "call or text 988"}], "review_flag_created": true}
+
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { description: Not logged in or token is invalid }
+        "403": { description: Not the patient who owns this session }
+        "404": { description: Unknown session }
+
+  /clinician/patients:
+    get:
+      summary: (MS4) List the clinician's own patients
+      responses:
+        "200":
+          description: Patient list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PatientSummary" }
+        "403": { description: Not a clinician }
+
+  /clinician/patients/{patient_id}/trend:
+    get:
+      summary: (MS4) Aggregated emotion trend for one patient
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: One point per stored emotion window
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrendPoint" }
+        "403": { description: Not this clinician's patient }
+
+  /clinician/review-flags/{flag_id}:
+    patch:
+      summary: (MS4) Mark a needs-review flag as reviewed
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reviewed]
+              properties:
+                reviewed: { type: boolean, const: true }
+      responses:
+        "200": { description: Flag marked as reviewed }
+        "403": { description: Not this clinician's patient }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema: { type: string }
+
+  schemas:
+    Session:
+      type: object
+      required: [session_id, started_at, camera_consent]
+      properties:
+        session_id: { type: string }
+        started_at: { type: string, format: date-time }
+        camera_consent: { type: boolean }
+
+    TokenPayload:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+
+    CrisisPayload:
+      type: object
+      required: [message, resources, review_flag_created]
+      properties:
+        message: { type: string }
+        resources:
+          type: array
+          items:
+            type: object
+            required: [name, contact]
+            properties:
+              name: { type: string, example: 988 Suicide & Crisis Lifeline }
+              contact: { type: string, example: call or text 988 }
+        review_flag_created:
+          type: boolean
+          description: >
+            True when a review flag was recorded for the patient's clinician. Until M3-10 the flag is
+            kept in the gateway's memory only and is lost on restart; it is not yet in the database.
+
+    DonePayload:
+      type: object
+      required: [message_id, context]
+      properties:
+        message_id: { type: string }
+        context:
+          type: object
+          description: The context object used for this turn (see context_object.schema.json)
+
+    PatientSummary:
+      type: object
+      required: [patient_id, display_name, needs_review]
+      properties:
+        patient_id: { type: string }
+        display_name: { type: string }
+        last_session_at: { type: [string, "null"], format: date-time }
+        needs_review: { type: boolean }
+
+    TrendPoint:
+      type: object
+      required: [ts, visual_status, tone_mode]
+      properties:
+        ts: { type: string, format: date-time }
+        visual_status: { type: string, enum: [ok, uncertain, dropped, camera_off] }
+        visual_top2: { type: array }
+        text_top2: { type: array }
+        tone_mode: { type: string, enum: [coach, supportive] }
