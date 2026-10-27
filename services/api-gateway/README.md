@@ -46,7 +46,7 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
 
 | `TEXT_EMOTION_MODEL` | `j-hartmann/emotion-english-distilroberta-base` (D-003) |
-| `TEXT_EMOTION_REVISION` | `main` (pin to a commit hash on the VM) |
+| `TEXT_EMOTION_REVISION` | `0e1cd914e3d46199ed785853e12b57304e04178b` (pinned Hugging Face commit, see Model pin) |
 | `TEXT_EMOTION_MAX_CHARS` | `2000` |
 
 Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
@@ -66,6 +66,7 @@ result.latency_ms     # time spent scoring this message
 - **Model:** `j-hartmann/emotion-english-distilroberta-base`, chosen in M2-11 (D-003 in `docs/decisions.md`). Its 7 labels are the same as the camera model's: face and text can be compared in fusion (M3-06).
 - **CPU only.** torch comes from the CPU wheel index (as in cv-service); the image doesn't carry CUDA.
 - **Loaded lazily:** on the first message, or call `get_text_emotion().warm_up()` at startup to keep the first patient message fast. The model (~330 MB) downloads from Hugging Face on first load; mount a volume on `HF_HOME` to keep it between restarts.
+- **Model pin:** `TEXT_EMOTION_REVISION` defaults to Hugging Face commit `0e1cd914e3d46199ed785853e12b57304e04178b` (the model's latest commit, Jan 2, 2023), not `main`, so a rebuild can't silently load different weights. **Deployment handoff:** the VM and docker-compose use this default; do not set `TEXT_EMOTION_REVISION=main` anywhere. To move to a newer model commit, change the default here, in `app/config.py` and in `.env.example` in one PR, and re-run the D-003 evaluation and the latency check before merging.
 - **Failure:** if the model can't load or run, `analyse()` raises `TextEmotionUnavailable`. The chat endpoint (M3-10) should then carry on without a text signal (fallback paths: M4-04).
 - **Safety:** this module only describes tone. The crisis check (M3-07) runs before it and never depends on it.
 - **Privacy:** message text is never logged, only the top label and latency.
