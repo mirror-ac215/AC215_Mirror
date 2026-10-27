@@ -7,10 +7,13 @@ and only runs when RUN_MODEL_TESTS=1.
 
 import json
 import logging
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
+from app import text_emotion
 from app.text_emotion import (
     LABELS,
     TextEmotion,
@@ -141,7 +144,7 @@ def test_message_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_model_revision_is_pinned_to_a_commit() -> None:
-    # Reproducibility: a rebuild must load the same weights, so the default is a full
+    # Reproducibility: a rebuild must load the same weights; the default is therefore a full
     # 40-character commit hash, never a moving branch like "main".
     import re
 
@@ -150,3 +153,44 @@ def test_model_revision_is_pinned_to_a_commit() -> None:
     default = Settings.model_fields["text_emotion_revision"].default
     assert re.fullmatch(r"[0-9a-f]{40}", default)
     assert TextEmotion().revision == default
+
+
+@pytest.mark.parametrize(
+    "bad_output",
+    [{}, {"annoyance": 0.9, "joy": 0.1}, None, ["joy", 0.9]],
+    ids=["no scores", "unknown label", "None", "not a dict"],
+)
+def test_malformed_model_output_becomes_text_emotion_unavailable(bad_output: object) -> None:
+    # Owen (#50): bad output must take the text-only fallback, never crash the chat turn.
+    module = TextEmotion(classifier=lambda text: bad_output)
+    with pytest.raises(TextEmotionUnavailable):
+        module.analyse("hello")
+
+
+def test_simultaneous_first_calls_share_one_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Owen (#50): two requests at once must not build two instances (two model loads).
+    built: list[object] = []
+
+    class SlowTextEmotion:
+        def __init__(self, **kwargs: object) -> None:
+            time.sleep(0.05)  # widen the window in which a race would happen
+            built.append(self)
+
+    monkeypatch.setattr(text_emotion, "_instance", None)
+    monkeypatch.setattr(text_emotion, "TextEmotion", SlowTextEmotion)
+
+    start = threading.Barrier(8)
+    results: list[object] = []
+
+    def first_request() -> None:
+        start.wait()
+        results.append(text_emotion.get_text_emotion())
+
+    threads = [threading.Thread(target=first_request) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(built) == 1
+    assert all(result is built[0] for result in results)
