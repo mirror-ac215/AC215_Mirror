@@ -5,9 +5,10 @@ One page to understand the system. Details live in the contracts linked below.
 > **Target versus current `main`:** This diagram is the intended integration
 > design, not proof that all components are already merged or running. Verify
 > current implementation from `main`; component pull requests remain unmerged
-> until reviewed and merged. The frontend, API gateway, and database Compose v0 stack is
-> merged; deployment, E2E, load testing, later Compose additions, and several service
-> implementations remain staged work.
+> until reviewed and merged. The merged Compose v0 stack contains the frontend,
+> API gateway, database, and mock LLM service; the CV service is available through
+> an explicit credentialed profile. Deployment, E2E, load testing, and the MS3
+> orchestration features remain staged work.
 
 ## Components
 

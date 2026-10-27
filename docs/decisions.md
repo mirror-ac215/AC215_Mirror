@@ -25,13 +25,13 @@ It does not turn an unmerged pull request into merged functionality.
 
 ## D-002: Use Node/Nitro SSR for the frontend runtime
 
-- **Status:** Proposed pending M2-12 Part A review and merge.
+- **Status:** Accepted and implemented in M2-12 (PRs #6 and #7).
 - **Decision:** The frontend target is a Node/Nitro server-side-rendering
   runtime on port 3000, with an unauthenticated `GET /health` endpoint, rather
   than an nginx-only static runtime.
 - **Why:** TanStack Start requires a server runtime for SSR and its route-based
-  health endpoint. Caddy/Compose integration must route to this documented
-  runtime after M2-03 is implemented.
+  health endpoint. The M2 Compose stack builds and runs this documented runtime;
+  Caddy integration remains part of the later deployment work.
 - **Affected areas:** frontend Dockerfile/README, architecture, Compose, Caddy,
   and deployment documentation.
 

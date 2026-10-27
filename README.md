@@ -29,9 +29,16 @@ Start with [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). It covers:
 The local stack (frontend, api-gateway, llm-service in mock mode, db) runs with Docker Compose. Details,
 configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
 
+The repository also contains the **M3-13 Stage A** production-deployment
+foundation: a T4 GPU VM provisioning script, Docker/NVIDIA bootstrap script,
+production Compose override and Caddy HTTPS configuration. It is a manually
+operated platform setup, not continuous deployment. The full integrated public
+release remains gated on the MS3 integration work; M3-14 will add
+Artifact-Registry images tagged by Git SHA. See [`infra/README.md`](infra/README.md).
+
 ```bash
-git clone https://github.com/mirror-ac215/mirror.git
-cd mirror
+git clone https://github.com/mirror-ac215/AC215_Mirror.git
+cd AC215_Mirror
 cp infra/.env.example infra/.env   # fill in the two values
 docker compose -f infra/compose.yml up --build -d
 ```
