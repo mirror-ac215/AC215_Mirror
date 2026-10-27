@@ -1,0 +1,15 @@
+{$CADDY_DOMAIN} {
+	# Stage A admits only approved source CIDRs, so public ACME validation is
+	# unavailable. Use Caddy's private CA until M4-02 enables a public deployment.
+	tls internal
+	encode zstd gzip
+
+	# Browser requests use /api; the FastAPI service receives its native path.
+	handle_path /api/* {
+		reverse_proxy api-gateway:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
