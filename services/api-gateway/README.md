@@ -23,11 +23,11 @@ Or get the token from `POST /auth/login` with one of these emails and the demo p
 
 | Endpoint | Returns |
 |---|---|
-| `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200 so Docker doesn't restart the gateway when a dependency is down |
+| `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200, which keeps Docker from restarting the gateway when a dependency is down |
 | `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
 | `POST /sessions` | 201, in-memory session (database: MS3) |
 | `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
-| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done` |
+| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done`; or a single `crisis` event instead of the reply (M3-07) |
 
 Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session, 404 unknown session, 409 no camera consent, 413 frame too large, 415 not a JPEG, 422 malformed request.
 
@@ -50,6 +50,55 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `TEXT_EMOTION_MAX_CHARS` | `2000` |
 
 Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
+
+## Safety check (M3-07)
+
+Before Mirror replies, `app/safety.py` reads the patient's message:
+
+| The patient writes... | Mirror does | Clinician flag |
+|---|---|---|
+| something about suicide, self-harm or hurting someone ("I want to die") | **Crisis:** shows 988 and 911 and does not reply | urgent |
+| anything else | replies as usual | none |
+
+```mermaid
+flowchart LR
+    M[Patient message] --> S{safety check}
+    S -- crisis --> C[988 + 911, no reply]
+    S -- nothing --> N[normal reply]
+```
+
+### Why simple rules and not a model
+
+- The same message always gets the same answer, which makes it easy to test.
+- The team can read and review every rule.
+- It does not depend on the LLM; tuning the persona can't weaken it.
+- It reads only the text, never the face.
+
+### Where things are
+
+| What | Where |
+|---|---|
+| The rules | top of `app/safety.py` (`CRISIS_RULES`) |
+| Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS` in `app/safety.py` |
+| Where the check runs | `send_message` in `app/chat.py` |
+| Test messages | `tests/safety_cases.yaml` (96 messages) |
+| Event shape | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`) |
+
+### Changing a rule
+
+1. Add the message to `tests/safety_cases.yaml` with the outcome you expect.
+2. Edit the rule in `app/safety.py`.
+3. Run `uv run pytest tests/test_safety.py -q` until it passes, then open a PR.
+
+When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a missed crisis costs much more.
+
+### Good to know
+
+- Logs and flags never contain the message text, only which rule fired.
+- Flags are kept in the gateway's memory only and are lost on restart. `review_flag_created: true` means "recorded in memory", not "saved". M3-10 saves them to the database.
+- English only.
+- Medical-advice and "talk to a person" replies are a follow-up PR, together with their chat-screen handling.
+- Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
 ## Text-emotion module (M3-05)
 
@@ -99,4 +148,4 @@ Check it from a second terminal:
 curl -f http://localhost:8000/health
 ```
 
-Run on its own, `/health` reports `degraded` because cv-service, llm-service and db aren't running. That's expected: the status code is still 200, so the container stays healthy. Inside docker-compose (M2-03) the dependencies resolve by service name.
+Run on its own, `/health` reports `degraded` because cv-service, llm-service and db aren't running. That's expected: the status code is still 200 and the container stays healthy. Inside docker-compose (M2-03) the dependencies resolve by service name.
