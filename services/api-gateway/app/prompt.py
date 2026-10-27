@@ -8,8 +8,10 @@ server").
 Rules the persona must follow (docs/PROJECT_CONTEXT.md):
 - never state an expression as a fact ("you look sad"); at most a tentative
   observation followed by a question;
-- when face and words disagree, ask instead of picking one;
-- coach mode by default, supportive mode after sustained confident negative signals.
+- when face and words disagree, the more concerning signal leads: check in
+  once, gently, then respect the answer (D-004);
+- supportive mode by default; coach only after sustained steady signals
+  (fusion decides, M3-06).
 
 The signals reach the model as plain words, never as raw numbers: the model
 can't misread "0.46" as a measurement of a feeling. The patient's text goes in
@@ -18,7 +20,7 @@ the "user" message only, never into the system prompt.
 
 from typing import Any
 
-PROMPT_VERSION = "m3-08-v1"
+PROMPT_VERSION = "m3-08-v2"
 
 # Below this probability the top label is too weak to mention.
 MIN_TEXT_PROB = 0.40
@@ -70,12 +72,13 @@ MODE_RULES = {
 }
 
 
-def plain(label: str) -> str:
-    """Plain word for a label; raises on a label the template doesn't know."""
-    try:
-        return PLAIN_WORDS[label]
-    except KeyError:
-        raise ValueError(f"Unknown emotion label: {label!r}") from None
+def plain(label: str) -> str | None:
+    """Plain word for a label, or None for a label the template doesn't know.
+
+    The context schema allows any label string, so an unknown one must not fail
+    the patient's turn: callers treat it as an unclear reading.
+    """
+    return PLAIN_WORDS.get(label)
 
 
 def describe_visual(visual: dict[str, Any]) -> str:
@@ -88,20 +91,19 @@ def describe_visual(visual: dict[str, Any]) -> str:
     if status == "dropped":
         return "Face: no reliable reading right now. Do not mention facial expression."
     top2 = visual.get("top2") or []
-    if status == "uncertain" or not top2 or top2[0][1] < MIN_VISUAL_PROB:
-        return (
-            "Face: the reading is unclear. Do not mention facial expression "
-            "unless the patient brings it up."
-        )
-    return f"Face: their expression may look {plain(top2[0][0])}. This is an estimate."
+    word = plain(top2[0][0]) if top2 else None
+    # Fail closed: only a confident, known reading may ever be put into words.
+    if status == "uncertain" or word is None or top2[0][1] < MIN_VISUAL_PROB:
+        return "Face: the reading is unclear. Do not mention facial expression."
+    return f"Face: their expression may look {word}. This is an estimate."
 
 
 def describe_text(text: dict[str, Any]) -> str:
     """One line about the tone of the patient's words."""
     top2 = text["top2"]
     label, prob = top2[0]
-    word = plain(label)  # checks the label even when the line stays vague
-    if prob < MIN_TEXT_PROB:
+    word = plain(label)
+    if word is None or prob < MIN_TEXT_PROB:
         return "Words: the tone of their message is unclear."
     return f"Words: their message may sound {word}. This is an estimate."
 
@@ -109,8 +111,10 @@ def describe_text(text: dict[str, Any]) -> str:
 def describe_agreement(agreement: str) -> str | None:
     if agreement == "disagree":
         return (
-            "The face and the words point in different directions. Do not pick one. "
-            "Gently ask how they are feeling right now."
+            "The face and the words point in different directions. Lean towards the "
+            "more concerning one: check in once, gently, about how they are feeling "
+            "right now. If they have already answered, take their word for it and do "
+            "not ask again."
         )
     if agreement in ("agree", "n/a"):
         return None
