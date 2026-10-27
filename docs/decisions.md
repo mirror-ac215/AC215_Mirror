@@ -25,13 +25,13 @@ It does not turn an unmerged pull request into merged functionality.
 
 ## D-002: Use Node/Nitro SSR for the frontend runtime
 
-- **Status:** Proposed pending M2-12 Part A review and merge.
+- **Status:** Accepted and implemented in M2-12 (PRs #6 and #7).
 - **Decision:** The frontend target is a Node/Nitro server-side-rendering
   runtime on port 3000, with an unauthenticated `GET /health` endpoint, rather
   than an nginx-only static runtime.
 - **Why:** TanStack Start requires a server runtime for SSR and its route-based
-  health endpoint. Caddy/Compose integration must route to this documented
-  runtime after M2-03 is implemented.
+  health endpoint. The M2 Compose stack builds and runs this documented runtime;
+  Caddy integration remains part of the later deployment work.
 - **Affected areas:** frontend Dockerfile/README, architecture, Compose, Caddy,
   and deployment documentation.
 
@@ -128,3 +128,20 @@ It does not turn an unmerged pull request into merged functionality.
   fusion and agreement flag (M3-06), context object `text.top2` labels.
 - **Evidence:** `pipelines/llm-eval/text-emotion-selection/`
   (`compare.py`, `compare_full.py`, `results/`).
+
+## D-004: When face and words disagree, the more concerning signal leads
+
+- **Status:** Accepted (M3-08, agreed by Mostafa on PR #51, Oct 25, 2026).
+- **Decision:** When the camera and the text point in different directions,
+  Mirror leans towards the more concerning of the two and checks in once,
+  gently, about how the patient is feeling. If the patient answers, Mirror
+  takes their word for it and does not ask again.
+- **Limits:**
+  - The face only counts when the gate (M3-04) says the reading is
+    confident and stable over the window, never from a single frame.
+  - An `uncertain`, `dropped` or `camera_off` face reading never lets Mirror
+    talk about facial expression, even if the patient brings it up.
+  - Fusion (M3-06) sets `agreement` and `tone_mode`; the prompt template
+    (M3-08) only words what fusion decided.
+- **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
+  gating (M3-04), prompt template (`app/prompt.py`, M3-08).
