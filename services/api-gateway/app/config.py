@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # Local development only; M4-02 replaces this with real password hashes.
     mirror_demo_password: str = "mirror-demo"
 
+    # Text-emotion module (M3-05). Model chosen in M2-11 (D-003 in docs/decisions.md).
+    # Pinned to an immutable Hugging Face commit: a rebuild always loads the same weights.
+    # Change it only on purpose (see "Model pin" in README.md), never back to "main".
+    text_emotion_model: str = "j-hartmann/emotion-english-distilroberta-base"
+    text_emotion_revision: str = "0e1cd914e3d46199ed785853e12b57304e04178b"
+    # Longer messages are cut before scoring (the API allows up to 4000 characters).
+    text_emotion_max_chars: int = 2000
+
     # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
     # result is noisy, so the gateway averages the recent ones and decides
     # whether the reading is steady enough to use. The three "ok" thresholds were chosen with
