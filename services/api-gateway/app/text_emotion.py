@@ -163,7 +163,13 @@ class TextEmotion:
                 scores = classifier(text)
             except Exception as exc:
                 raise TextEmotionUnavailable(str(exc)) from exc
-            top2 = top2_from_scores(scores)
+            try:
+                top2 = top2_from_scores(scores)
+            except (ValueError, TypeError, AttributeError) as exc:
+                # Malformed output (no scores, unknown labels, not a dict) takes the same
+                # text-only fallback as a crash: the chat turn continues without text emotion.
+                logger.error("text_emotion_bad_output", extra={"error": str(exc)})
+                raise TextEmotionUnavailable(str(exc)) from exc
 
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         logger.info(
@@ -174,18 +180,23 @@ class TextEmotion:
 
 
 _instance: TextEmotion | None = None
+# Guards the first call: two requests arriving together must share one instance
+# (and therefore one model load), not build two.
+_instance_lock = threading.Lock()
 
 
 def get_text_emotion() -> TextEmotion:
     """One shared instance for the whole gateway, configured from env vars."""
     global _instance
     if _instance is None:
-        from app.config import Settings
+        with _instance_lock:
+            if _instance is None:  # checked again: another thread may have built it meanwhile
+                from app.config import Settings
 
-        settings = Settings()
-        _instance = TextEmotion(
-            model_name=settings.text_emotion_model,
-            revision=settings.text_emotion_revision,
-            max_chars=settings.text_emotion_max_chars,
-        )
+                settings = Settings()
+                _instance = TextEmotion(
+                    model_name=settings.text_emotion_model,
+                    revision=settings.text_emotion_revision,
+                    max_chars=settings.text_emotion_max_chars,
+                )
     return _instance
