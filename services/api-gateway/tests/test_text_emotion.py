@@ -138,3 +138,15 @@ def test_message_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> None:
     for record in caplog.records:
         assert secret not in record.getMessage()
         assert secret not in str(record.__dict__)
+
+
+def test_model_revision_is_pinned_to_a_commit() -> None:
+    # Reproducibility: a rebuild must load the same weights, so the default is a full
+    # 40-character commit hash, never a moving branch like "main".
+    import re
+
+    from app.config import Settings
+
+    default = Settings.model_fields["text_emotion_revision"].default
+    assert re.fullmatch(r"[0-9a-f]{40}", default)
+    assert TextEmotion().revision == default
