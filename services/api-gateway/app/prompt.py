@@ -75,7 +75,7 @@ MODE_RULES = {
 def plain(label: str) -> str | None:
     """Plain word for a label, or None for a label the template doesn't know.
 
-    The context schema allows any label string, so an unknown one must not fail
+    The context schema allows any label string; an unknown one must therefore not fail
     the patient's turn: callers treat it as an unclear reading.
     """
     return PLAIN_WORDS.get(label)
