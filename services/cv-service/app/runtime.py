@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,9 @@ class ModelSettings(BaseSettings):
     model_project: str = "mirror-ac215"
     model_object: str = "models/cv/inherited-v3/vit_b16_v3_best.pth"
     model_version: str = "cv-vit-b16-v3"
+    model_version_tag_object: str | None = None
     model_cache_dir: Path = Path("/tmp/mirror-cv-model")
+    max_batch_size: int = Field(default=8, ge=1, le=64)
     uncertain_margin: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
@@ -100,6 +103,29 @@ def _state_dict(checkpoint: object) -> dict[str, torch.Tensor]:
     }
 
 
+def resolve_model_version(
+    settings: ModelSettings,
+    *,
+    storage_client_factory: Callable[..., Any] = storage.Client,
+) -> str:
+    """Read the approved model version tag without deriving the artifact path from it."""
+    if settings.model_version_tag_object is None:
+        return settings.model_version
+    if not settings.model_version_tag_object:
+        raise RuntimeError("model version tag object must not be empty")
+
+    client = storage_client_factory(project=settings.model_project)
+    try:
+        version = client.bucket(settings.model_bucket).blob(
+            settings.model_version_tag_object
+        ).download_as_text().strip()
+    except Exception as exc:
+        raise RuntimeError("could not read approved model version tag") from exc
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", version):
+        raise RuntimeError("approved model version tag is malformed")
+    return version
+
+
 def load_model(
     settings: ModelSettings,
     *,
@@ -122,6 +148,19 @@ def load_model(
     return model.to("cpu").eval()
 
 
-def load_runtime(settings: ModelSettings | None = None) -> tuple[FaceDetector, ExpressionClassifier]:
+def load_runtime(
+    settings: ModelSettings | None = None,
+    *,
+    storage_client_factory: Callable[..., Any] = storage.Client,
+) -> tuple[FaceDetector, ExpressionClassifier, str]:
     settings = settings or ModelSettings()
-    return FaceDetector(), ExpressionClassifier(load_model(settings))
+    model_version = resolve_model_version(
+        settings, storage_client_factory=storage_client_factory
+    )
+    return (
+        FaceDetector(),
+        ExpressionClassifier(
+            load_model(settings, storage_client_factory=storage_client_factory)
+        ),
+        model_version,
+    )

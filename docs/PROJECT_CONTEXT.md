@@ -103,6 +103,8 @@ Response:
 }
 ```
 
+`cv-service` also exposes `POST /predict_batch` (same per-frame contract, bounded batch size, `{"predictions": [...]}` in request order) for offline/evaluation callers; the gateway's live chat path still calls `/predict` one frame at a time. An optional `MODEL_VERSION_TAG_OBJECT` setting lets `/health` report the model version Mostafa has approved for serving without changing which artifact `MODEL_OBJECT` downloads — Owen still owns that configuration value. See [`services/cv-service/README.md`](../services/cv-service/README.md) for details.
+
 ### Context object (gateway -> llm-service, one per turn)
 ```json
 {
