@@ -1,0 +1,42 @@
+[project]
+name = "mirror-llm-finetune"
+version = "0.1.0"
+description = "QLoRA retrain of Mirror's persona adapter (M3-09), run as a Vertex AI custom job"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pyyaml>=6.0,<7",
+]
+
+# The GPU stack is an extra, which keeps CI and laptops light: `uv sync --extra train`
+# installs it (the train image does), `uv sync --extra vertex` adds the submit client.
+[project.optional-dependencies]
+train = [
+    "accelerate>=1.10",
+    "bitsandbytes>=0.48",
+    "datasets>=4.0",
+    "peft>=0.17",
+    "torch>=2.9.1",
+    "transformers>=4.57",
+    "trl>=0.24",
+    "wandb>=0.30.0",
+]
+vertex = [
+    "google-cloud-aiplatform>=1.120",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[project.scripts]
+mirror-llm-finetune = "mirror_llm_finetune.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

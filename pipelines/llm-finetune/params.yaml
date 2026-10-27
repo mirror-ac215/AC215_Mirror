@@ -1,0 +1,55 @@
+# M3-09 LoRA retrain. Change values here, not in code: every value is logged to W&B.
+
+base_model:
+  name: Qwen/Qwen2.5-3B-Instruct
+  # Full 40-character Hugging Face commit: a rerun then loads the same weights.
+  # Copy it from the model page ("Files and versions" -> latest commit). Training
+  # refuses to start while this is empty.
+  revision: ""
+
+data:
+  dir: data/processed/persona/v1      # output of `dvc repro persona_clean` (M2-09)
+  version: persona/v1
+
+# Mirror's own system prompt for training. The old notebook prompt named the real
+# person; this one never does (see pipelines/persona-data/README.md).
+system_prompt: >-
+  You are Mirror, a calm, warm chat companion a patient uses between sessions
+  with their clinician. You are not a doctor, a therapist or a real person.
+
+lora:                                 # same shape as adapter-v1 (docs/artifacts.md)
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+quantization:                         # QLoRA: 4-bit base model, LoRA weights in 16-bit
+  load_in_4bit: true
+  quant_type: nf4
+  compute_dtype: bfloat16             # L4 supports bfloat16; use float16 on a T4
+
+training:                             # starting values, to be tuned on val loss in W&B
+  seed: 215
+  epochs: 3
+  learning_rate: 2.0e-4
+  batch_size: 4
+  grad_accum: 4
+  max_length: 1024
+  warmup_ratio: 0.03
+  lr_scheduler: cosine
+
+output:
+  adapter_name: adapter-v2
+  gcs_prefix: gs://mirror-ac215-data/models/llm   # adapter goes to <prefix>/<adapter_name>/
+
+wandb:
+  project: mirror
+
+vertex:
+  project: mirror-ac215
+  region: us-central1                 # confirm L4 quota in this region before submitting
+  machine_type: g2-standard-8
+  accelerator_type: NVIDIA_L4
+  accelerator_count: 1
+  image_uri: ""                       # the train image in Artifact Registry (README step 3)
+  staging_bucket: gs://mirror-ac215-data/vertex-staging
