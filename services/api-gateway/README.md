@@ -27,7 +27,7 @@ Or get the token from `POST /auth/login` with one of these emails and the demo p
 | `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
 | `POST /sessions` | 201, in-memory session (database: MS3) |
 | `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
-| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done`; a `support` event first when the patient asks for a person or can't cope; or a single `crisis` / `medical` event instead of the reply (M3-07) |
+| `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done`; or a single `crisis` event instead of the reply (M3-07) |
 
 Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session, 404 unknown session, 409 no camera consent, 413 frame too large, 415 not a JPEG, 422 malformed request.
 
@@ -44,29 +44,22 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `MAX_FRAME_BYTES` | `1000000` |
 | `MIRROR_DEMO_PASSWORD` | `mirror-demo` (local demo only; same variable as `services/db`) |
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
-| `CLINIC_BOOKING_URL` | empty (hides the Schedule button) |
-| `CLINIC_PHONE` | empty (hides the Call button) |
-| `LIVE_SUPPORT_AVAILABLE` | `false` |
 
 Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
 
 ## Safety check (M3-07)
 
-Before Mirror replies, `app/safety.py` reads the patient's message and decides one of four things:
+Before Mirror replies, `app/safety.py` reads the patient's message:
 
 | The patient writes... | Mirror does | Clinician flag |
 |---|---|---|
 | something about suicide, self-harm or hurting someone ("I want to die") | **Crisis:** shows 988 and 911 and does not reply | urgent |
-| a medical question ("can I take ibuprofen with my zoloft?") | **Medical:** says to ask their clinician or pharmacist and does not reply | none |
-| a need for a person ("can I talk to a real person?", "I can't cope") | **Support:** shows Schedule / Call / Talk-now buttons, then replies as usual | routine |
 | anything else | replies as usual | none |
 
 ```mermaid
 flowchart LR
     M[Patient message] --> S{safety check}
     S -- crisis --> C[988 + 911, no reply]
-    S -- medical --> D[ask your clinician, no reply]
-    S -- support --> P[Schedule / Call / Talk now] --> N
     S -- nothing --> N[normal reply]
 ```
 
@@ -77,27 +70,15 @@ flowchart LR
 - It does not depend on the LLM; tuning the persona can't weaken it.
 - It reads only the text, never the face.
 
-### Why the support tier
-
-Mirror is used between sessions, when an appointment isn't available. Most hard moments are not a crisis, but the patient should still see that a real person is part of their care. The support note keeps them talking and puts the clinic one tap away. The buttons come from settings:
-
-| Setting | Button |
-|---|---|
-| `CLINIC_BOOKING_URL` | Schedule an appointment |
-| `CLINIC_PHONE` | Call the office |
-| `LIVE_SUPPORT_AVAILABLE=true` | Talk to someone now (off in the prototype: no staff behind it) |
-
-An empty setting hides its button. Mirror never shows a made-up number or link.
-
 ### Where things are
 
 | What | Where |
 |---|---|
-| The rules | top of `app/safety.py` (`CRISIS_RULES`, `MEDICAL_RULES`, `SUPPORT_RULES`) |
+| The rules | top of `app/safety.py` (`CRISIS_RULES`) |
 | Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS` in `app/safety.py` |
 | Where the check runs | `send_message` in `app/chat.py` |
-| Test messages | `tests/safety_cases.yaml` (66 messages) |
-| Event shapes | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`, `MedicalPayload`, `SupportPayload`) |
+| Test messages | `tests/safety_cases.yaml` (76 messages) |
+| Event shape | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`) |
 
 ### Changing a rule
 
@@ -110,9 +91,9 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 ### Good to know
 
 - Logs and flags never contain the message text, only which rule fired.
-- Flags are kept in memory for now; M3-10 saves them to the database.
+- Flags are kept in the gateway's memory only and are lost on restart. `review_flag_created: true` means "recorded in memory", not "saved". M3-10 saves them to the database.
 - English only.
-- The chat screen doesn't show the medical and support events yet (M3-12).
+- Medical-advice and "talk to a person" replies are a follow-up PR, together with their chat-screen handling.
 - Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
 ## Checks
