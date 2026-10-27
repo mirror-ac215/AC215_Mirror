@@ -81,7 +81,9 @@ RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s
 
 `app/gating.py` keeps the last 10 s of cv-service readings per session (probabilities only, never frames) and reports `ok`, `uncertain`, `dropped` or `camera_off`. "ok" needs the averaged top emotion to reach `GATE_MIN_TOP_PROB` (0.45), lead the second by `GATE_MIN_MARGIN` (0.05), and be the top emotion in `GATE_MIN_STABILITY` (0.50) of the frames.
 
-**How the thresholds were chosen:** `scripts/gate_sweep.py` replays the 36 held-out Aff-Wild2 validation videos at 1 frame per second (1,951 ten-second windows) through the real `gate()`, scored by the current CV model (`cv-vit-b16-v4`, per-frame scores from `pipelines/cv-eval/scripts/export_frame_probs.py`), and tries 80 combinations ([W&B](https://wandb.ai/mog941-harvard-university/mirror/runs/dposf012)).
+**Provisional (experimental) thresholds.** They were tuned with `cv-vit-b16-v4`, which is not the served model yet (cv-service still serves v3), on Aff-Wild2 video rather than our own users. Treat them as a starting point until the served model changes or our own labelled sessions (M3-20) exist; then re-run the sweep.
+
+**How they were chosen:** `scripts/gate_sweep.py` replays the 36 held-out Aff-Wild2 validation videos at 1 frame per second (1,951 ten-second windows) through the real `gate()`, scored by the current CV model (`cv-vit-b16-v4`, per-frame scores from `pipelines/cv-eval/scripts/export_frame_probs.py`), and tries 80 combinations ([W&B](https://wandb.ai/mog941-harvard-university/mirror/runs/dposf012)).
 
 | Thresholds (top / margin / stability) | "ok" in | right when "ok" |
 |---|---|---|
@@ -91,6 +93,8 @@ RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s
 | 0.50 / 0.05 / 0.50 (strict) | 14 % | 69 % |
 
 A single frame without the gate is right 50 % of the time. We chose fewer but more reliable face signals: a wrong hint is worse than none, because Mirror then relies on the text. When the gate says "ok" it reports almost only neutral, happy or surprise; it is almost never "ok" for angry, sad, fear or disgust, so fusion (M3-06) should not let the face lead on those.
+
+**Safety:** out-of-range settings (a probability outside 0-1, a non-positive window or frame count, `GATE_MAX_FRAMES` below `GATE_MIN_FRAMES`) stop the gateway at startup. A cv-service reading without exactly the 7 labels, each a number between 0 and 1, is treated as a frame without a face, so a broken reply ends in `dropped`, never a crash.
 
 Re-run after a model change: export the frame scores with the new checkpoint, then `uv run --with wandb python -m scripts.gate_sweep <frames.csv> --wandb-project mirror`.
 

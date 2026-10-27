@@ -15,10 +15,14 @@ Frames themselves are never kept, only cv-service's probabilities.
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass
 
 from app.config import Settings
+
+# The 7 labels cv-service returns (docs/contracts/cv-service.openapi.yaml).
+FACE_LABELS = ("angry", "disgust", "fear", "happy", "neutral", "sad", "surprise")
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,23 @@ class FrameWindow:
         return [r for r in self._readings if now - r.ts <= window_s]
 
 
+def _usable(reading: FrameReading) -> bool:
+    """A face with all 7 labels, each a real number between 0 and 1.
+
+    Anything else (missing or unknown labels, NaN, text, a bool) counts as a frame
+    without a face, so a broken cv-service reply leads to "dropped", never a crash.
+    """
+    probs = reading.probs
+    return (
+        reading.face_found
+        and isinstance(probs, dict)
+        and set(probs) == set(FACE_LABELS)
+        and all(
+            isinstance(p, (int, float)) and not isinstance(p, bool) and math.isfinite(p) and 0 <= p <= 1
+            for p in probs.values()
+        )
+    )
+
 
 def _top_label(probs: dict[str, float]) -> str:
     """The emotion with the highest probability in one reading."""
@@ -60,7 +81,7 @@ def gate(readings: list[FrameReading], settings: Settings, camera_on: bool) -> d
         return {"status": "camera_off"}
 
     n_frames = len(readings)
-    with_face = [r for r in readings if r.face_found and r.probs]
+    with_face = [r for r in readings if _usable(r)]
     face_ratio = len(with_face) / n_frames if n_frames else 0.0
 
     # 1. Enough evidence? Too few faces means we say nothing about the face.
@@ -68,10 +89,9 @@ def gate(readings: list[FrameReading], settings: Settings, camera_on: bool) -> d
         return {"status": "dropped", "window_s": settings.gate_window_s, "n_frames": n_frames}
 
     # 2. Smooth: average each emotion's probability over the frames with a face.
-    labels = with_face[0].probs.keys()
+    #    Every usable reading has all 7 labels, so the ranking always has a second place.
     average = {
-        label: sum(r.probs.get(label, 0.0) for r in with_face) / len(with_face)
-        for label in labels
+        label: sum(r.probs[label] for r in with_face) / len(with_face) for label in FACE_LABELS
     }
     ranked = sorted(average.items(), key=lambda item: item[1], reverse=True)
     (top, top_p), (second, second_p) = ranked[0], ranked[1]
