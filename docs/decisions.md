@@ -142,7 +142,12 @@ It does not turn an unmerged pull request into merged functionality.
   design: v4 scores 0.720 on FER+ test (v3 0.609) and 0.588 on FER-2013 test
   (v3 0.645). Keeping the old guard would reward copying label noise.
 - **Affected areas:** `pipelines/cv-eval` (run with `--threshold 0.609` on
-  `ferplus/v1`), `pipelines/cv-train` README, CV model card (M4-10), board
-  M3-01 done-when.
+  `ferplus/v2`, the version `mirror-prepare-ferplus` builds; its test split is
+  identical to `ferplus/v1`, the same 6,722 photos and labels, so the 0.609
+  baseline and v4's 0.720 carry over), `pipelines/cv-train` README, CV model
+  card (M4-10), board M3-01 done-when.
+- **Not yet enforced:** no CI job or DVC stage runs this guard yet (CI has no
+  FER-2013 images or GPU); until one exists it is a release check done by hand
+  (board follow-up).
 - **Evidence:** `pipelines/cv-eval/README.md` (M3-18 baselines),
   `pipelines/cv-train/README.md` (M3-01 experiments and final scores).

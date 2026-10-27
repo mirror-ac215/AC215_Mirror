@@ -139,6 +139,10 @@ Why C3: within the noise of the best video score, the best FER+ score, and the s
 - A model pre-trained on ~400k AffectNet faces (HSEmotion) reaches the same ceiling: used as-is it scores 0.314, and every way of training it on our data (H1-H3) peaks at the first epoch within 0.01 of that, with lower photo scores than v4. It is better at fear, worse at anger. v4 stays the model: equal on video, better on photos, a drop-in for cv-service, and our own licence (HSEmotion weights are research-only). The EfficientNet support (`model.architecture`, `model.global_pool`, `model.train_only_head`) stays in cv-train, off by default, for when more data arrives. The HSEmotion start checkpoint is rebuilt from its ONNX release with `scripts/convert_hsemotion.py` (no pickle; output identical to the original).
 - v4 is published but **not yet served**: switching `cv-service` is integration work (M3-03/M3-10).
 
+**Caveats**
+- **Near-duplicate photos:** FER-2013 has some near-duplicate faces across its Training and PublicTest/PrivateTest parts. Training on FER+ train therefore lifts the FER+ test score a little through those. v3 was trained on the same Training photos, so the v3 vs v4 comparison is fair; the Aff-Wild2 test score (separate people) is not affected.
+- **Weight decay on every parameter:** AdamW applies `weight_decay` (1e-4) to all weights, including biases, LayerNorm weights, `class_token` and `pos_embedding`; the usual ViT recipe exempts those. The effect is likely small over 6-8 epochs from v3, and v4 was trained this way, so it is noted rather than changed.
+
 ## M3-01: multi-source training (experimental)
 
 > **Status: experimental.** This recipe produces candidate checkpoints only. It does not change the served model: cv-service still serves `cv-vit-b16-v3` until a candidate passes the final cv-eval and is handed to serving (below).

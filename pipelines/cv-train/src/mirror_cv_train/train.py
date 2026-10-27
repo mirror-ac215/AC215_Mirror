@@ -43,11 +43,12 @@ class WeightEMA:
 
 def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
                     optimizer: torch.optim.Optimizer, device: torch.device,
-                    max_batches: int | None = None, amp: bool = False, step_scheduler: Any = None, ema: WeightEMA | None = None) -> tuple[float, float]:
+                    max_batches: int | None = None, amp: bool = False, step_scheduler: Any = None,
+                    ema: WeightEMA | None = None) -> tuple[float, float]:
     """One pass over the training data. Labels may be soft (Mixup/CutMix): accuracy uses their argmax.
 
     amp=True computes in bfloat16 where safe (about 2x faster on a recent NVIDIA GPU).
-        step_scheduler, if given, moves the learning rate after every batch (cosine schedule).
+    step_scheduler, if given, moves the learning rate after every batch (cosine schedule).
     """
     model.train()
     if getattr(model, "frozen_backbone", False):
