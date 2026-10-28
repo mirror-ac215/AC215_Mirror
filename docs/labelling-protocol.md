@@ -60,7 +60,7 @@ A small panel over the chat:
 reading is captured at the moment the panel opens (before the person answers, so answering does not
 change the face we score).
 
-## Session script (about 21 minutes)
+## Session script (about 20 minutes)
 
 | Part | Minutes | What happens | Why |
 |---|---|---|---|
