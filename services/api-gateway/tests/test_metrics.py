@@ -1,5 +1,7 @@
 """Gateway metrics (M3-15): /metrics speaks Prometheus and counts what the gateway does."""
 
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -78,14 +80,35 @@ def test_text_emotion_time_and_fallbacks_are_counted() -> None:
 def test_gate_and_fusion_outcomes_are_counted() -> None:
     # The chat endpoint (M3-10) calls these once per turn, where it calls gate() and fuse().
     before = value("mirror_gateway_gate_total", status="uncertain")
-    metrics.record_gate({"status": "uncertain", "top2": [["sad", 0.4], ["neutral", 0.3]]})
+    metrics.record_gate("uncertain")
     assert value("mirror_gateway_gate_total", status="uncertain") == before + 1
 
     labels = {"agreement": "disagree", "tone_mode": "supportive", "main_signal": "text"}
     before = value("mirror_gateway_fusion_total", **labels)
-    metrics.record_fusion({"agreement": "disagree", "tone_mode": "supportive",
-                           "note": "main signal: text (sad, 0.70); already checked in this session"})
-    metrics.record_fusion({"agreement": "disagree", "tone_mode": "supportive", "note": "main signal: text (sad, 0.70)"})
-    assert value("mirror_gateway_fusion_total", **labels) == before + 2
-    metrics.record_fusion({"agreement": "n/a", "tone_mode": "supportive", "note": "main signal: none"})
-    assert value("mirror_gateway_fusion_total", agreement="n/a", tone_mode="supportive", main_signal="none") >= 1
+    metrics.record_fusion("disagree", "supportive", "text")
+    assert value("mirror_gateway_fusion_total", **labels) == before + 1
+
+
+# Owen (#63): labels come from fixed lists, never from free text.
+@pytest.mark.parametrize(
+    "bad",
+    ["main signal: face (sad, 0.70)", "FACE", "", None, "sad"],
+    ids=["note text", "wrong case", "empty", "None", "an emotion"],
+)
+def test_unknown_label_values_are_counted_as_invalid(bad) -> None:
+    gate_before = value("mirror_gateway_gate_total", status="invalid")
+    metrics.record_gate(bad)
+    assert value("mirror_gateway_gate_total", status="invalid") == gate_before + 1
+
+    labels = {"agreement": "invalid", "tone_mode": "invalid", "main_signal": "invalid"}
+    before = value("mirror_gateway_fusion_total", **labels)
+    metrics.record_fusion(bad, bad, bad)
+    assert value("mirror_gateway_fusion_total", **labels) == before + 1
+
+
+# Owen (#63): /metrics must not be reachable from the browser through Caddy.
+def test_caddy_blocks_public_metrics() -> None:
+    caddyfile = (Path(__file__).parents[3] / "infra" / "caddy" / "Caddyfile").read_text(encoding="utf-8")
+    block = caddyfile.index("handle /api/metrics* {")
+    assert "respond 404" in caddyfile[block : caddyfile.index("}", block)]
+    assert block < caddyfile.index("handle_path /api/*")  # listed before the general /api proxy
