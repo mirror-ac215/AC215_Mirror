@@ -3,6 +3,23 @@
 **Status:** draft for team review (Oct 2026). **Used by:** M3-20 (self-report check-in) and the M4-09 evaluation.
 **Owner:** Mostafa. **Reviewer:** Julie.
 
+## Before the first session (gates)
+
+**No session records anything until every box below is ticked** (team members included): no
+check-ins, no per-second model outputs, no frames, no labels, no ID list. Each box is ticked in this
+file with the date and who confirmed it.
+
+- [ ] **TF and IRB:** written guidance from our TF (Patrick), and Harvard's IRB determination if he
+      says one is needed (a "not human-subjects research" letter, since face images are biometric
+      data). Linked here.
+- [ ] **Storage:** set up as in "Storage and access" below, and checked by a second team member.
+- [ ] **M3-20 design reviewed:** the server enforces both consent choices and withdrawal; no frame
+      bytes or chat text reach the production database, browser storage, logs, Git, CI artifacts,
+      DVC metadata, test fixtures or W&B; and M3-11's production frame path stays in memory only.
+- [ ] **Check-in record format** versioned in M3-20 (the fields are listed under "What is stored").
+- [ ] **M4-09 scope:** the board's M4-09 task matches "What we report" (Julie confirms, or the board
+      is updated).
+
 ## Why
 
 Every number we have for the camera model comes from public datasets (FER-2013, FER+, Aff-Wild2).
@@ -17,10 +34,8 @@ It is a **validation set** first (the MS1 feedback asked for one); it is too sma
 
 - The three team members and a few **adult volunteers** (friends or classmates). No minors, no
   patients, no one currently in distress.
-- **Before any volunteer outside the team is recorded,** we confirm with our TF (Patrick), and with
-  Harvard's IRB if he advises it (a quick "not human-subjects research" determination, since face
-  images are biometric data), that this is acceptable for a course project. Team-only sessions can
-  start before that.
+- **Nobody is recorded, team members included, before the gates above are met**, starting with the
+  TF and IRB check.
 - **No pressure:** volunteers are invited by Owen or Julie, never by the session lead, and saying no
   is fine and is never brought up again.
 - Everyone signs the consent below. Taking part is voluntary and anyone can stop at any time,
@@ -101,6 +116,13 @@ outside the bucket, and deleted with the data):
 
 No chat text is stored for this dataset.
 
+**Check-in record (the exact format is versioned in M3-20).** Each check-in carries at least:
+pseudonymous participant and session IDs; when the panel opened and when it was answered (the model
+reading is taken at the first); the consent version and both choices; the answer (an emotion, "none
+of these", skip, or "no reading" for the text module); intensity; the `posed` flag; the model, gate
+and config versions; the label-mapping version; and, with frames consent, a frame ID the raters'
+labels link to.
+
 ## Labelling the frames (two raters)
 
 For sessions with frames consent, Julie and Mostafa each label, independently, the frame at every
@@ -110,22 +132,43 @@ agrees with the self-report. One labeller makes mistakes (M3-18: FER-2013's sing
 with the 10-annotator FER+ majority on about a third of photos); two let us measure that.
 Disagreements are reported, not overwritten.
 
-## Storage and versioning
+## Storage and access
 
-- Location: the private bucket `gs://mirror-ac215-data/data/raw/selfreport/v1/`, versioned with DVC
-  like our other data. Never in Git, never in W&B (W&B gets aggregate numbers only).
-- Access: the three team members.
+- **Its own private bucket** (for example `gs://mirror-ac215-study`), separate from the project data
+  bucket: uniform bucket-level access, public access prevention on, object versioning off and no
+  backups, so a deletion is final.
+- **Who can read it:** the three team members' own accounts only. The session lead can write and
+  delete; the two raters can read. **No service account** has any role on it: not cv-service, the
+  api-gateway, CI or Vertex jobs. The production app never sees these frames.
+- **Not in DVC.** DVC would keep extra copies in its cache and file hashes in Git, which makes
+  deletion harder. Instead, a manifest (file list with sha256, no names) is kept in the same bucket,
+  and reports cite the manifest's hash as the dataset version.
+- Never in Git, logs or CI; never in W&B (W&B gets aggregate numbers only).
+- **Local copies** only on team laptops, for labelling and analysis, in one folder that is deleted
+  when that work is done. No other exports.
 - **Split by person:** a person's sessions are all in one split. When the set is used for testing,
   no one in it may also be in any training data.
 
-## Deletion
+## Deletion and withdrawal
 
-- On request, at any time: the session lead deletes that ID's files from the bucket and from DVC
-  storage and confirms by message. Any aggregate number already reported is recomputed without them.
-- At the end of the course (December 2026): everything is deleted unless the person agreed in writing
-  to a longer period.
+**Where the data lives:** the study bucket (check-ins, model outputs, frames, manifest), the raters'
+labels, local copies on team laptops, the ID-to-name list (session lead, offline), and aggregate
+numbers in our reports.
+
+- **Withdrawal, at any time:** the person tells any team member. **Within 7 days** the session lead
+  deletes that ID's files and labels from the bucket, each team member deletes any local copy and
+  confirms, the ID-list entry is removed, the manifest is rebuilt, and any aggregate already
+  reported is recomputed without them in the next report. The person gets a confirmation message.
+- **End of the course:** everything above is deleted **by December 19, 2026** (one week after the
+  final demo) unless the person agreed in writing to a longer period.
+- **Proof:** after each deletion a second team member checks that the bucket listing for that ID is
+  empty and the manifest no longer contains it, and adds a line to a deletion log in the bucket:
+  date, who deleted, who checked. The log never holds a name, an ID or any content.
+- **Owner:** the session lead; a second team member verifies.
 
 ## What we report (M4-09)
+
+(To be matched with the board's M4-09 task; see the gates above.)
 
 For every check-in that was not skipped:
 
@@ -150,4 +193,5 @@ These are the real-world counterparts of the Aff-Wild2 sweep in `services/api-ga
 | Analysis (M4-09) | Julie and Mostafa |
 | Inviting volunteers (never the session lead) | Owen or Julie |
 | Frame labelling (two raters) | Julie and Mostafa |
-| First team-only test session (check-in panel + script) | the three team members |
+| Storage setup and deletion checks | Mostafa sets up, Owen checks |
+| First test session (team only, after the gates) | the three team members |
