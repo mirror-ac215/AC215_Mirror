@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,3 +38,26 @@ class Settings(BaseSettings):
     text_emotion_revision: str = "0e1cd914e3d46199ed785853e12b57304e04178b"
     # Longer messages are cut before scoring (the API allows up to 4000 characters).
     text_emotion_max_chars: int = 2000
+
+    # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
+    # result is noisy, so the gateway averages the recent ones and decides
+    # whether the reading is steady enough to use.
+    # Provisional (experimental) thresholds: chosen with a sweep on held-out Aff-Wild2 video
+    # (scripts/gate_sweep.py, see the README) using cv-vit-b16-v4, which is not the served
+    # model yet. Re-run the sweep when the served model changes or our own labelled sessions
+    # (M3-20) are ready. Out-of-range values are rejected at startup.
+    # allow_inf_nan=False: an infinite window would keep stale frames forever.
+    gate_window_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)  # only frames from the last N seconds count
+    gate_min_frames: int = Field(default=3, ge=1)  # fewer frames with a face -> "dropped"
+    gate_min_face_ratio: float = Field(default=0.5, ge=0, le=1)  # face in under half -> "dropped"
+    gate_min_top_prob: float = Field(default=0.45, ge=0, le=1)  # averaged top emotion must reach this
+    gate_min_margin: float = Field(default=0.05, ge=0, le=1)  # ...and lead the second by this much
+    gate_min_stability: float = Field(default=0.50, ge=0, le=1)  # ...and be top in this share of frames
+    gate_max_frames: int = Field(default=30, ge=1)  # cap per session (about 30-60 s of frames)
+
+    @model_validator(mode="after")
+    def _window_can_hold_enough_frames(self) -> Settings:
+        # A window smaller than the minimum would report "dropped" forever.
+        if self.gate_max_frames < self.gate_min_frames:
+            raise ValueError("gate_max_frames must be at least gate_min_frames")
+        return self
