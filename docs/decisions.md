@@ -128,3 +128,20 @@ It does not turn an unmerged pull request into merged functionality.
   fusion and agreement flag (M3-06), context object `text.top2` labels.
 - **Evidence:** `pipelines/llm-eval/text-emotion-selection/`
   (`compare.py`, `compare_full.py`, `results/`).
+
+## D-004: When face and words disagree, the more concerning signal leads
+
+- **Status:** Accepted (M3-08, agreed by Mostafa on PR #51, Oct 25, 2026).
+- **Decision:** When the camera and the text point in different directions,
+  Mirror leans towards the more concerning of the two and checks in once,
+  gently, about how the patient is feeling. If the patient answers, Mirror
+  takes their word for it and does not ask again.
+- **Limits:**
+  - The face only counts when the gate (M3-04) says the reading is
+    confident and stable over the window, never from a single frame.
+  - An `uncertain`, `dropped` or `camera_off` face reading never lets Mirror
+    talk about facial expression, even if the patient brings it up.
+  - Fusion (M3-06) sets `agreement` and `tone_mode`; the prompt template
+    (M3-08) only words what fusion decided.
+- **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
+  gating (M3-04), prompt template (`app/prompt.py`, M3-08).

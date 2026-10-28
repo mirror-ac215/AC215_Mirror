@@ -154,6 +154,35 @@ uv run ruff check .
 uv run pytest -q
 ```
 
+## Prompt template (M3-08)
+
+`app/prompt.py` turns one context object and the patient's message into the messages the gateway sends to llm-service. It lives in the gateway, not in llm-service (see `docs/architecture.md`): the gateway owns the context object, and llm-service stays a plain model server.
+
+**What the model gets each turn**
+
+1. Fixed rules: 2 to 4 sentences, at most one question, never claims to be a person or a clinician, no medical advice, never mentions cameras or numbers.
+2. The mode, set by fusion (M3-06): **supportive** by default (listen, no advice), **coach** (encouraging, one small next step) only after sustained steady signals.
+3. This turn's signals, as words and never as numbers, for example:
+   - `Face: their expression may look sad. This is an estimate.`
+   - `Face: the camera is off. Do not mention facial expression.`
+   - `The face and the words point in different directions. Lean towards the more concerning one: check in once, gently ... If they have already answered, take their word for it and do not ask again.` (D-004)
+4. The last 6 messages of the conversation, then the patient's new message.
+
+**Why words, not numbers:** "0.46 sad" invites the model to say "you are 46% sad". Plain words plus "this is an estimate" keep it guessing and asking, the way the persona rules require.
+
+**Weak readings are hidden, with no exceptions:** a top label under 0.40, or a label the template doesn't know, becomes "unclear". An `uncertain`, `dropped` or `camera_off` face reading always becomes "do not mention facial expression", even if the patient brings it up. An unknown label never fails the patient's turn.
+
+**Safety:** the patient's text only goes in the `user` message, never in the system prompt. The history can't carry a `system` message. The crisis check (M3-07) runs before any of this.
+
+**Review the 20 sample cases** (`tests/prompt_cases.json`):
+
+```bash
+uv run python -m scripts.prompt_samples > prompt_samples.md
+uv run python -m scripts.prompt_samples --llm-url http://localhost:8002 > prompt_samples.md
+```
+
+The first command shows only the prompts. The second also asks llm-service for Mirror's reply to each case, giving 20 short transcripts for the team to review.
+
 ## Docker
 
 Build and run from this directory:
