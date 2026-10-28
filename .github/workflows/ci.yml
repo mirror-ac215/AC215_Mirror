@@ -24,6 +24,7 @@ jobs:
       persona_data: ${{ steps.filter.outputs.persona_data }}
       cv_eval: ${{ steps.filter.outputs.cv_eval }}
       cv_train: ${{ steps.filter.outputs.cv_train }}
+      llm_finetune: ${{ steps.filter.outputs.llm_finetune }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -69,6 +70,9 @@ jobs:
               - '.github/workflows/**'
             cv_train:
               - 'pipelines/cv-train/**'
+              - '.github/workflows/**'
+            llm_finetune:
+              - 'pipelines/llm-finetune/**'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -161,6 +165,15 @@ jobs:
     with:
       service_path: pipelines/cv-train
       image_name: mirror-cv-train-ci
+
+  llm_finetune:
+    name: LLM fine-tune checks
+    needs: changes
+    if: needs.changes.outputs.llm_finetune == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/llm-finetune
+      image_name: mirror-llm-finetune-ci
 
   frontend:
     name: Frontend checks
@@ -265,7 +278,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, llm_finetune, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -290,6 +303,8 @@ jobs:
           CV_EVAL_RESULT: ${{ needs.cv_eval.result }}
           CV_TRAIN_CHANGED: ${{ needs.changes.outputs.cv_train }}
           CV_TRAIN_RESULT: ${{ needs.cv_train.result }}
+          LLM_FINETUNE_CHANGED: ${{ needs.changes.outputs.llm_finetune }}
+          LLM_FINETUNE_RESULT: ${{ needs.llm_finetune.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -343,6 +358,11 @@ jobs:
 
           if [ "$CV_TRAIN_CHANGED" = "true" ] && [ "$CV_TRAIN_RESULT" != "success" ]; then
             echo "CV training checks did not pass: $CV_TRAIN_RESULT"
+            exit 1
+          fi
+
+          if [ "$LLM_FINETUNE_CHANGED" = "true" ] && [ "$LLM_FINETUNE_RESULT" != "success" ]; then
+            echo "LLM fine-tune checks did not pass: $LLM_FINETUNE_RESULT"
             exit 1
           fi
 

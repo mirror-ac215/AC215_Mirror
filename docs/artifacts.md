@@ -5,6 +5,7 @@ What we store in the team bucket `gs://mirror-ac215-data/`, where each file came
 | File (GCS path) | What it is | Size | Source | Metrics |
 |---|---|---|---|---|
 | `models/cv/inherited-v3/vit_b16_v3_best.pth` | ViT-B/16, 7-class facial expression, main model | 327 MB | CSCI E-25, `facial_emotion_recognition_v3_Mostafa_Galal.ipynb` | test: 66.6% top-1, 83.8% top-2, 0.645 macro-F1 |
+| `models/cv/v4/vit_b16_v4.pth` | ViT-B/16, 7-class facial expression, v4 (v3 fine-tuned on Aff-Wild2 + FER+ soft labels, M3-01) | 327 MB | `pipelines/cv-train`, `params_m3-01.yaml` run C3 | test: Aff-Wild2 0.337, FER+ 0.720, FER-2013 0.588 macro-F1 (D-005) |
 | `models/cv/inherited-v3/efficientnet_b0_v3.pth` | EfficientNet-B0, backup / lighter CV model | 16 MB | same notebook | test: 65.2% top-1, 0.626 macro-F1 |
 | `models/cv/inherited-v3/mobilenet_v3_large_best.pth` | MobileNetV3-Large, lightest CV model | 16 MB | CSCI E-25, `01_model_training_and_evaluation.ipynb` | best validation accuracy 60.6% |
 | `models/cv/inherited-v3/per_class_thresholds.npy` | Per-class decision thresholds for the CV models | <1 KB | v3 notebook | n/a |

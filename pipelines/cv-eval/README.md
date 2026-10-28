@@ -6,6 +6,30 @@ Reproducible, CPU-only evaluation of the inherited ViT-B/16 FER-2013 classifier.
 
 The verified M2-08 baseline run evaluated 7,178 FER-2013 v1 test examples with the documented grayscale→3-channel, 224×224, ImageNet-normalized transform: **macro-F1 0.64453**, passing the required **≥0.64** guard. W&B record: https://wandb.ai/mog941-harvard-university/mirror/runs/vqa4ulfz
 
+## M3-18 baselines on new data (no training)
+
+> **Status: experimental.** These numbers measure the current model on new data. They do not change the accepted cv-service artifact or the serving baseline: cv-service still serves `cv-vit-b16-v3`, and the FER-2013 guard (≥ 0.64) is unchanged.
+
+The same inherited checkpoint (`cv-vit-b16-v3`) and the same evaluator, run with `--report-only` on data it was never trained on. These are the "before" numbers that M3-01's retrain must beat.
+
+| Dataset | Examples | Macro-F1 | Accuracy | W&B |
+|---|---|---|---|---|
+| FER-2013 test (M2-08 guard) | 7,178 | **0.645** | — | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/vqa4ulfz) |
+| Aff-Wild2 official validation videos (`affwild2/v1-test`) | 10,772 frames, 45 videos | **0.260** | 0.362 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/a5z2hsrk) |
+| FER+ relabelled FER-2013 test (`ferplus/v1-test`) | 6,722 | **0.609** | 0.708 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/3luxf8ok) |
+
+**Provenance:** each result has a record in [`provenance/`](provenance/) (`m3-18-affwild2.json`, `m3-18-ferplus.json`): source checksums, test-manifest hash, model URI + SHA-256, code SHA, the exact build and eval commands, and the W&B run.
+
+**Reading the FER+ number:** the same 7,178 test photos relabelled by majority vote of 10 annotators (FER+, Microsoft, MIT licence; 456 photos dropped as ties or contempt/unknown/not-a-face). Built with `mirror-prepare-ferplus`, which pixel-matches our images to the original `fer2013.csv` rows. Accuracy rises (0.666 → 0.708: some original "errors" were label errors), but macro-F1 falls because the rare classes get worse: F1 fear 0.50 → 0.30, disgust 0.64 → 0.39 (only 53 FER+ disgust photos). The model learned FER-2013's single-annotator habits: it reads many crowd-neutral faces as sad (544) or fearful (186). FER+ soft labels in M3-01 target this.
+
+**Reproduce:** build the dataset with `mirror-prepare-affwild2` (`pipelines/data-preprocess`; Aff-Wild2 is licensed, so frames stay local), then:
+
+    uv run --project pipelines/cv-eval mirror-cv-eval --data-dir data/processed/affwild2/v1 \
+      --checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/m3-18-affwild2.json \
+      --code-revision "$(git rev-parse HEAD)" --dataset-version affwild2/v1-test --report-only
+
+Add `--device cuda` on a GPU machine with the CUDA build of torch installed (verified identical to the CPU run, same confusion matrix: 88 s on an RTX 4070 Ti vs ~9 min on CPU).
+
 ## Local run
 
 From the repository root, restore data with `dvc pull`, obtain the documented checkpoint through approved ADC, then run:
