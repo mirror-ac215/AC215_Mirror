@@ -24,6 +24,10 @@ from app.config import Settings
 # The 7 labels cv-service returns (docs/contracts/cv-service.openapi.yaml).
 FACE_LABELS = ("angry", "disgust", "fear", "happy", "neutral", "sad", "surprise")
 
+# The 7 probabilities come from a softmax, so they add up to 1.0. Float rounding moves the
+# sum by about 1e-6; 1e-3 allows for that (and for 4-decimal rounding) but no more.
+PROB_SUM_TOLERANCE = 1e-3
+
 
 @dataclass(frozen=True)
 class FrameReading:
@@ -50,10 +54,11 @@ class FrameWindow:
 
 
 def _usable(reading: FrameReading) -> bool:
-    """A face with all 7 labels, each a real number between 0 and 1.
+    """A face with all 7 labels, each a real number between 0 and 1, adding up to 1.0.
 
-    Anything else (missing or unknown labels, NaN, text, a bool) counts as a frame
-    without a face, so a broken cv-service reply leads to "dropped", never a crash.
+    Anything else (missing or unknown labels, NaN, text, a bool, a sum that isn't 1.0)
+    counts as a frame without a face, so a broken cv-service reply leads to "dropped",
+    never a crash and never "ok".
     """
     probs = reading.probs
     return (
@@ -64,6 +69,7 @@ def _usable(reading: FrameReading) -> bool:
             isinstance(p, (int, float)) and not isinstance(p, bool) and math.isfinite(p) and 0 <= p <= 1
             for p in probs.values()
         )
+        and abs(sum(probs.values()) - 1.0) <= PROB_SUM_TOLERANCE
     )
 
 

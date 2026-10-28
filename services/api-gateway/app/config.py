@@ -46,7 +46,8 @@ class Settings(BaseSettings):
     # (scripts/gate_sweep.py, see the README) using cv-vit-b16-v4, which is not the served
     # model yet. Re-run the sweep when the served model changes or our own labelled sessions
     # (M3-20) are ready. Out-of-range values are rejected at startup.
-    gate_window_s: float = Field(default=10.0, gt=0)  # only frames from the last N seconds count
+    # allow_inf_nan=False: an infinite window would keep stale frames forever.
+    gate_window_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)  # only frames from the last N seconds count
     gate_min_frames: int = Field(default=3, ge=1)  # fewer frames with a face -> "dropped"
     gate_min_face_ratio: float = Field(default=0.5, ge=0, le=1)  # face in under half -> "dropped"
     gate_min_top_prob: float = Field(default=0.45, ge=0, le=1)  # averaged top emotion must reach this

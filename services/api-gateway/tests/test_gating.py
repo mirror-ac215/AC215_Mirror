@@ -135,6 +135,9 @@ def test_thresholds_come_from_config(monkeypatch) -> None:
         ("GATE_MIN_FRAMES", "0"),
         ("GATE_MAX_FRAMES", "0"),
         ("GATE_WINDOW_S", "0"),
+        ("GATE_WINDOW_S", "nan"),  # Owen (#52): no NaN or infinite window
+        ("GATE_WINDOW_S", "inf"),
+        ("GATE_WINDOW_S", "-inf"),
         ("GATE_MAX_FRAMES", "2"),  # smaller than GATE_MIN_FRAMES (3): could never be "ok"
     ],
 )
@@ -155,8 +158,12 @@ def test_invalid_gate_settings_are_rejected(monkeypatch, variable: str, value: s
         probs(sad=1.5),
         {**probs(sad=0.9), "happy": "0.1"},
         {**probs(sad=0.9), "happy": True},
+        {label: 0.9 for label in LABELS},  # each value in range, but they add up to 6.3
+        {label: 0.1 for label in LABELS},  # adds up to 0.7
+        {label: 0.0 for label in LABELS},
     ],
-    ids=["one label", "missing label", "extra label", "NaN", "above 1", "text", "bool"],
+    ids=["one label", "missing label", "extra label", "NaN", "above 1", "text", "bool",
+         "sum too high", "sum too low", "all zero"],
 )
 def test_malformed_probabilities_are_dropped_not_crashed(settings: Settings, bad_probs: dict) -> None:
     readings = [FrameReading(ts=t, face_found=True, probs=bad_probs) for t in range(5)]
@@ -170,3 +177,10 @@ def test_one_malformed_frame_is_skipped_and_the_rest_still_count(settings: Setti
     assert result["status"] == "ok"  # 4 good frames of 5: enough faces (0.8 >= 0.5)
     assert result["top2"][0] == ["sad", 0.6]
     assert result["n_frames"] == 5
+
+
+def test_a_sum_just_off_1_by_float_rounding_still_counts(settings: Settings) -> None:
+    # Owen (#52): within PROB_SUM_TOLERANCE (1e-3) a reading is still usable.
+    nearly = {**probs(sad=0.6, neutral=0.25), "sad": 0.6 + 0.0005}
+    readings = [FrameReading(ts=t, face_found=True, probs=nearly) for t in range(5)]
+    assert check(gate(readings, settings, camera_on=True))["status"] == "ok"
