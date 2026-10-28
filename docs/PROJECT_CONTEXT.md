@@ -12,8 +12,8 @@ This document describes the **target architecture and shared contracts**. It
 does not mean that every pictured service, Compose configuration, deployment
 asset, or test is already merged into `main`. Treat the repository's default
 branch as the implementation source of truth and open pull requests as
-unmerged work. The next section lists, by date, what is merged and what is
-still in review.
+unmerged work. The next section summarises what is merged, what is in review,
+and what is pending.
 
 When a component PR merges, update its README, lockfile/runtime declaration,
 Docker and CI handoff, and the relevant contract or documentation in the same
@@ -25,11 +25,11 @@ already runnable.
 
 This section changes often; the open pull requests on GitHub and the team board are the live view.
 
-**Merged baseline (on `main`):** the MS2 foundation (contracts, service template, shared CI with the required `CI summary` check, DVC data jobs, cv-eval with the FER-2013 guard >= 0.64, the cv-train baseline, the Compose v0 stack), the M2-07 crop-alignment protocol, the text-emotion module (M3-05) and the Stage A GPU VM deployment scripts (M3-13). cv-service serves **v3** (`cv-vit-b16-v3`).
+**Merged baseline (on `main`):** the MS2 foundation (contracts, service template, shared CI with the required `CI summary` check, DVC data jobs, cv-eval with the FER-2013 guard >= 0.64, the cv-train baseline, the Compose v0 stack), the M2-07 crop-alignment protocol, the text-emotion module (M3-05), the Stage A GPU VM deployment scripts (M3-13) and the deterministic crisis check (M3-07). cv-service serves **v3** (`cv-vit-b16-v3`).
 
 **Open experiments (in review, not accepted serving direction):**
 - CV retraining (M3-18, M3-01): Aff-Wild2 and FER+ evaluation data, multi-source training, and a candidate model **v4** (`cv-vit-b16-v4`, stored at `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`; candidate test macro-F1: Aff-Wild2 0.337 vs v3 0.260, FER+ 0.720 vs 0.609, FER-2013 0.588 vs 0.645). An HSEmotion start reached the same video ceiling, so it was not taken further. Proposed decision D-005 (judge soft-label models on FER+ test >= 0.609) arrives with that work.
-- Gateway pipeline (M3-04, M3-06, M3-07, M3-08): smoothing and gating with provisional thresholds, fusion, the crisis check, the prompt template; proposed decision D-004 (the more concerning signal leads).
+- Gateway pipeline (M3-04, M3-06, M3-08): smoothing and gating with provisional thresholds, fusion, the prompt template; proposed decision D-004 (the more concerning signal leads).
 
 **Pending handoff (training -> serving):** v4 is not served. Switching needs the final cv-eval record, then a serving change by the cv-service owner that sets `MODEL_OBJECT` and `MODEL_VERSION` together in one reviewed config change (see `pipelines/cv-train/README.md`).
 
@@ -206,7 +206,7 @@ CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "800
 | MS2 MLOps infrastructure | Oct 5 - 18 | **v0:** every container runs with `/health`; data pipelines are reproducible (DVC); CI runs on PRs |
 | MS3 Integration and deployment | Oct 19 - Nov 8 | **v1:** frame goes through CV, then gate plus text emotion, then the context object, then the LLM; safety check; first deployment on a GCP VM |
 | MS4 Design and development | Nov 9 - 29 | **v2:** dashboard on real data, auth, fallbacks, end-to-end test in CI, CD, load test, monitoring, evaluation, model cards |
-| MS5 Final | Nov 30 - Dec 12 | Polish and demo; after the v2 freeze, the stretch features (RAG, avatar, licensed voice) are ordered by value and built as time allows, each behind a feature flag |
+| MS5 Final | Nov 30 - Dec 12 | Polish and demo; after v2 is stable, M5-01 selects **at most one** stretch feature (RAG, avatar or licensed voice), built behind a feature flag |
 
 ## Oral checks (MS2-MS4)
 
