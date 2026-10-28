@@ -1,0 +1,69 @@
+# M3-01 retrain: fine-tune cv-vit-b16-v3 on Aff-Wild2 video frames while keeping FER-2013.
+# Starts from the inherited checkpoint (--init-checkpoint). Everything not listed under
+# "Changed for M3-01" is the M2-17 baseline recipe (params.yaml).
+# Run A (video only): --set data.sources.fer2013.share=0
+
+model:
+  name: cv-vit-b16
+  version: v4
+  architecture: vit_b_16
+  head_dropout: 0.5
+  pretrained: true                 # ignored when --init-checkpoint is given
+
+data:
+  image_size: 224
+  batch_size: 32
+  # Changed for M3-01: several datasets, dirs relative to --data-root (data/processed).
+  sources:
+    affwild2:
+      dir: affwild2/v1
+      share: 0.5                   # half of every epoch's draws
+      every_nth: 5                 # consecutive video frames are near-duplicates
+    fer2013:
+      dir: fer2013/v1
+      share: 0.5                   # keeps FER-2013 in memory (guard >= 0.64)
+      every_nth: 1
+  val_source: affwild2             # picks the best epoch; fer2013 val is only monitored
+
+augmentation:
+  hflip_p: 0.5
+  affine_degrees: 10
+  affine_translate: 0.05
+  affine_scale: [0.9, 1.1]
+  color_jitter: [0.4, 0.4, 0.2]
+  blur_p: 0.5
+  blur_sigma: [0.2, 2.0]
+  erasing_p: 0.25
+
+imbalance:
+  sampler_strength: 0.5
+  class_weights: sqrt
+
+mixup:
+  prob: 0.5
+  mixup_ratio: 0.5
+  mixup_alpha: 0.2
+  cutmix_alpha: 1.0
+
+loss:
+  name: focal
+  gamma: 2.0
+  label_smoothing: 0.1
+
+optimizer:
+  name: adamw
+  lr: 1.0e-5
+  weight_decay: 1.0e-4
+
+scheduler:
+  factor: 0.5
+  patience: 2
+
+training:
+  epochs: 6
+  seed: 42
+  early_stopping_patience: null
+  # Changed for M3-01:
+  select_by: val_macro_f1          # Aff-Wild2 val macro-F1, not FER val accuracy
+  amp: true                        # bfloat16 on the GPU
+  report_test: false               # held-out test sets are scored once, by cv-eval
