@@ -1,10 +1,11 @@
-"""Relabel the FER-2013 test images with FER+ majority votes (M3-18).
+"""Relabel FER-2013 with FER+ votes (M3-18 test baseline, M3-01 soft-label training).
 
 FER+ (Microsoft, MIT licence) gives 10 annotator votes for every row of the original
 fer2013.csv. Our FER-2013 v1 images come from the Kaggle folder copy: the file names carry
-no row number and the pixels were JPEG-compressed. So each test image is matched to its
-fer2013.csv row by pixels, within the same split (PublicTest/PrivateTest) and the same
-original label. Writes the FER-2013 v1 layout (test split only), so cv-eval reads it unchanged.
+no row number and the pixels were JPEG-compressed. So each image is matched to its
+fer2013.csv row by pixels, within the same split (Training/PublicTest/PrivateTest) and the
+same original label. Writes the FER-2013 v1 layout for train, val and test, so cv-eval and
+cv-train read it unchanged; each manifest row also carries its 7 vote counts (soft labels).
 """
 
 from __future__ import annotations
@@ -36,6 +37,10 @@ FERPLUS_TO_MIRROR = {
     "disgust": "disgust",
     "fear": "fear",
 }
+MIRROR_CLASSES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
+VOTE_COLUMNS = [f"votes_{label}" for label in MIRROR_CLASSES]
+# Our train and val both come from Kaggle's train folder (= fer2013.csv "Training").
+SPLIT_USAGES = {"train": ("Training",), "val": ("Training",), "test": ("PublicTest", "PrivateTest")}
 
 
 def majority(votes: Sequence[int]) -> str:
@@ -45,8 +50,14 @@ def majority(votes: Sequence[int]) -> str:
     return winners[0] if len(winners) == 1 else "tie"
 
 
-def read_test_rows(fer2013_csv: Path, ferplus_csv: Path) -> list[dict]:
-    """The test rows of fer2013.csv, each with its pixels and FER+ majority."""
+def mirror_votes(votes: dict[str, int]) -> list[int]:
+    """The vote counts for our 7 classes, in Mirror's class order."""
+    by_mirror = {FERPLUS_TO_MIRROR[name]: votes[name] for name in FERPLUS_TO_MIRROR}
+    return [by_mirror[label] for label in MIRROR_CLASSES]
+
+
+def read_rows(fer2013_csv: Path, ferplus_csv: Path) -> list[dict]:
+    """Every fer2013.csv row with its pixels, FER+ majority and Mirror vote counts."""
     csv.field_size_limit(10_000_000)  # one pixels field is ~9 KB
     with fer2013_csv.open(encoding="utf-8") as a, ferplus_csv.open(encoding="utf-8") as b:
         original, plus = csv.DictReader(a), csv.DictReader(b)
@@ -54,14 +65,14 @@ def read_test_rows(fer2013_csv: Path, ferplus_csv: Path) -> list[dict]:
         for index, (row, votes) in enumerate(zip(original, plus, strict=True)):
             if row["Usage"] != votes["Usage"]:
                 raise ValueError(f"row {index}: fer2013.csv and FER+ disagree on the split")
-            if row["Usage"] == "Training":
-                continue
+            counts = {name: int(votes[name]) for name in FERPLUS_VOTES}
             rows.append(
                 {
                     "usage": row["Usage"],
                     "label": FER2013_LABELS[int(row["emotion"])],
-                    "pixels": np.array(row["pixels"].split(), dtype=np.float32),
-                    "majority": majority([int(votes[name]) for name in FERPLUS_VOTES]),
+                    "pixels": np.array(row["pixels"].split(), dtype=np.uint8),
+                    "majority": majority([counts[name] for name in FERPLUS_VOTES]),
+                    "votes": mirror_votes(counts),
                 }
             )
     return rows
@@ -73,18 +84,14 @@ def rms_distances(ours: np.ndarray, theirs: np.ndarray) -> np.ndarray:
     return np.sqrt(np.maximum(squared, 0) / ours.shape[1])
 
 
-def prepare(
-    fer_dir: Path, fer2013_csv: Path, ferplus_csv: Path, output_dir: Path, *, max_rms: float = 3.0
-) -> dict:
-    if output_dir.exists():
-        raise FileExistsError(f"{output_dir} already exists; delete it first to rebuild")
-    with (fer_dir / "manifests" / "test.csv").open(encoding="utf-8") as handle:
+def relabel_split(
+    fer_dir: Path, split: str, candidates: list[dict], output_dir: Path, max_rms: float,
+    outcome: Counter[str],
+) -> list[dict[str, str]]:
+    with (fer_dir / "manifests" / f"{split}.csv").open(encoding="utf-8") as handle:
         ours = list(csv.DictReader(handle))
-    candidates = read_test_rows(fer2013_csv, ferplus_csv)
-
-    outcome: Counter[str] = Counter()
     rows = []
-    for usage in ("PublicTest", "PrivateTest"):
+    for usage in SPLIT_USAGES[split]:
         for label in FER2013_LABELS:
             mine = [r for r in ours if r["label"] == label and Path(r["path"]).name.startswith(usage)]
             theirs = [c for c in candidates if c["usage"] == usage and c["label"] == label]
@@ -94,41 +101,57 @@ def prepare(
                 [np.asarray(Image.open(fer_dir / "images" / r["path"]).convert("L"), dtype=np.float32)
                  .reshape(-1) for r in mine]
             )
-            close = rms_distances(pixels, np.stack([c["pixels"] for c in theirs])) <= max_rms
+            reference = np.stack([c["pixels"] for c in theirs]).astype(np.float32)
+            close = rms_distances(pixels, reference) <= max_rms
             for row, hits in zip(mine, close, strict=True):
                 # Duplicate photos in FER-2013 can match several rows: fine if they agree.
-                majorities = {theirs[j]["majority"] for j in np.flatnonzero(hits)}
+                matches = [theirs[j] for j in np.flatnonzero(hits)]
+                majorities = {match["majority"] for match in matches}
                 if not majorities:
-                    outcome["unmatched"] += 1
+                    outcome[f"{split}: unmatched"] += 1
                 elif len(majorities) > 1:
-                    outcome["ambiguous duplicate"] += 1
+                    outcome[f"{split}: ambiguous duplicate"] += 1
                 elif (new := FERPLUS_TO_MIRROR.get(majorities.pop())) is None:
-                    outcome["no Mirror label (tie/contempt/unknown/NF)"] += 1
+                    outcome[f"{split}: no Mirror label (tie/contempt/unknown/NF)"] += 1
                 else:
-                    outcome["kept"] += 1
-                    outcome["relabelled"] += new != row["label"]
-                    relative = Path("test") / new / Path(row["path"]).name
+                    outcome[f"{split}: kept"] += 1
+                    if new != row["label"]:
+                        outcome[f"{split}: relabelled"] += 1
+                    relative = Path(split) / new / Path(row["path"]).name
                     destination = output_dir / "images" / relative
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(fer_dir / "images" / row["path"], destination)
-                    rows.append({"path": relative.as_posix(), "label": new, "split": "test"})
+                    rows.append({"path": relative.as_posix(), "label": new, "split": split,
+                                 **dict(zip(VOTE_COLUMNS, map(str, matches[0]["votes"]), strict=True))})
+    return sorted(rows, key=lambda r: (r["label"], r["path"]))
 
-    rows.sort(key=lambda r: (r["label"], r["path"]))
-    manifest = output_dir / "manifests" / "test.csv"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    with manifest.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["path", "label", "split"])
-        writer.writeheader()
-        writer.writerows(rows)
 
+def prepare(
+    fer_dir: Path, fer2013_csv: Path, ferplus_csv: Path, output_dir: Path, *, max_rms: float = 3.0
+) -> dict:
+    if output_dir.exists():
+        raise FileExistsError(f"{output_dir} already exists; delete it first to rebuild")
+    candidates = read_rows(fer2013_csv, ferplus_csv)
     metadata = json.loads((fer_dir / "metadata" / "transform_spec.json").read_text())
-    metadata["labels"] = "FER+ majority vote (10 annotators); ties and non-Mirror classes dropped"
-    counts = Counter(r["label"] for r in rows)
-    report = {
-        "outcome": dict(outcome),
-        "class_balance": {label: counts[label] for label in metadata["class_order"]},
-        "max_rms": max_rms,
-    }
+    metadata["labels"] = (
+        "FER+ majority vote (10 annotators); ties and non-Mirror classes dropped. "
+        f"Columns {VOTE_COLUMNS[0]}..{VOTE_COLUMNS[-1]} hold the vote counts (soft labels)."
+    )
+
+    outcome: Counter[str] = Counter()
+    balance = {}
+    for split in SPLIT_USAGES:
+        rows = relabel_split(fer_dir, split, candidates, output_dir, max_rms, outcome)
+        manifest = output_dir / "manifests" / f"{split}.csv"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        with manifest.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["path", "label", "split", *VOTE_COLUMNS])
+            writer.writeheader()
+            writer.writerows(rows)
+        counts = Counter(r["label"] for r in rows)
+        balance[split] = {label: counts[label] for label in metadata["class_order"]}
+
+    report = {"outcome": dict(outcome), "class_balance": balance, "max_rms": max_rms}
     for path, content in (
         (output_dir / "metadata" / "transform_spec.json", metadata),
         (output_dir / "reports" / "data_report.json", report),
@@ -143,7 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     command.add_argument("--fer-dir", type=Path, default=Path("data/processed/fer2013/v1"))
     command.add_argument("--fer2013-csv", type=Path, required=True)
     command.add_argument("--ferplus-csv", type=Path, required=True)
-    command.add_argument("--output", type=Path, default=Path("data/processed/ferplus/v1"))
+    command.add_argument("--output", type=Path, default=Path("data/processed/ferplus/v2"))
     command.add_argument("--max-rms", type=float, default=3.0)
     args = command.parse_args(argv)
     report = prepare(

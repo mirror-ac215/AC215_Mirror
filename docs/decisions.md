@@ -128,3 +128,26 @@ It does not turn an unmerged pull request into merged functionality.
   fusion and agreement flag (M3-06), context object `text.top2` labels.
 - **Evidence:** `pipelines/llm-eval/text-emotion-selection/`
   (`compare.py`, `compare_full.py`, `results/`).
+
+## D-005: Judge soft-label CV models on FER+, not on FER-2013's single labels
+
+- **Status:** Accepted (M3-01, decided by Mostafa, CV owner, Oct 26, 2026).
+- **Decision:** For CV models trained on FER+ soft labels (v4 onwards), the
+  photo regression guard is **FER+ test macro-F1 >= 0.609** (the v3 score).
+  FER-2013 test macro-F1 is still reported in every model card and README,
+  but no longer blocks a model.
+- **Why:** M3-18 showed that FER-2013's single-annotator labels disagree with
+  the FER+ 10-annotator majority on about a third of the test photos. A model
+  that learns the crowd's judgement therefore scores lower on FER-2013 by
+  design: v4 scores 0.720 on FER+ test (v3 0.609) and 0.588 on FER-2013 test
+  (v3 0.645). Keeping the old guard would reward copying label noise.
+- **Affected areas:** `pipelines/cv-eval` (run with `--threshold 0.609` on
+  `ferplus/v2`, the version `mirror-prepare-ferplus` builds; its test split is
+  identical to `ferplus/v1`, the same 6,722 photos and labels, so the 0.609
+  baseline and v4's 0.720 carry over), `pipelines/cv-train` README, CV model
+  card (M4-10), board M3-01 done-when.
+- **Not yet enforced:** no CI job or DVC stage runs this guard yet (CI has no
+  FER-2013 images or GPU); until one exists it is a release check done by hand
+  (board follow-up).
+- **Evidence:** `pipelines/cv-eval/README.md` (M3-18 baselines),
+  `pipelines/cv-train/README.md` (M3-01 experiments and final scores).

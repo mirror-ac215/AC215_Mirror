@@ -28,6 +28,8 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--threshold", type=float, default=0.64, help="Macro-F1 regression guard")
     command.add_argument("--report-only", action="store_true", help="Measure only: exit 0 even below the threshold (baselines on new datasets)")
     command.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto", help="auto = GPU when available, like pipelines/cv-train")
+    command.add_argument("--model-version", help="Recorded in the report and W&B (default: the name stored in the checkpoint)")
+    command.add_argument("--model-uri", help="Where the checkpoint is published (default: the dataset metadata's checkpoint)")
     command.add_argument("--wandb-project", help="Optionally log aggregate metrics and configuration to this W&B project")
     return command
 
@@ -75,6 +77,23 @@ def load_model(
     return model.eval()
 
 
+# The inherited v3 checkpoint (CSCI E-25 notebook) stores its notebook name; cv-train stores "cv-..." names.
+KNOWN_MODEL_NAMES = {"ViT_B_16_v3_focal_mixup": "cv-vit-b16-v3"}
+
+
+def model_version_from(checkpoint: Path) -> str:
+    """The model version stored in the checkpoint (`model_name`), in Mirror's naming.
+
+    Stops with a clear message instead of guessing when the name is missing or unknown.
+    """
+    state = torch.load(checkpoint, map_location="cpu", weights_only=True, mmap=True)  # mmap: no full read
+    name = state.get("model_name") if isinstance(state, dict) else None
+    name = KNOWN_MODEL_NAMES.get(name, name)
+    if not isinstance(name, str) or not name.startswith("cv-"):
+        raise SystemExit(f"{checkpoint.name}: no recognised model name ({name!r}); pass --model-version")
+    return name
+
+
 def pick_device(choice: str) -> torch.device:
     """'auto' uses the GPU when one is available, otherwise the CPU (same rule as cv-train)."""
     if choice == "auto":
@@ -89,6 +108,7 @@ def run(args: argparse.Namespace) -> int:
     rows = list(csv.DictReader((args.data_dir / "manifests" / "test.csv").open()))
     if not rows or any(row["label"] not in labels or row["split"] != "test" for row in rows):
         raise ValueError("test manifest is empty or has labels outside the recorded class order")
+    model_version = args.model_version or model_version_from(args.checkpoint)
     device = pick_device(args.device)
     model = load_model(args.checkpoint).to(device)
     y_true: list[str] = []
@@ -106,7 +126,7 @@ def run(args: argparse.Namespace) -> int:
                 y_pred.append(labels[ranked[0]])
                 top2.append(tuple(labels[index] for index in ranked))
     metrics = evaluate_predictions(labels=labels, y_true=tuple(y_true), y_pred=tuple(y_pred), top2=tuple(top2))
-    report = build_report(model_uri=metadata["checkpoint"], model_version="cv-vit-b16-v3", dataset_version=args.dataset_version, code_revision=args.code_revision, class_order=labels, transform=metadata["inference_transform"], threshold=args.threshold, metrics=metrics)
+    report = build_report(model_uri=args.model_uri or metadata["checkpoint"], model_version=model_version, dataset_version=args.dataset_version, code_revision=args.code_revision, class_order=labels, transform=metadata["inference_transform"], threshold=args.threshold, metrics=metrics)
     report["runtime"] = {"seconds": round(perf_counter() - started, 3), "batch_size": args.batch_size, "device": device.type}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

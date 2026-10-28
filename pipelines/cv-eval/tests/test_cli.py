@@ -65,6 +65,8 @@ def test_parser_defaults_keep_the_fer2013_guard() -> None:
     assert args.threshold == 0.64
     assert args.report_only is False
     assert args.device == "auto"
+    assert args.model_version is None  # read from the checkpoint (Julie, #57)
+    assert args.model_uri is None
 
 
 def test_auto_device_uses_the_gpu_only_when_available(monkeypatch) -> None:
@@ -74,3 +76,21 @@ def test_auto_device_uses_the_gpu_only_when_available(monkeypatch) -> None:
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     assert cli.pick_device("auto").type == "cuda"
     assert cli.pick_device("cpu").type == "cpu"
+
+def test_model_version_comes_from_the_checkpoint(tmp_path) -> None:
+    # Julie (#57): forgetting --model-version must not label a v4 report as v3.
+    weights = torch.nn.Linear(2, 2).state_dict()
+    for stored, expected in [("cv-vit-b16-v4", "cv-vit-b16-v4"), ("ViT_B_16_v3_focal_mixup", "cv-vit-b16-v3")]:
+        checkpoint = tmp_path / f"{stored}.pth"
+        torch.save({"model_name": stored, "model_state_dict": weights}, checkpoint)
+        assert cli.model_version_from(checkpoint) == expected
+
+
+def test_an_unknown_or_missing_model_name_asks_for_the_flag(tmp_path) -> None:
+    import pytest
+
+    for content in ({"model_name": "my_experiment"}, {"state_dict": {}}):
+        checkpoint = tmp_path / "c.pth"
+        torch.save(content, checkpoint)
+        with pytest.raises(SystemExit, match="pass --model-version"):
+            cli.model_version_from(checkpoint)
