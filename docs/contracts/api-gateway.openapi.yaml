@@ -147,6 +147,7 @@ paths:
             Example, crisis turn:
               event: crisis
               data: {"message": "...", "resources": [{"name": "988 Suicide & Crisis Lifeline", "contact": "call or text 988"}], "review_flag_created": true}
+
           content:
             text/event-stream:
               schema: { type: string }
@@ -248,7 +249,11 @@ components:
             properties:
               name: { type: string, example: 988 Suicide & Crisis Lifeline }
               contact: { type: string, example: call or text 988 }
-        review_flag_created: { type: boolean }
+        review_flag_created:
+          type: boolean
+          description: >
+            True when a review flag was recorded for the patient's clinician. Until M3-10 the flag is
+            kept in the gateway's memory only and is lost on restart; it is not yet in the database.
 
     DonePayload:
       type: object
