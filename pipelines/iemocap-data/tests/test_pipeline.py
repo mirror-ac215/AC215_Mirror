@@ -99,21 +99,52 @@ def test_utterance_id_is_described():
         "session": "2", "dialog": "Ses02M_script01_1", "speaker": "M", "kind": "scripted"}
 
 
-def test_labels_are_mapped_and_unmapped_ones_dropped(tmp_path):
-    rows, counts = build(_release(tmp_path), PARAMS["labels"])
-    assert [(r["utterance_id"], r["label"]) for r in rows] == [
-        ("Ses01F_impro01_F000", "neutral"),
-        ("Ses01F_impro01_F002", "sadness"),
-        ("Ses01F_impro01_M000", "joy"),        # excited -> joy
-        ("Ses02M_script01_1_M000", "anger"),
+def test_labels_are_mapped_frustration_kept_unlabelled_and_xxx_dropped(tmp_path):
+    rows, counts = build(_release(tmp_path), PARAMS["labels"], PARAMS["keep_unlabelled"])
+    assert [(r["utterance_id"], r["iemocap_label"], r["label"]) for r in rows] == [
+        ("Ses01F_impro01_F000", "neu", "neutral"),
+        ("Ses01F_impro01_F001", "fru", ""),    # frustration: kept, no Mirror label
+        ("Ses01F_impro01_F002", "sad", "sadness"),
+        ("Ses01F_impro01_M000", "exc", "joy"),  # excited -> joy
+        ("Ses02M_script01_1_M000", "ang", "anger"),
     ]
-    assert counts["dropped"] == {"label:fru": 1, "label:xxx": 1}
+    assert counts["dropped"] == {"label:xxx": 1}
     assert counts["files_read"] == {"EmoEvaluation": 2, "transcriptions": 2}
+
+
+@pytest.mark.parametrize(("code", "expected"), [
+    ("neu", "neutral"), ("hap", "joy"), ("exc", "joy"), ("sad", "sadness"),
+    ("ang", "anger"), ("fea", "fear"), ("dis", "disgust"), ("sur", "surprise"),
+    ("fru", ""),          # kept without a Mirror label
+    ("oth", None),        # dropped
+    ("xxx", None),        # dropped
+])
+def test_every_iemocap_code_is_handled(tmp_path, code, expected):
+    """All 11 IEMOCAP codes: 8 map to Mirror's 7 emotions, fru is kept unlabelled, 2 drop."""
+    release = tmp_path / "IEMOCAP_full_release"
+    for folder, text in [
+        ("EmoEvaluation", f"[0.5000 - 1.5000]\tSes03F_impro01_F000\t{code}\t[2.0, 2.0, 2.0]\n"),
+        ("transcriptions", "Ses03F_impro01_F000 [000.5000-001.5000]: A test line.\n"),
+    ]:
+        path = release / "Session3/dialog" / folder / "Ses03F_impro01.txt"
+        path.parent.mkdir(parents=True)
+        path.write_text(text, encoding="utf-8")
+    rows, counts = build(release, PARAMS["labels"], PARAMS["keep_unlabelled"])
+    if expected is None:
+        assert rows == [] and counts["dropped"] == {f"label:{code}": 1}
+    else:
+        assert [r["label"] for r in rows] == [expected]
 
 
 def test_frustration_can_be_mapped_in_params(tmp_path):
     rows, _ = build(_release(tmp_path), {**PARAMS["labels"], "fru": "anger"})
     assert ("Ses01F_impro01_F001", "anger") in [(r["utterance_id"], r["label"]) for r in rows]
+
+
+def test_frustration_is_dropped_when_not_kept(tmp_path):
+    rows, counts = build(_release(tmp_path), PARAMS["labels"], keep_unlabelled=[])
+    assert "fru" not in [r["iemocap_label"] for r in rows]
+    assert counts["dropped"] == {"label:fru": 1, "label:xxx": 1}
 
 
 def test_utterance_without_transcript_is_dropped(tmp_path):
@@ -141,9 +172,10 @@ def test_run_twice_is_byte_identical_and_report_is_complete(tmp_path):
     second = run(release, tmp_path / "two", PARAMS)
     assert first == second
     report = json.loads((tmp_path / "one/report.json").read_text())
-    assert report["utterances_kept"] == 4
+    assert report["utterances_kept"] == 5
     assert report["labels_kept"] == {"anger": 1, "joy": 1, "neutral": 1, "sadness": 1}
-    assert report["per_session"] == {"1": 3, "2": 1}
+    assert report["kept_unlabelled"] == {"fru": 1}
+    assert report["per_session"] == {"1": 4, "2": 1}
     with (tmp_path / "one/utterances.csv").open(encoding="utf-8") as handle:
         header = next(csv.reader(handle))
     assert header[0] == "utterance_id" and header[-1] == "text"

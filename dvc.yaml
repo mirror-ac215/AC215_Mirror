@@ -48,5 +48,6 @@ stages:
       - pipelines/iemocap-data/params.yaml:
           - input
           - labels
+          - keep_unlabelled
     outs:
       - data/processed/iemocap/v1

@@ -1,8 +1,9 @@
 """IEMOCAP -> one row per utterance: transcript, consensus emotion, Mirror label.
 
 Reads only the small text files of the release (EmoEvaluation and transcriptions),
-streaming them straight out of the .tar.gz; the videos stay untouched. Utterances
-whose label has no Mirror equivalent are dropped and counted in report.json.
+streaming them straight out of the .tar.gz; the videos stay untouched. Labels without
+a Mirror equivalent are either kept with an empty `label` (params `keep_unlabelled`,
+e.g. frustration) or dropped; both are counted in report.json.
 Same inputs + same params.yaml => byte-identical outputs.
 
 The output holds IEMOCAP transcripts: it lives in the private bucket via DVC only
@@ -108,8 +109,15 @@ def describe(utterance_id: str) -> dict[str, str]:
     }
 
 
-def build(source: Path, label_map: dict[str, str]) -> tuple[list[dict[str, str]], dict[str, Any]]:
-    """Join labels with transcripts and map labels. Returns (rows, counts for the report)."""
+def build(
+    source: Path, label_map: dict[str, str], keep_unlabelled: list[str] | None = None,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    """Join labels with transcripts and map labels. Returns (rows, counts for the report).
+
+    A code in `keep_unlabelled` stays in the table with an empty `label`; any other
+    unmapped code is dropped.
+    """
+    keep = set(keep_unlabelled or [])
     evaluations: list[Evaluation] = []
     transcripts: dict[str, str] = {}
     files = Counter()
@@ -127,7 +135,7 @@ def build(source: Path, label_map: dict[str, str]) -> tuple[list[dict[str, str]]
     dropped = Counter()
     for ev in sorted(evaluations, key=lambda e: e.utterance_id):
         text = transcripts.get(ev.utterance_id, "")
-        if ev.code not in label_map:
+        if ev.code not in label_map and ev.code not in keep:
             dropped[f"label:{ev.code}"] += 1
         elif not text:
             dropped["no_transcript"] += 1
@@ -135,7 +143,7 @@ def build(source: Path, label_map: dict[str, str]) -> tuple[list[dict[str, str]]
             rows.append({
                 "utterance_id": ev.utterance_id, **describe(ev.utterance_id),
                 "start_s": f"{ev.start_s:.4f}", "end_s": f"{ev.end_s:.4f}",
-                "iemocap_label": ev.code, "label": label_map[ev.code],
+                "iemocap_label": ev.code, "label": label_map.get(ev.code, ""),
                 "valence": f"{ev.valence:.4f}", "arousal": f"{ev.arousal:.4f}",
                 "dominance": f"{ev.dominance:.4f}", "text": text,
             })
@@ -150,7 +158,7 @@ def build(source: Path, label_map: dict[str, str]) -> tuple[list[dict[str, str]]
 
 def run(source: Path, out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
     """Write utterances.csv and report.json to out_dir and return the report."""
-    rows, counts = build(source, params["labels"])
+    rows, counts = build(source, params["labels"], params.get("keep_unlabelled", []))
     out_dir.mkdir(parents=True, exist_ok=True)
     table = out_dir / "utterances.csv"
     with table.open("w", newline="", encoding="utf-8") as handle:
@@ -160,9 +168,12 @@ def run(source: Path, out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
     report = {
         **counts,
         "utterances_kept": len(rows),
-        "labels_kept": dict(sorted(Counter(r["label"] for r in rows).items())),
+        "labels_kept": dict(sorted(Counter(r["label"] for r in rows if r["label"]).items())),
+        "kept_unlabelled": dict(sorted(
+            Counter(r["iemocap_label"] for r in rows if not r["label"]).items())),
         "per_session": dict(sorted(Counter(r["session"] for r in rows).items())),
         "label_map": dict(sorted(params["labels"].items())),
+        "keep_unlabelled": sorted(params.get("keep_unlabelled", [])),
         "utterances_sha256": hashlib.sha256(table.read_bytes()).hexdigest(),
     }
     (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

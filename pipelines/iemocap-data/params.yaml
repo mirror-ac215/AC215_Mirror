@@ -6,8 +6,7 @@ input:
   source: data/raw/iemocap/IEMOCAP_full_release.tar.gz
 
 # IEMOCAP's consensus labels -> Mirror's 7 emotions (the camera model's classes).
-# Codes not listed here are dropped and counted in report.json:
-#   fru (frustration): no clean match in Mirror's 7; it is not anger.
+# Codes in neither `labels` nor `keep_unlabelled` are dropped and counted in report.json:
 #   oth (other) and xxx (annotators did not agree).
 labels:
   neu: neutral
@@ -18,6 +17,11 @@ labels:
   fea: fear
   dis: disgust
   sur: surprise
+
+# Codes kept in the table without a Mirror label: left out of the face vs text scores,
+# but available to M4-09 to see what each signal reads for them. Frustration has no
+# match in Mirror's 7 (it is not anger) and shows mostly in voice and words.
+keep_unlabelled: [fru]
 
 output:
   local_dir: data/processed/iemocap/v1
