@@ -24,6 +24,7 @@ jobs:
       persona_data: ${{ steps.filter.outputs.persona_data }}
       cv_eval: ${{ steps.filter.outputs.cv_eval }}
       cv_train: ${{ steps.filter.outputs.cv_train }}
+      fairness_audit: ${{ steps.filter.outputs.fairness_audit }}
       llm_finetune: ${{ steps.filter.outputs.llm_finetune }}
       compose: ${{ steps.filter.outputs.compose }}
 
@@ -70,6 +71,10 @@ jobs:
               - '.github/workflows/**'
             cv_train:
               - 'pipelines/cv-train/**'
+              - '.github/workflows/**'
+            fairness_audit:
+              - 'pipelines/fairness-audit/**'
+              - 'services/api-gateway/app/config.py'
               - '.github/workflows/**'
             llm_finetune:
               - 'pipelines/llm-finetune/**'
@@ -165,6 +170,15 @@ jobs:
     with:
       service_path: pipelines/cv-train
       image_name: mirror-cv-train-ci
+
+  fairness_audit:
+    name: Fairness audit checks
+    needs: changes
+    if: needs.changes.outputs.fairness_audit == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/fairness-audit
+      image_name: mirror-fairness-audit-ci
 
   llm_finetune:
     name: LLM fine-tune checks
@@ -278,7 +292,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, llm_finetune, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, fairness_audit, llm_finetune, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -303,6 +317,8 @@ jobs:
           CV_EVAL_RESULT: ${{ needs.cv_eval.result }}
           CV_TRAIN_CHANGED: ${{ needs.changes.outputs.cv_train }}
           CV_TRAIN_RESULT: ${{ needs.cv_train.result }}
+          FAIRNESS_AUDIT_CHANGED: ${{ needs.changes.outputs.fairness_audit }}
+          FAIRNESS_AUDIT_RESULT: ${{ needs.fairness_audit.result }}
           LLM_FINETUNE_CHANGED: ${{ needs.changes.outputs.llm_finetune }}
           LLM_FINETUNE_RESULT: ${{ needs.llm_finetune.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
@@ -358,6 +374,11 @@ jobs:
 
           if [ "$CV_TRAIN_CHANGED" = "true" ] && [ "$CV_TRAIN_RESULT" != "success" ]; then
             echo "CV training checks did not pass: $CV_TRAIN_RESULT"
+            exit 1
+          fi
+
+          if [ "$FAIRNESS_AUDIT_CHANGED" = "true" ] && [ "$FAIRNESS_AUDIT_RESULT" != "success" ]; then
+            echo "Fairness audit checks did not pass: $FAIRNESS_AUDIT_RESULT"
             exit 1
           fi
 

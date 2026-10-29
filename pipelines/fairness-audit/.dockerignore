@@ -1,0 +1,6 @@
+.venv
+outputs
+tests
+**/__pycache__
+**/*.csv
+**/*.pth
