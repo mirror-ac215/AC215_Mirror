@@ -91,9 +91,32 @@ docker build -t mirror-fairness-audit-ci .
 
 ## Results
 
-To be filled in after the first run: the headline sentence, the key-gaps table, and the provenance (checkpoint, labels and predictions sha256, code commit).
+First run on Oct 29, 2026: `cv-vit-b16-v4` on all 10,954 FairFace validation photos (9,399 in scope), T4 GPU on Colab. A second full run gave identical numbers. Full tables: [`results/fairface-v4/report.md`](results/fairface-v4/report.md); every number with its 95% interval: `report.json`.
+
+**Largest gap: age.** When a face is found, the gate trusts the reading for 71.7% of people aged 20-29 but only 30.6% of people over 70 (41.1 points, beyond noise).
+
+| Attribute | Finding | Gap (points) |
+|---|---|---|
+| Age | trusted readings fall steadily with age: 35.6% (20-29) -> 12.7% (over 70) | 22.9 |
+| Age | older faces are read as negative more often: 28.8% (over 70) vs 11.4% (10-19), mostly sad and disgust | 17.4 |
+| Race | the Haar detector finds a face in 33.8% of photos of Black people vs 55.0% of Southeast Asian people | 21.2 |
+| Race | as a result, trusted readings: 20.5% (Black) vs 38.4% (Southeast Asian) | 17.9 |
+| Gender | women are read as happy 56.2% vs men 38.3%; men are read as neutral more often | 17.9 |
+| Gender | trusted readings: 38.3% (women) vs 25.2% (men) | 13.2 |
+
+**What this means for Mirror**
+
+- **Older patients** get the weakest camera signal: fewer trusted readings, and more readings of sad or disgust. A clinician could see a negative reading that reflects age, not mood. The fusion rule that never lets the face lead on negative emotions (M3-06) limits the harm; the model card (M4-10) should state this gap.
+- **The race gap comes mostly from face detection, not the expression model.** Once a face is found, the gate passes for 58-70% of every race group. Haar is an old frontal-face detector; a modern detector in cv-service is the most direct fix, and this audit can measure it.
+- **The gender gap may partly be real:** FairFace photos are not posed, and people may smile more in some photos than others. Without expression labels the audit cannot separate model bias from real expressions (RAF-DB would).
+- Overall, Haar finds a face in only 48% of FairFace photos, which include profiles and tilted heads. A patient facing a webcam is easier; the gaps between groups matter more than this level.
+
+**Provenance:** checkpoint sha256 `5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b`; labels sha256 `3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c`; predictions sha256 `3adb75dd0390d74ea7fbd43ebfe94726410c7f061b5ca08879bbfd0a2c292477`; code `5c77271`.
+
+**Colab notes:** Colab ships OpenCV 5, which has no `CascadeClassifier`; install `opencv-python-headless<5` first (same pin as cv-service). On Colab's Python 3.13, run the commands with `PYTHONPATH=pipelines/fairness-audit/src python -m mirror_fairness_audit.cli` instead of the installed script.
 
 ## Not in this PR
 
 - Accuracy gaps by group (RAF-DB, if access is granted; MS5 at the earliest).
 - Skin tone (FairFace labels race, not skin tone) and webcam conditions such as lighting.
+- Re-running the audit with a modern face detector in cv-service (the largest lever on the race gap).
