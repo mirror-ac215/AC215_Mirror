@@ -2,6 +2,8 @@
 # M3-14 Stage B deployment: pull immutable Artifact Registry images only.
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 if [[ ! -f infra/.env.prod ]]; then
   printf 'Missing infra/.env.prod. Copy infra/.env.prod.example outside Git and fill host-only values.\n' >&2
   exit 64

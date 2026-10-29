@@ -229,11 +229,48 @@ Before enabling the workflow, a project administrator must configure these
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full GitHub Actions Workload Identity Provider resource name. |
 | `GCP_SERVICE_ACCOUNT` | CI service-account email with only Artifact Registry Writer for this repository. |
 
-The workflow fails before authentication if any variable is absent. Configure
-Workload Identity Federation to permit only this repository's `main` branch and
-keep the VM service account limited to Artifact Registry Reader. Never use
+Until all variables are configured, the workflow records a clear skip notice and
+does not attempt authentication or image publication, so ordinary `main` merges
+remain green. Configure Workload Identity Federation to permit only this
+repository's `main` branch and keep the VM service account limited to Artifact
+Registry Reader. Never use
 `GOOGLE_CREDENTIALS`, a service-account key JSON, or a long-lived token in the
 repository, workflow, or VM configuration.
+
+### Artifact Registry retention policy
+
+The real GPU image is multi-gigabyte, and every accepted revision has an
+immutable SHA tag. Before enabling publication, a project administrator must
+apply [`artifact-registry-cleanup-policy.json`](artifact-registry-cleanup-policy.json).
+It retains the ten most recent versions of each `mirror-` image package and
+deletes `mirror-` versions older than 30 days. It does not apply to unrelated
+packages that share the repository. The CI identity remains Artifact Registry
+Writer only; applying or changing a repository cleanup policy is a separate
+administrator action.
+
+First apply it in dry-run mode and inspect the resulting Artifact Registry audit
+logs. Enable Artifact Registry Data Access `DATA_WRITE` audit logging before the
+dry run, otherwise the cleanup-policy results will not be available there.
+Cleanup evaluation runs asynchronously and can take about a day:
+
+```bash
+gcloud artifacts repositories set-cleanup-policies "$GAR_REPOSITORY" \
+  --project="$GCP_PROJECT_ID" \
+  --location="$GAR_LOCATION" \
+  --policy=infra/artifact-registry-cleanup-policy.json \
+  --dry-run
+```
+
+After confirming that the active VM image and any rollback image are retained,
+apply the same policy for real:
+
+```bash
+gcloud artifacts repositories set-cleanup-policies "$GAR_REPOSITORY" \
+  --project="$GCP_PROJECT_ID" \
+  --location="$GAR_LOCATION" \
+  --policy=infra/artifact-registry-cleanup-policy.json \
+  --no-dry-run
+```
 
 After the publication run for an accepted `main` SHA succeeds, set these
 non-secret values in VM-only `infra/.env.prod`:

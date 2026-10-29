@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 from pathlib import Path
 
@@ -13,6 +14,7 @@ REGISTRY_OVERRIDE = ROOT / "infra" / "compose.registry.yml"
 DEPLOY_SCRIPT = ROOT / "infra" / "deploy-stage-b.sh"
 PROD_EXAMPLE = ROOT / "infra" / ".env.prod.example"
 INFRA_README = ROOT / "infra" / "README.md"
+CLEANUP_POLICY = ROOT / "infra" / "artifact-registry-cleanup-policy.json"
 
 
 def require_text(path: Path, *snippets: str) -> str:
@@ -48,6 +50,26 @@ def test_publish_workflow_uses_main_sha_tags_and_oidc() -> None:
     assert "push: ${{ github.event_name != 'pull_request' }}" in text
 
 
+def test_publish_workflow_executes_tests_and_skips_unconfigured_publishing() -> None:
+    """CI must execute M3-14 tests and leave main green before cloud setup exists."""
+    ci = require_text(
+        ROOT / ".github" / "workflows" / "ci.yml",
+        "python3 infra/tests/test_m3_14_assets.py",
+    )
+    workflow = require_text(
+        WORKFLOW,
+        "ready: ${{ steps.configuration.outputs.ready }}",
+        "Repository configuration is incomplete; skipping image publication.",
+        "if: needs.validate_configuration.outputs.ready == 'true'",
+        "project_id: ${{ vars.GCP_PROJECT_ID }}",
+        "Reclaim runner disk space for CUDA image build",
+        "Remove local CUDA BuildKit cache after publication",
+        "minimum_free_kb=25000000",
+    )
+    assert 'if __name__ == "__main__":' in Path(__file__).read_text(encoding="utf-8")
+    assert workflow.count("if: needs.validate_configuration.outputs.ready == 'true'") == 2
+
+
 def test_registry_override_requires_sha_tagged_images() -> None:
     """Production registry delivery must never silently fall back to local builds."""
     text = require_text(
@@ -75,8 +97,31 @@ def test_stage_b_deployer_pulls_without_building() -> None:
         "up -d --no-build --wait",
         "MIRROR_IMAGE_TAG",
         "git rev-parse HEAD",
+        'cd "$(dirname "$0")/.."',
     )
     assert "--build" not in text
+
+
+def test_cleanup_policy_keeps_recent_images_and_expires_old_versions() -> None:
+    """Registry retention must cap immutable-image storage without CI admin access."""
+    policies = json.loads(CLEANUP_POLICY.read_text(encoding="utf-8"))
+    assert {
+        "name": "keep-most-recent-mirror-images",
+        "action": {"type": "Keep"},
+        "mostRecentVersions": {
+            "packageNamePrefixes": ["mirror-"],
+            "keepCount": 10,
+        },
+    } in policies
+    assert {
+        "name": "delete-old-mirror-images",
+        "action": {"type": "Delete"},
+        "condition": {
+            "packageNamePrefixes": ["mirror-"],
+            "tagState": "any",
+            "olderThan": "30d",
+        },
+    } in policies
 
 
 def test_registry_override_resolves_with_nonsecret_values() -> None:
@@ -128,4 +173,25 @@ def test_documentation_names_required_configuration_and_vm_evidence() -> None:
         "GCP_WORKLOAD_IDENTITY_PROVIDER",
         "MIRROR_IMAGE_TAG",
         "Artifact Registry",
+        "artifact-registry-cleanup-policy.json",
+        "set-cleanup-policies",
+        "--dry-run",
+        "--no-dry-run",
+        "Data Access `DATA_WRITE` audit logging",
     )
+
+
+if __name__ == "__main__":
+    """Run the dependency-free M3-14 regression checks in GitHub Actions."""
+    tests = [
+        test_publish_workflow_uses_main_sha_tags_and_oidc,
+        test_publish_workflow_executes_tests_and_skips_unconfigured_publishing,
+        test_registry_override_requires_sha_tagged_images,
+        test_stage_b_deployer_pulls_without_building,
+        test_cleanup_policy_keeps_recent_images_and_expires_old_versions,
+        test_registry_override_resolves_with_nonsecret_values,
+        test_documentation_names_required_configuration_and_vm_evidence,
+    ]
+    for test in tests:
+        test()
+    print(f"M3-14 asset checks passed: {len(tests)}")

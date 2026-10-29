@@ -21,8 +21,11 @@ jobs:
   validate_configuration:
     name: Validate Artifact Registry configuration
     runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.configuration.outputs.ready }}
     steps:
-      - name: Require OIDC and registry variables
+      - name: Check whether OIDC and registry variables are configured
+        id: configuration
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GAR_LOCATION: ${{ vars.GAR_LOCATION }}
@@ -31,16 +34,24 @@ jobs:
           GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
+          missing=()
           for name in GCP_PROJECT_ID GAR_LOCATION GAR_REPOSITORY GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT; do
             if [ -z "${!name}" ]; then
-              echo "Repository variable $name must be configured before image publication." >&2
-              exit 64
+              missing+=("$name")
             fi
           done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Repository configuration is incomplete; skipping image publication. Missing: ${missing[*]}"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Repository configuration is complete; publishing immutable images."
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
 
   publish_standard_images:
     name: Publish ${{ matrix.name }}
     needs: validate_configuration
+    if: needs.validate_configuration.outputs.ready == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,6 +75,7 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           token_format: access_token
 
       - name: Authenticate Docker to Artifact Registry
@@ -87,10 +99,24 @@ jobs:
   publish_llm_real_image:
     name: Publish llm-service real target
     needs: validate_configuration
+    if: needs.validate_configuration.outputs.ready == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out merged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Reclaim runner disk space for CUDA image build
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+          available_kb="$(df --output=avail -k / | tail -n 1 | tr -d ' ')"
+          minimum_free_kb=25000000
+          if [ "$available_kb" -lt "$minimum_free_kb" ]; then
+            echo "CUDA image build requires at least $minimum_free_kb KiB free; only $available_kb KiB remain." >&2
+            exit 1
+          fi
+          df -h /
 
       - name: Authenticate to Google Cloud with GitHub OIDC
         id: auth
@@ -98,6 +124,7 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           token_format: access_token
 
       - name: Authenticate Docker to Artifact Registry
@@ -118,3 +145,7 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Remove local CUDA BuildKit cache after publication
+        if: always()
+        run: docker builder prune --all --force
