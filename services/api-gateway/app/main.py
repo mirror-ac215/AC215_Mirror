@@ -43,7 +43,8 @@ async def add_request_id(request: Request, call_next):
     finally:
         # M3-15: count every request by route pattern (no session ids in metrics).
         route = gateway_metrics.route_of(request)
-        gateway_metrics.REQUESTS.labels(route=route, method=request.method, status=str(status)).inc()
+        method = gateway_metrics.method_of(request)
+        gateway_metrics.REQUESTS.labels(route=route, method=method, status=str(status)).inc()
         gateway_metrics.REQUEST_SECONDS.labels(route=route).observe(time.perf_counter() - started)
         request_id_context.reset(token)
 

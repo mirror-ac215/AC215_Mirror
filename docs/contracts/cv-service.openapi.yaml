@@ -46,6 +46,38 @@ paths:
         "422":
           description: Missing or unreadable image
 
+  /predict_batch:
+    post:
+      summary: Predict facial expression for a bounded list of frames
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                images:
+                  type: array
+                  description: Downscaled JPEG frames, up to the server's MAX_BATCH_SIZE
+                  items:
+                    type: string
+                    contentMediaType: image/jpeg
+      responses:
+        "200":
+          description: One Prediction per input image, in request order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [predictions]
+                properties:
+                  predictions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Prediction" }
+        "422":
+          description: Missing/unreadable image, or batch exceeds MAX_BATCH_SIZE
+
 components:
   schemas:
     Prediction:

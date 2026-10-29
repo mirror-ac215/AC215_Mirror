@@ -9,7 +9,7 @@ What is counted:
 
 Routes are recorded by their pattern (/sessions/{session_id}/messages), never the real path,
 so the number of series stays small and no session id ends up in the metrics.
-Gate and fusion labels come from fixed lists only; anything else is counted as "invalid".
+Methods, gate and fusion labels come from fixed lists only; anything else is counted as "invalid".
 
 /metrics is not public: Caddy answers /api/metrics with 404 (infra/caddy/Caddyfile).
 """
@@ -61,6 +61,7 @@ GATE_STATUSES = ("ok", "uncertain", "dropped", "camera_off")
 AGREEMENTS = ("agree", "disagree", "n/a")
 TONE_MODES = ("coach", "supportive")
 MAIN_SIGNALS = ("face", "text", "none")
+HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
 
 
 def _closed(value: object, allowed: tuple[str, ...]) -> str:
@@ -72,6 +73,11 @@ def route_of(request: Request) -> str:
     """The matched route pattern, e.g. /sessions/{session_id}/frames; 'unmatched' for a 404 path."""
     route = request.scope.get("route")
     return getattr(route, "path", "unmatched")
+
+
+def method_of(request: Request) -> str:
+    """The HTTP method if it is a standard one, else "invalid": a client can send any method name."""
+    return _closed(request.method, HTTP_METHODS)
 
 
 def record_gate(status: str) -> None:

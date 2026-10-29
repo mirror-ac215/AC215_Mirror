@@ -36,3 +36,25 @@ async def test_health_reports_model_version_after_a_model_is_loaded() -> None:
         "status": "ok",
         "model_version": "cv-vit-b16-v3",
     }
+
+
+@pytest.mark.anyio
+async def test_health_reports_the_version_approved_by_the_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main
+
+    monkeypatch.setattr(
+        main,
+        "load_runtime",
+        lambda settings: (lambda image: None, lambda face: {}, "cv-vit-b16-v4"),
+    )
+    app = main.create_app()
+
+    async with app.router.lifespan_context(app), AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "model_version": "cv-vit-b16-v4"}

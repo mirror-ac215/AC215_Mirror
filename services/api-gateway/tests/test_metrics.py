@@ -44,6 +44,17 @@ async def test_requests_are_counted_by_route_pattern_not_by_real_path() -> None:
 
 
 @pytest.mark.anyio
+async def test_unknown_http_methods_are_counted_as_invalid() -> None:
+    labels = {"route": "/metrics", "method": "invalid", "status": "405"}
+    before = value("mirror_gateway_requests_total", **labels)
+    async with client() as c:
+        await c.request("ARBITRARYMETHOD", "/metrics")
+        body = (await c.get("/metrics")).text
+    assert value("mirror_gateway_requests_total", **labels) == before + 1
+    assert "ARBITRARYMETHOD" not in body
+
+
+@pytest.mark.anyio
 async def test_request_latency_is_recorded() -> None:
     before = value("mirror_gateway_request_seconds_count", route="/metrics")
     async with client() as c:

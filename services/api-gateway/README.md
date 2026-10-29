@@ -147,13 +147,29 @@ A single frame without the gate is right 50 % of the time. We chose fewer but mo
 
 Re-run after a model change: export the frame scores with the new checkpoint, then `uv run --with wandb python -m scripts.gate_sweep <frames.csv> --wandb-project mirror`.
 
+## Fusion (M3-06)
+
+`app/fusion.py` turns the gated face reading (M3-04) and the text reading (M3-05) into one context object per turn (`docs/contracts/context_object.schema.json`). It follows D-004: when face and words disagree, the more concerning signal leads and Mirror checks in once.
+
+| Situation | Main signal (`note`) | `agreement` |
+|---|---|---|
+| Words negative (anger, disgust, fear, sadness) | text, whatever the face shows | agree if the face is also negative, else disagree |
+| Words calm or unclear, face ok and neutral/happy/surprise | face | agree / disagree |
+| Face ok but negative, words calm | text | **disagree, on purpose** (see below) |
+| Face uncertain, dropped or camera off | text (or none if the words are unclear, prob < 0.40) | n/a |
+| A second disagreement in the same session | as above | n/a, note ends "already checked in this session" |
+
+- **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, so a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
+- **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
+- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, so a retry is safe. Call `history.record(context)` once, when the turn's reply is final.
+
 ## Metrics (M3-15)
 
 `GET /metrics` serves Prometheus text format (`app/metrics.py`, `prometheus-client`), for the monitoring dashboard (M4-08):
 
 | Metric | Labels | What it counts |
 |---|---|---|
-| `mirror_gateway_requests_total` | `route`, `method`, `status` | every HTTP request; `route` is the pattern (`/sessions/{session_id}/messages`), never a real session id |
+| `mirror_gateway_requests_total` | `route`, `method`, `status` | every HTTP request; `route` is the pattern (`/sessions/{session_id}/messages`), never a real session id; `method` is a standard one or `invalid` |
 | `mirror_gateway_request_seconds` | `route` | time to answer (for streams: until the first byte); histogram, so p50/p95 can be computed |
 | `mirror_gateway_crisis_hits_total` | `rule` | crisis-check hits by rule id (never the message text) |
 | `mirror_gateway_text_emotion_seconds` | | time to score one message |
