@@ -28,6 +28,7 @@ class ModelSettings(BaseSettings):
     model_object: str = "models/cv/inherited-v3/vit_b16_v3_best.pth"
     model_version: str = "cv-vit-b16-v3"
     model_cache_dir: Path = Path("/tmp/mirror-cv-model")
+    max_batch_size: int = Field(default=8, ge=1, le=64)
     uncertain_margin: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
@@ -122,6 +123,16 @@ def load_model(
     return model.to("cpu").eval()
 
 
-def load_runtime(settings: ModelSettings | None = None) -> tuple[FaceDetector, ExpressionClassifier]:
+def load_runtime(
+    settings: ModelSettings | None = None,
+    *,
+    storage_client_factory: Callable[..., Any] = storage.Client,
+) -> tuple[FaceDetector, ExpressionClassifier, str]:
     settings = settings or ModelSettings()
-    return FaceDetector(), ExpressionClassifier(load_model(settings))
+    return (
+        FaceDetector(),
+        ExpressionClassifier(
+            load_model(settings, storage_client_factory=storage_client_factory)
+        ),
+        settings.model_version,
+    )
