@@ -22,6 +22,7 @@ jobs:
       cv_service: ${{ steps.filter.outputs.cv_service }}
       data_preprocess: ${{ steps.filter.outputs.data_preprocess }}
       persona_data: ${{ steps.filter.outputs.persona_data }}
+      iemocap_data: ${{ steps.filter.outputs.iemocap_data }}
       cv_eval: ${{ steps.filter.outputs.cv_eval }}
       cv_train: ${{ steps.filter.outputs.cv_train }}
       llm_finetune: ${{ steps.filter.outputs.llm_finetune }}
@@ -63,6 +64,10 @@ jobs:
               - '.github/workflows/**'
             persona_data:
               - 'pipelines/persona-data/**'
+              - 'dvc.yaml'
+              - '.github/workflows/**'
+            iemocap_data:
+              - 'pipelines/iemocap-data/**'
               - 'dvc.yaml'
               - '.github/workflows/**'
             cv_eval:
@@ -147,6 +152,15 @@ jobs:
     with:
       service_path: pipelines/persona-data
       image_name: mirror-persona-data-ci
+
+  iemocap_data:
+    name: IEMOCAP data checks
+    needs: changes
+    if: needs.changes.outputs.iemocap_data == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/iemocap-data
+      image_name: mirror-iemocap-data-ci
 
   cv_eval:
     name: CV evaluation checks
@@ -278,7 +292,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, llm_finetune, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, llm_finetune, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -299,6 +313,8 @@ jobs:
           DATA_PREPROCESS_RESULT: ${{ needs.data_preprocess.result }}
           PERSONA_DATA_CHANGED: ${{ needs.changes.outputs.persona_data }}
           PERSONA_DATA_RESULT: ${{ needs.persona_data.result }}
+          IEMOCAP_DATA_CHANGED: ${{ needs.changes.outputs.iemocap_data }}
+          IEMOCAP_DATA_RESULT: ${{ needs.iemocap_data.result }}
           CV_EVAL_CHANGED: ${{ needs.changes.outputs.cv_eval }}
           CV_EVAL_RESULT: ${{ needs.cv_eval.result }}
           CV_TRAIN_CHANGED: ${{ needs.changes.outputs.cv_train }}
@@ -351,6 +367,12 @@ jobs:
             echo "Persona data checks did not pass: $PERSONA_DATA_RESULT"
             exit 1
           fi
+
+          if [ "$IEMOCAP_DATA_CHANGED" = "true" ] && [ "$IEMOCAP_DATA_RESULT" != "success" ]; then
+            echo "IEMOCAP data checks did not pass: $IEMOCAP_DATA_RESULT"
+            exit 1
+          fi
+
           if [ "$CV_EVAL_CHANGED" = "true" ] && [ "$CV_EVAL_RESULT" != "success" ]; then
             echo "CV evaluation checks did not pass: $CV_EVAL_RESULT"
             exit 1
