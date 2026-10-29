@@ -32,6 +32,13 @@ release is already in the bucket.
 Mirror's 7 emotions are the classes of the camera model; matching them lets
 M4-09 compare face and text one to one. Set in `params.yaml` (`labels`).
 
+The `label` column uses the **text model's names** (`anger`, `joy`, `sadness`),
+while the camera model returns `angry`, `happy`, `sad` for the same three
+emotions; the other four names are identical. M4-09 compares the two with the
+gateway's existing mapping, `TEXT_TO_FACE` in
+`services/api-gateway/app/fusion.py` (line 28): `anger -> angry`,
+`joy -> happy`, `sadness -> sad`. No second mapping is introduced here.
+
 | IEMOCAP code | Meaning | Mirror |
 |---|---|---|
 | `neu` | neutral | neutral |
@@ -72,7 +79,9 @@ non-commercial use only; no redistribution**. Consequently:
 - the archive and every output stay in the team's private bucket
   (`gs://mirror-ac215-data`), accessed through DVC; nothing is committed to git;
 - the tests use a small invented release with the same layout, never real data;
-- access was requested with a Harvard account (Julie, received Oct 19, 2026).
+- access was requested with a Harvard account (Julie, received Oct 19, 2026);
+- the release form covers the project team: every Mirror member may read the
+  archive and the outputs in `gs://mirror-ac215-data`; nobody outside the team.
 
 ## Run (fresh clone)
 

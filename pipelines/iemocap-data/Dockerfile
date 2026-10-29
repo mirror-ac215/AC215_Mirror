@@ -12,4 +12,4 @@ COPY params.yaml ./
 RUN uv sync --frozen --no-dev
 
 # Data is mounted at run time (e.g. -v "$PWD/data:/app/data"); it is never baked into the image.
-ENTRYPOINT ["uv", "run", "mirror-iemocap-data", "--params", "params.yaml"]
+ENTRYPOINT ["uv", "run", "--no-sync", "mirror-iemocap-data", "--params", "params.yaml"]
