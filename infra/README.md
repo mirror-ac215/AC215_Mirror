@@ -209,3 +209,48 @@ Do not send sensitive or patient-like content for this smoke test.
 - Stop the VM when not demonstrating: `gcloud compute instances stop mirror-gpu-prod --zone "$M3_13_ZONE" --project "$M3_13_PROJECT_ID"`.
 - Delete the VM and release the reserved address only after the team approves
   teardown; both affect availability and, for the address, billing.
+
+## M3-14: immutable Artifact Registry images
+
+M3-14 separates image publication from VM deployment. The main-only workflow
+`.github/workflows/publish-artifact-registry-images.yml` builds Mirror's `db`,
+`api-gateway`, `cv-service`, `frontend`, and real-target `llm-service` images,
+then publishes each using the exact merged Git SHA as its tag. It uses GitHub
+OIDC, not a committed service-account key.
+
+Before enabling the workflow, a project administrator must configure these
+**repository variables** (not secrets) in GitHub:
+
+| Variable | Meaning |
+|---|---|
+| `GCP_PROJECT_ID` | GCP project containing the registry. |
+| `GAR_LOCATION` | Artifact Registry location, for example `us-central1`. |
+| `GAR_REPOSITORY` | Image path after the registry host, normally `<project-id>/<repository>`. |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full GitHub Actions Workload Identity Provider resource name. |
+| `GCP_SERVICE_ACCOUNT` | CI service-account email with only Artifact Registry Writer for this repository. |
+
+The workflow fails before authentication if any variable is absent. Configure
+Workload Identity Federation to permit only this repository's `main` branch and
+keep the VM service account limited to Artifact Registry Reader. Never use
+`GOOGLE_CREDENTIALS`, a service-account key JSON, or a long-lived token in the
+repository, workflow, or VM configuration.
+
+After the publication run for an accepted `main` SHA succeeds, set these
+non-secret values in VM-only `infra/.env.prod`:
+
+```bash
+MIRROR_IMAGE_REGISTRY='<location>-docker.pkg.dev'
+MIRROR_IMAGE_REPOSITORY='<project-id>/<repository>'
+MIRROR_IMAGE_TAG='<40-character merged Git SHA>'
+```
+
+Check out that exact SHA on the VM and deploy with:
+
+```bash
+bash infra/deploy-stage-b.sh
+```
+
+The helper rejects a non-SHA tag or a mismatch between the checkout and
+`MIRROR_IMAGE_TAG`, resolves the three Compose files, pulls images, and starts
+without local builds. Record `docker compose ... images` output with the
+resolved image digests as the M3-14 VM-pull evidence.

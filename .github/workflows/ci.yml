@@ -260,6 +260,9 @@ jobs:
       - name: Validate M3-13 Stage A deployment assets
         run: python3 infra/tests/test_stage_a_assets.py
 
+      - name: Validate M3-14 immutable image delivery assets
+        run: python3 infra/tests/test_m3_14_assets.py
+
       - name: Build and start the stack, wait for every health check
         run: docker compose -f infra/compose.yml up --build --wait --wait-timeout 300
 
