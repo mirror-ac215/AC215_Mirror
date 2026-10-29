@@ -39,8 +39,9 @@ IMAGE=us-central1-docker.pkg.dev/mirror-ac215/<repo>/llm-finetune:$(git rev-pars
 docker build --platform linux/amd64 --target train \
   --build-arg GIT_SHA=$(git rev-parse HEAD) -t "$IMAGE" . && docker push "$IMAGE"
 
-# 4. Submit (dry run first: prints the job spec with secrets masked, and the data sha256)
-export WANDB_API_KEY=...
+# 4. Submit (dry run first: prints the job spec and the data sha256). submit refuses
+#    unless `dvc status persona_clean` is clean, i.e. the local data is exactly what
+#    dvc.lock records. No key to export: the job reads it from Secret Manager.
 uv run --extra vertex mirror-llm-finetune submit \
   --data-uri gs://mirror-ac215-data/data/processed/persona/v1 --dry-run
 uv run --extra vertex mirror-llm-finetune submit \
@@ -55,16 +56,34 @@ On a GPU machine without Vertex: `uv sync --extra train && GIT_SHA=$(git rev-par
 
 | Variable | Needed for | Where it comes from |
 |---|---|---|
-| `WANDB_API_KEY` | W&B logging | `secrets/` instructions; passed to the job at submit time, never committed |
+| `WANDB_API_KEY` | W&B logging; a published run refuses to start without it | Secret Manager: the job spec carries only `WANDB_API_KEY_SECRET` (the resource name in `vertex.secrets`), and the job reads the value at run time with its service account. For a local run, `export WANDB_API_KEY` instead |
 | `GIT_SHA` | recorded in `mirror_adapter.json`; training refuses to start without it | baked into the image: `docker build --build-arg GIT_SHA=$(git rev-parse HEAD)` (step 3) |
-| `EXPECTED_DATA_SHA256` | the job refuses data that differs from the DVC version | set by `submit` from the local `data.dir`; nothing to do |
-| `HF_TOKEN` | optional (the base model is public) | your Hugging Face account |
+| `EXPECTED_DATA_SHA256` | the job refuses data that differs from the DVC version | set by `submit` from the local `data.dir`, after `dvc status` is clean; nothing to do |
+| `HF_TOKEN` | not needed (the base model is public) | if it ever is, add it to `vertex.secrets`; plain secrets in the job env are refused |
 | GCP auth | submit and GCS access | `gcloud auth application-default login` |
+
+Nothing from your shell is forwarded to the job, so a key can't appear in the job spec or the Vertex console.
+
+**One-time Secret Manager setup** (a project owner, once):
+
+```bash
+gcloud services enable secretmanager.googleapis.com --project mirror-ac215
+printf '%s' "$WANDB_API_KEY" | gcloud secrets create wandb-api-key \
+  --project mirror-ac215 --replication-policy automatic --data-file=-
+# Custom jobs with no service account set run as the Vertex AI Custom Code Service Agent:
+PROJECT_NUMBER=$(gcloud projects describe mirror-ac215 --format='value(projectNumber)')
+gcloud secrets add-iam-policy-binding wandb-api-key --project mirror-ac215 \
+  --member "serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-aiplatform-cc.iam.gserviceaccount.com" \
+  --role roles/secretmanager.secretAccessor
+```
+
+To rotate the key, add a new version (`gcloud secrets versions add wandb-api-key --data-file=-`); `versions/latest` picks it up on the next run.
 
 ## Before the first run (team decisions)
 
 - The Vertex AI API is enabled on `mirror-ac215`, with **L4 quota** in `us-central1` (alternatively, change `vertex.region`, or use a T4 with `compute_dtype: float16`).
 - An Artifact Registry repository exists for the image (shared with M3-14).
+- The `wandb-api-key` secret exists and the job's service account can read it (one-time setup above).
 - Cost: one L4 GPU per run, billed only while the job runs; the job stops when training ends.
 
 ## Not in this PR

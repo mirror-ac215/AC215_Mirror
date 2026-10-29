@@ -14,6 +14,7 @@ train = [
     "accelerate>=1.10",
     "bitsandbytes>=0.48",
     "datasets>=4.0",
+    "google-cloud-secret-manager>=2.24",
     "peft>=0.17",
     "torch>=2.9.1",
     "transformers>=4.57",
