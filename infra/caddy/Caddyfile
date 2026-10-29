@@ -4,6 +4,11 @@
 	tls internal
 	encode zstd gzip
 
+	# Gateway metrics are for our own monitoring, never the browser (M3-15).
+	handle /api/metrics* {
+		respond 404
+	}
+
 	# Browser requests use /api; the FastAPI service receives its native path.
 	handle_path /api/* {
 		reverse_proxy api-gateway:8000

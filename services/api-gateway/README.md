@@ -163,6 +163,24 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
 - **Once per turn:** `fuse()` only reads the session's `TurnHistory`, so a retry is safe. Call `history.record(context)` once, when the turn's reply is final.
 
+## Metrics (M3-15)
+
+`GET /metrics` serves Prometheus text format (`app/metrics.py`, `prometheus-client`), for the monitoring dashboard (M4-08):
+
+| Metric | Labels | What it counts |
+|---|---|---|
+| `mirror_gateway_requests_total` | `route`, `method`, `status` | every HTTP request; `route` is the pattern (`/sessions/{session_id}/messages`), never a real session id; `method` is a standard one or `invalid` |
+| `mirror_gateway_request_seconds` | `route` | time to answer (for streams: until the first byte); histogram, so p50/p95 can be computed |
+| `mirror_gateway_crisis_hits_total` | `rule` | crisis-check hits by rule id (never the message text) |
+| `mirror_gateway_text_emotion_seconds` | | time to score one message |
+| `mirror_gateway_text_emotion_unavailable_total` | | messages that went on without a text reading (fallback) |
+| `mirror_gateway_gate_total` | `status` | gate outcome per turn (ok / uncertain / dropped / camera_off) |
+| `mirror_gateway_fusion_total` | `agreement`, `tone_mode`, `main_signal` | fusion outcome per turn |
+
+Errors are the requests with a 5xx `status`. The gate and fusion counters fill once the chat endpoint (M3-10) calls `metrics.record_gate(status)` and `metrics.record_fusion(agreement, tone_mode, main_signal)`, one line each, where it calls `gate()` and `fuse()`. Label values come from fixed lists (`app/metrics.py`); anything else is counted as `invalid`, so no free text ever becomes a label.
+
+`/metrics` is not public: Caddy answers `/api/metrics` with 404 (`infra/caddy/Caddyfile`, checked by `tests/test_metrics.py`). A Prometheus server will scrape the gateway directly on the private network (M4-08). Every log line already carries the request's `request_id` (JSON logs).
+
 ## Checks
 
 ```bash

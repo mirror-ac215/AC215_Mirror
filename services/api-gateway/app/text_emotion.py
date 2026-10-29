@@ -30,6 +30,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from app import metrics
+
 logger = logging.getLogger("mirror")
 
 # Mirror's 7 emotion labels: the same names as the camera model and the contract.
@@ -161,6 +163,15 @@ class TextEmotion:
 
     def analyse(self, message: str) -> TextEmotionResult:
         """Message in, top-2 emotions + probabilities out."""
+        try:
+            result = self._analyse(message)
+        except TextEmotionUnavailable:
+            metrics.TEXT_EMOTION_UNAVAILABLE.inc()  # M3-15: the turn goes on without a text reading
+            raise
+        metrics.TEXT_EMOTION_SECONDS.observe(result.latency_ms / 1000)
+        return result
+
+    def _analyse(self, message: str) -> TextEmotionResult:
         text = message.strip()[: self.max_chars]
         start = time.perf_counter()
 
