@@ -1,0 +1,151 @@
+name: Publish immutable Artifact Registry images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: artifact-registry-main
+  cancel-in-progress: false
+
+env:
+  IMAGE_REGISTRY: ${{ vars.GAR_LOCATION }}-docker.pkg.dev
+  IMAGE_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
+
+jobs:
+  validate_configuration:
+    name: Validate Artifact Registry configuration
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.configuration.outputs.ready }}
+    steps:
+      - name: Check whether OIDC and registry variables are configured
+        id: configuration
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+          GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in GCP_PROJECT_ID GAR_LOCATION GAR_REPOSITORY GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Repository configuration is incomplete; skipping image publication. Missing: ${missing[*]}"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Repository configuration is complete; publishing immutable images."
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish_standard_images:
+    name: Publish ${{ matrix.name }}
+    needs: validate_configuration
+    if: needs.validate_configuration.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: db
+            context: services/db
+          - name: api-gateway
+            context: services/api-gateway
+          - name: cv-service
+            context: services/cv-service
+          - name: frontend
+            context: services/frontend
+    steps:
+      - name: Check out merged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          token_format: access_token
+
+      - name: Authenticate Docker to Artifact Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.5.0
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Build and push immutable image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.0
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/mirror-${{ matrix.name }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  publish_llm_real_image:
+    name: Publish llm-service real target
+    needs: validate_configuration
+    if: needs.validate_configuration.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out merged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Reclaim runner disk space for CUDA image build
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+          available_kb="$(df --output=avail -k / | tail -n 1 | tr -d ' ')"
+          minimum_free_kb=25000000
+          if [ "$available_kb" -lt "$minimum_free_kb" ]; then
+            echo "CUDA image build requires at least $minimum_free_kb KiB free; only $available_kb KiB remain." >&2
+            exit 1
+          fi
+          df -h /
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          token_format: access_token
+
+      - name: Authenticate Docker to Artifact Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.5.0
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Build and push immutable GPU image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.0
+        with:
+          context: services/llm-service
+          target: real
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/mirror-llm-service:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Remove local CUDA BuildKit cache after publication
+        if: always()
+        run: docker builder prune --all --force

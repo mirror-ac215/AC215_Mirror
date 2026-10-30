@@ -1,0 +1,19 @@
+[
+  {
+    "name": "keep-most-recent-mirror-images",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {
+      "packageNamePrefixes": ["mirror-"],
+      "keepCount": 10
+    }
+  },
+  {
+    "name": "delete-old-mirror-images",
+    "action": {"type": "Delete"},
+    "condition": {
+      "packageNamePrefixes": ["mirror-"],
+      "tagState": "any",
+      "olderThan": "30d"
+    }
+  }
+]
