@@ -1,0 +1,23 @@
+# M3-02 fairness audit. Change values here, not in code: the report records them all.
+
+model:
+  version: cv-vit-b16-v4                       # docs/artifacts.md
+  uri: gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth
+
+data:
+  name: FairFace validation (padding 0.25)    # Karkkainen & Joo, WACV 2021; CC BY 4.0
+  version: fairface/v1-val
+
+# The gateway's gate (services/api-gateway/app/config.py, M3-04). A test keeps these
+# equal to the gateway defaults. A photo is one steady frame: stability is always 1.0,
+# and only the top-probability and margin rules can fail.
+gate:
+  min_top_prob: 0.45
+  min_margin: 0.05
+
+groups:
+  attributes: [race, gender, age]
+  # Mirror's patients are adults and teenagers; young children's faces and expressions
+  # differ and would dominate the age gaps. Still scored, reported separately.
+  exclude_ages: ["0-2", "3-9"]
+  min_group_size: 100        # smaller groups are listed but never named as the largest gap
