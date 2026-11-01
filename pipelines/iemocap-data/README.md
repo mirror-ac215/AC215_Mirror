@@ -87,13 +87,13 @@ non-commercial use only; no redistribution**. Consequently:
 
 The archive is in the bucket at
 `gs://mirror-ac215-data/data/raw/iemocap/IEMOCAP_full_release.tar.gz`
-(17,695,884,032 bytes). Tracking it with DVC is the next PR; until then, run the
-stage without DVC (below). Credentials: a Google account with access to the
+(17,695,884,032 bytes). It is tracked with `dvc import-url --no-download` (`raw-iemocap.dvc` at the
+repo root, like `raw-fer2013.dvc`); `dvc pull` fetches it. Credentials: a Google account with access to the
 `mirror-ac215` project.
 
 ```bash
 gcloud auth application-default login                        # choose the project account
-dvc repro iemocap_build                                      # once the archive is tracked
+dvc repro iemocap_build
 dvc push                                                     # share the new output
 ```
 
