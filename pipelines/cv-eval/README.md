@@ -30,6 +30,21 @@ The same inherited checkpoint (`cv-vit-b16-v3`) and the same evaluator, run with
 
 Add `--device cuda` on a GPU machine with the CUDA build of torch installed (verified identical to the CPU run, same confusion matrix: 88 s on an RTX 4070 Ti vs ~9 min on CPU).
 
+## FER+ release check (M4-14, D-005)
+
+Run this before any CV model is published or handed to cv-service. It is cv-eval with the guard fixed: FER+ test (`ferplus/v2`, 6,722 photos, manifest SHA-256 checked), **macro-F1 >= 0.609**, no `--report-only`. It exits 2 below the guard and records the checkpoint SHA-256 in the report. CI cannot run it (no FER-2013 images or GPU), so it is run by hand; build the data first with `mirror-prepare-ferplus`.
+
+    uv run --project pipelines/cv-eval mirror-cv-release-check \
+      --checkpoint /secure/path/model.pth --output data/reports/release-check.json \
+      --code-revision "$(git rev-parse HEAD)"
+
+| Model | Checkpoint SHA-256 | Macro-F1 | Result |
+|---|---|---|---|
+| `cv-vit-b16-v4` | `5b003e0a…1e862b` | 0.7202 | PASS |
+| `cv-vit-b16-v3` (served today) | `f2e13fa8…815990` | 0.6089 | FAIL: a new model must beat v3, so v3 itself sits just below the line |
+
+Both runs were on CPU (about 6 min each) at code `431790f`. CPU and GPU give identical results (see M3-18).
+
 ## Local run
 
 From the repository root, restore data with `dvc pull`, obtain the documented checkpoint through approved ADC, then run:
