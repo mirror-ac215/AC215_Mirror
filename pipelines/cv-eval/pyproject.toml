@@ -28,6 +28,7 @@ dev = [
 
 [project.scripts]
 mirror-cv-eval = "mirror_cv_eval.cli:main"
+mirror-cv-release-check = "mirror_cv_eval.release_check:main"
 
 [build-system]
 requires = ["hatchling"]
