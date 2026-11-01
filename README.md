@@ -32,9 +32,12 @@ configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
 The repository also contains the **M3-13 Stage A** production-deployment
 foundation: a T4 GPU VM provisioning script, Docker/NVIDIA bootstrap script,
 production Compose override and Caddy HTTPS configuration. It is a manually
-operated platform setup, not continuous deployment. The full integrated public
-release remains gated on the MS3 integration work; M3-14 will add
-Artifact-Registry images tagged by Git SHA. See [`infra/README.md`](infra/README.md).
+operated platform setup, not continuous deployment. **M3-14** is merged:
+GitHub Actions publishes immutable Git-SHA-tagged images to Artifact
+Registry via OIDC after every merge to `main`. The full integrated public
+release still depends on the MS3 integration work (M3-03 through M3-12) and
+a Stage-B VM deployment pulling those published images. See
+[`infra/README.md`](infra/README.md).
 
 ```bash
 git clone https://github.com/mirror-ac215/AC215_Mirror.git
