@@ -79,7 +79,7 @@ jobs:
           token_format: access_token
 
       - name: Authenticate Docker to Artifact Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.5.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v3.5.0
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: oauth2accesstoken
@@ -128,7 +128,7 @@ jobs:
           token_format: access_token
 
       - name: Authenticate Docker to Artifact Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.5.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v3.5.0
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: oauth2accesstoken
