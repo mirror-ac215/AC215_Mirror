@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -15,6 +16,21 @@ DEPLOY_SCRIPT = ROOT / "infra" / "deploy-stage-b.sh"
 PROD_EXAMPLE = ROOT / "infra" / ".env.prod.example"
 INFRA_README = ROOT / "infra" / "README.md"
 CLEANUP_POLICY = ROOT / "infra" / "artifact-registry-cleanup-policy.json"
+
+# Actions must be pinned to an immutable 40-character commit SHA (never a
+# floating tag like "@v3" or "@main"). Dependabot legitimately rotates the
+# pinned SHA whenever it bumps a version, so this check only asserts the
+# pinning *shape*, not a specific commit — the commit itself changes on
+# every routine action-version bump and must not be hardcoded here.
+SHA_PINNED_ACTION = re.compile(r"uses:\s*{action}@[0-9a-f]{{40}}\b")
+
+
+def require_sha_pinned_action(text: str, path: Path, action: str) -> None:
+    pattern = SHA_PINNED_ACTION.pattern.format(action=re.escape(action))
+    assert re.search(pattern, text), (
+        f"{path.relative_to(ROOT)} must pin {action} to an immutable 40-character "
+        "commit SHA (not a floating tag)"
+    )
 
 
 def require_text(path: Path, *snippets: str) -> str:
@@ -35,9 +51,6 @@ def test_publish_workflow_uses_main_sha_tags_and_oidc() -> None:
         "workflow_dispatch:",
         "id-token: write",
         "contents: read",
-        "google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093",
-        "docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9",
-        "docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8",
         "github.sha",
         "platforms: linux/amd64",
         "GAR_LOCATION",
@@ -45,6 +58,12 @@ def test_publish_workflow_uses_main_sha_tags_and_oidc() -> None:
         "GCP_WORKLOAD_IDENTITY_PROVIDER",
         "GCP_SERVICE_ACCOUNT",
     )
+    for action in (
+        "google-github-actions/auth",
+        "docker/login-action",
+        "docker/build-push-action",
+    ):
+        require_sha_pinned_action(text, WORKFLOW, action)
     assert "GOOGLE_CREDENTIALS" not in text
     assert "service_account_key" not in text
     assert "push: ${{ github.event_name != 'pull_request' }}" in text
