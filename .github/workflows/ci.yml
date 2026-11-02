@@ -25,6 +25,7 @@ jobs:
       cv_eval: ${{ steps.filter.outputs.cv_eval }}
       cv_train: ${{ steps.filter.outputs.cv_train }}
       llm_finetune: ${{ steps.filter.outputs.llm_finetune }}
+      persona_checks: ${{ steps.filter.outputs.persona_checks }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -73,6 +74,11 @@ jobs:
               - '.github/workflows/**'
             llm_finetune:
               - 'pipelines/llm-finetune/**'
+              - '.github/workflows/**'
+            persona_checks:
+              - 'pipelines/llm-eval/persona-checks/**'
+              - 'pipelines/persona-data/params.yaml'
+              - 'pipelines/llm-finetune/params.yaml'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -174,6 +180,15 @@ jobs:
     with:
       service_path: pipelines/llm-finetune
       image_name: mirror-llm-finetune-ci
+
+  persona_checks:
+    name: Persona checks
+    needs: changes
+    if: needs.changes.outputs.persona_checks == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/llm-eval/persona-checks
+      image_name: mirror-persona-checks-ci
 
   frontend:
     name: Frontend checks
@@ -281,7 +296,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, llm_finetune, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, llm_finetune, persona_checks, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -308,6 +323,8 @@ jobs:
           CV_TRAIN_RESULT: ${{ needs.cv_train.result }}
           LLM_FINETUNE_CHANGED: ${{ needs.changes.outputs.llm_finetune }}
           LLM_FINETUNE_RESULT: ${{ needs.llm_finetune.result }}
+          PERSONA_CHECKS_CHANGED: ${{ needs.changes.outputs.persona_checks }}
+          PERSONA_CHECKS_RESULT: ${{ needs.persona_checks.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -366,6 +383,11 @@ jobs:
 
           if [ "$LLM_FINETUNE_CHANGED" = "true" ] && [ "$LLM_FINETUNE_RESULT" != "success" ]; then
             echo "LLM fine-tune checks did not pass: $LLM_FINETUNE_RESULT"
+            exit 1
+          fi
+
+          if [ "$PERSONA_CHECKS_CHANGED" = "true" ] && [ "$PERSONA_CHECKS_RESULT" != "success" ]; then
+            echo "Persona checks did not pass: $PERSONA_CHECKS_RESULT"
             exit 1
           fi
 
