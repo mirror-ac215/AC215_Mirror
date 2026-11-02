@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mirror_llm_finetune.config import gcs_to_fuse
+from mirror_llm_finetune.secret_manager import SECRET_NAMES
 
 
 def job_spec(params: dict[str, Any], data_uri: str, env: dict[str, str]) -> dict[str, Any]:
@@ -15,6 +16,10 @@ def job_spec(params: dict[str, Any], data_uri: str, env: dict[str, str]) -> dict
         raise ValueError("vertex.image_uri is empty: build and push the train image first")
     if not data_uri.startswith("gs://"):
         raise ValueError("data_uri must be a gs:// path the job can read")
+    leaked = sorted(SECRET_NAMES & env.keys())
+    if leaked:
+        # Anyone who can view the job would see the value: pass vertex.secrets instead.
+        raise ValueError(f"{', '.join(leaked)} must come from Secret Manager, not the job env")
     return {
         "display_name": f"mirror-llm-finetune-{params['output']['adapter_name']}",
         "worker_pool_specs": [

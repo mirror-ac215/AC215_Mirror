@@ -1,0 +1,11 @@
+md5: 60389aca6e702fca2e8debe6c14d7996
+frozen: true
+deps:
+- etag: 0887c3a0a8aadf97031001
+  size: 17695884032
+  version_id: '1793280463872391'
+  hash: md5
+  path: gs://mirror-ac215-data/data/raw/iemocap/IEMOCAP_full_release.tar.gz
+outs:
+- hash: md5
+  path: data/raw/iemocap/IEMOCAP_full_release.tar.gz

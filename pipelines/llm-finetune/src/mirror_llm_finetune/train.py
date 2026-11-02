@@ -15,6 +15,7 @@ from typing import Any
 
 from mirror_llm_finetune.config import COMMIT, check, gcs_to_fuse
 from mirror_llm_finetune.data import fingerprint, read_split, to_example
+from mirror_llm_finetune.secret_manager import load_secrets
 
 
 def preflight(data_dir: Path, env: dict[str, str], *, upload: bool) -> tuple[str, str]:
@@ -67,6 +68,9 @@ def run(params: dict[str, Any], data_dir: Path, out_dir: Path, upload: bool) -> 
     if upload and target.exists():
         # Adapters are versioned, never overwritten: bump output.adapter_name instead.
         raise FileExistsError(f"{target} already exists")
+    load_secrets(os.environ)  # WANDB_API_KEY_SECRET -> WANDB_API_KEY (Secret Manager)
+    if upload and not os.environ.get("WANDB_API_KEY"):
+        raise ValueError("WANDB_API_KEY is missing: set vertex.secrets in params.yaml (README)")
     git_sha, data_sha = preflight(data_dir, dict(os.environ), upload=upload)
 
     import torch

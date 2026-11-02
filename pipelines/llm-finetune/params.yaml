@@ -53,3 +53,7 @@ vertex:
   accelerator_count: 1
   image_uri: ""                       # the train image in Artifact Registry (README step 3)
   staging_bucket: gs://mirror-ac215-data/vertex-staging
+  # Secret Manager resource names, never the values: the job reads each one at run
+  # time with its service account (README "Environment and secrets").
+  secrets:
+    WANDB_API_KEY: projects/mirror-ac215/secrets/wandb-api-key/versions/latest

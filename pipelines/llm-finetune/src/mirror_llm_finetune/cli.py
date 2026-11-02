@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from mirror_llm_finetune.config import check, load_params
 from mirror_llm_finetune.data import fingerprint
+from mirror_llm_finetune.dvc_check import STAGE, require_clean
+from mirror_llm_finetune.secret_manager import secret_refs
 
-# Passed from your shell into the Vertex job; never written to params.yaml or git.
-# GIT_SHA is not among them: it is baked into the image at build time (Dockerfile).
-FORWARDED_ENV = ("WANDB_API_KEY", "HF_TOKEN")
+# Nothing from your shell is forwarded to the job: secrets come from Secret Manager
+# (vertex.secrets) and GIT_SHA is baked into the image at build time (Dockerfile).
 REPO_ROOT = Path("../..")  # submit is run from pipelines/llm-finetune (README)
 
 
@@ -29,9 +29,10 @@ def parser() -> argparse.ArgumentParser:
     submit = sub.add_parser("submit", help="run training as a Vertex AI custom job")
     submit.add_argument("--data-uri", required=True, help="gs:// folder with train/val/test.csv")
     submit.add_argument(
-        "--local-data-dir",
+        "--repo-root",
         type=Path,
-        help="DVC-pulled copy of the same data, to fingerprint (default: <repo root>/data.dir)",
+        default=REPO_ROOT,
+        help="repo checkout with the DVC-pulled data and dvc.lock (default: ../..)",
     )
     submit.add_argument("--dry-run", action="store_true", help="print the job spec only")
     return p
@@ -51,17 +52,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     from mirror_llm_finetune.vertex import job_spec, submit
 
     check(params, for_training=True)  # fail here, not after the GPU has started
-    env = {k: os.environ[k] for k in FORWARDED_ENV if os.environ.get(k)}
-    local = args.local_data_dir or REPO_ROOT / params["data"]["dir"]
+    env = secret_refs(params)  # resource names only, never the secret values
+    local = args.repo_root / params["data"]["dir"]
     if not local.is_dir():
-        raise FileNotFoundError(f"{local} not found: run `dvc pull` and `dvc repro persona_clean`")
+        raise FileNotFoundError(f"{local} not found: run `dvc pull` and `dvc repro {STAGE}`")
+    require_clean(args.repo_root)  # the data on disk is exactly what dvc.lock records
     env["EXPECTED_DATA_SHA256"] = fingerprint(local)  # the job refuses any other data
     print(f"expected data sha256: {env['EXPECTED_DATA_SHA256']}", file=sys.stderr)
     spec = job_spec(params, args.data_uri, env)
     if args.dry_run:
         shown = json.loads(json.dumps(spec))
-        for item in shown["worker_pool_specs"][0]["container_spec"]["env"]:
-            item["value"] = "***"  # never print secrets
         print(json.dumps(shown, indent=2))
         return 0
     print(f"submitted {submit(params, spec)}")

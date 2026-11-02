@@ -146,8 +146,10 @@ It does not turn an unmerged pull request into merged functionality.
   identical to `ferplus/v1`, the same 6,722 photos and labels, so the 0.609
   baseline and v4's 0.720 carry over), `pipelines/cv-train` README, CV model
   card (M4-10), board M3-01 done-when.
-- **Not yet enforced:** no CI job or DVC stage runs this guard yet (CI has no
-  FER-2013 images or GPU); until one exists it is a release check done by hand
-  (board follow-up).
+- **Enforced by:** `mirror-cv-release-check` in `pipelines/cv-eval` (M4-14),
+  run by hand before a CV model is published or served (CI has no FER-2013
+  images or GPU). v4 passes (0.7202); v3 scores 0.6089 and fails, which is
+  intended: a new model must beat the one it replaces. See
+  `pipelines/cv-eval/README.md`.
 - **Evidence:** `pipelines/cv-eval/README.md` (M3-18 baselines),
   `pipelines/cv-train/README.md` (M3-01 experiments and final scores).
