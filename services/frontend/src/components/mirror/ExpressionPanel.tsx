@@ -1,13 +1,33 @@
 import { Video, VideoOff } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import type { ContextObject } from "@/lib/api/types";
 
 type Props = {
   cameraConsent: boolean;
-  expr: { calm: number; anxious: number; sad: number };
+  // visual part of the context object from the last reply's "done" event; null before the first reply
+  visual: ContextObject["visual"] | null;
+};
+
+const LABELS: Record<string, string> = {
+  angry: "Angry",
+  disgust: "Disgusted",
+  fear: "Afraid",
+  happy: "Happy",
+  neutral: "Neutral",
+  sad: "Sad",
+  surprise: "Surprised",
+};
+
+// What the patient sees when there is no trusted reading. No numbers in these states.
+const UNCLEAR = "The reading is unclear right now, so it is not used.";
+const NO_READING: Record<string, string> = {
+  uncertain: UNCLEAR,
+  dropped: "Your face wasn't in view long enough for a reading.",
+  camera_off: "No camera reading for this message.",
 };
 
 /** Side panel of the session screen. Without camera consent it shows an explicit off state. */
-export function ExpressionPanel({ cameraConsent, expr }: Props) {
+export function ExpressionPanel({ cameraConsent, visual }: Props) {
   if (!cameraConsent) {
     return (
       <aside className="space-y-5">
@@ -27,6 +47,9 @@ export function ExpressionPanel({ cameraConsent, expr }: Props) {
     );
   }
 
+  // Only an "ok" reading with known labels is shown as numbers (same rule as the prompt, M3-08).
+  const top2 = visual?.status === "ok" ? (visual.top2 ?? []).filter(([l]) => l in LABELS) : [];
+
   return (
     <aside className="space-y-5">
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
@@ -40,26 +63,26 @@ export function ExpressionPanel({ cameraConsent, expr }: Props) {
         <p className="text-[11px] font-medium uppercase tracking-wider text-muted-ink">
           Predicted expression
         </p>
-        <div className="mt-4 space-y-3.5">
-          {(
-            [
-              ["Calm", expr.calm],
-              ["Anxious", expr.anxious],
-              ["Sad", expr.sad],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label}>
-              <div className="mb-1.5 flex justify-between text-xs text-body">
-                <span>{label}</span>
-                <span className="text-muted-ink">{value}%</span>
+        {top2.length > 0 ? (
+          <div className="mt-4 space-y-3.5">
+            {top2.map(([label, prob]) => (
+              <div key={label}>
+                <div className="mb-1.5 flex justify-between text-xs text-body">
+                  <span>{LABELS[label]}</span>
+                  <span className="text-muted-ink">{Math.round(prob * 100)}%</span>
+                </div>
+                <Progress
+                  value={prob * 100}
+                  className="h-1.5 bg-card/70 [&>div]:bg-lavender [&>div]:transition-all [&>div]:duration-700"
+                />
               </div>
-              <Progress
-                value={value}
-                className="h-1.5 bg-card/70 [&>div]:bg-lavender [&>div]:transition-all [&>div]:duration-700"
-              />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-xs text-body">
+            {visual ? (NO_READING[visual.status] ?? UNCLEAR) : "No reading yet."}
+          </p>
+        )}
         <p className="mt-4 text-[11px] leading-relaxed text-muted-ink">
           An estimate of expression, not a measure of how you truly feel.
         </p>

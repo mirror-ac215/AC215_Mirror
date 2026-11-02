@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Heart, LifeBuoy, Mic, Send, User } from "lucide-react";
+import { Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CrisisDialog } from "@/components/mirror/CrisisDialog";
 import { ExpressionPanel } from "@/components/mirror/ExpressionPanel";
 import { TopNav } from "@/components/mirror/TopNav";
 import { seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
+import type { ContextObject, CrisisPayload } from "@/lib/api/types";
 import { setRole } from "@/lib/role";
 
 export const Route = createFileRoute("/session")({
@@ -41,8 +42,8 @@ type Msg = { from: "bot" | "user"; text: string };
 function Session() {
   const [messages, setMessages] = useState<Msg[]>(seededChat);
   const [draft, setDraft] = useState("");
-  const [crisis, setCrisis] = useState(false);
-  const [expr, setExpr] = useState({ calm: 38, anxious: 44, sad: 18 });
+  const [crisis, setCrisis] = useState<CrisisPayload | null>(null);
+  const [visual, setVisual] = useState<ContextObject["visual"] | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sessionFailed, setSessionFailed] = useState(false);
@@ -63,23 +64,6 @@ function Session() {
       });
   }, [cameraConsent, attempt]);
 
-  // Simulated readings only while the camera is on; no consent means no sensing at all.
-  useEffect(() => {
-    if (!cameraConsent) return;
-    const t = setInterval(() => {
-      setExpr((p) => {
-        const jitter = () => Math.round((Math.random() - 0.5) * 8);
-        const next = {
-          calm: Math.min(80, Math.max(8, p.calm + jitter())),
-          anxious: Math.min(80, Math.max(8, p.anxious + jitter())),
-          sad: Math.min(80, Math.max(5, p.sad + jitter())),
-        };
-        return next;
-      });
-    }, 3200);
-    return () => clearInterval(t);
-  }, [cameraConsent]);
-
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
@@ -95,7 +79,10 @@ function Session() {
       await api.sendMessage(sessionId, text, (event) => {
         if (event.type === "crisis") {
           setMessages((m) => m.slice(0, -1)); // no persona reply on a crisis turn
-          setCrisis(true);
+          setCrisis(event.data);
+        } else if (event.type === "done") {
+          // The readout follows the gateway's reading for this turn, never a guess in the browser.
+          setVisual(event.data.context.visual);
         } else if (event.type === "token") {
           setMessages((m) => {
             const last = m[m.length - 1];
@@ -197,17 +184,11 @@ function Session() {
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
-              <button
-                onClick={() => setCrisis(true)}
-                className="mt-3 text-xs text-muted-ink underline underline-offset-4 hover:text-body"
-              >
-                Simulate concerning message
-              </button>
             </div>
           </section>
 
           {/* side panel */}
-          <ExpressionPanel cameraConsent={cameraConsent} expr={expr} />
+          <ExpressionPanel cameraConsent={cameraConsent} visual={visual} />
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-ink">
@@ -215,28 +196,7 @@ function Session() {
         </p>
       </main>
 
-      <Dialog open={crisis} onOpenChange={setCrisis}>
-        <DialogContent className="max-w-md rounded-2xl border-none bg-lowmood p-7 shadow-lift">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-card/70">
-            <Heart className="h-4.5 w-4.5 text-safety" />
-          </span>
-          <DialogTitle className="mt-2 font-serif text-xl text-safety">
-            You don't have to go through this alone
-          </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed text-body">
-            If you're in crisis or thinking about harming yourself, support is available any time.
-            You can call or text 988 (US) to reach the Suicide &amp; Crisis Lifeline.
-          </DialogDescription>
-          <Button className="mt-1 h-11 w-full rounded-[11px] bg-safety text-white hover:bg-safety/90 sm:w-auto sm:self-start sm:px-6">
-            <LifeBuoy className="h-4 w-4" />
-            Call or text 988
-          </Button>
-          <p className="text-xs leading-relaxed text-muted-ink">
-            Your clinician has been gently notified so they can check in with you. You're not in any
-            trouble.
-          </p>
-        </DialogContent>
-      </Dialog>
+      <CrisisDialog crisis={crisis} onClose={() => setCrisis(null)} />
     </div>
   );
 }
