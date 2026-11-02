@@ -1,6 +1,6 @@
 # Mirror fairness audit (M3-02)
 
-Does the CV model behave differently for people of different race, gender or age? This job runs the served pipeline (Haar face detection, then the ViT-B/16 expression model, then the gateway's gate) on every photo of the FairFace validation set and compares the groups. The report opens with the largest gap, stated in one sentence; the CV model card (M4-10) cites it.
+Does the CV model behave differently for people of different race, gender or age? This job runs cv-service's pipeline (Haar face detection, then the ViT-B/16 expression model, then the gateway's gate) on every photo of the FairFace validation set and compares the groups. The report opens with the largest gap, stated in one sentence; the CV model card (M4-10) cites it.
 
 ## What it measures
 
@@ -18,14 +18,16 @@ Per group:
 | `share_negative` | angry + disgust + fear + sad | the readings that matter most to clinicians |
 | `share_happy` | share read as happy, shown next to the negative share | a group seldom read as happy is a gap as well |
 
-The **gap** for a measure is the highest group minus the lowest, among groups with at least `min_group_size` photos. "Beyond noise" means the two groups' 95% intervals (Wilson for shares) do not overlap.
+The **gap** for a measure is the highest group minus the lowest, among groups with at least `min_group_size` photos. "Intervals separate" means the two groups' 95% intervals (Wilson for shares) do not overlap. This is a screen for gaps worth a closer look, not a formal significance test.
 
 ## Choices (params.yaml)
 
 - **Gate on a photo.** A photo is one steady frame: stability is always 1.0, and only the gateway's top-probability (0.45) and margin (0.05) rules apply. A test keeps these equal to the gateway defaults in `services/api-gateway/app/config.py`.
 - **No face found.** cv-service would answer "no face"; the audit records that and still scores the whole photo. The model's own behaviour can therefore be compared on every photo.
 - **Children.** Ages 0-2 and 3-9 are excluded from the gaps (Mirror's patients are teenagers and adults) and reported in their own table.
-- **Model.** `cv-vit-b16-v4` (`docs/artifacts.md`); the report refuses predictions from another model version.
+- **Model.** `cv-vit-b16-v4` (`docs/artifacts.md`), a candidate: cv-service still serves v3 until it switches (#61). `score` refuses a checkpoint whose sha256 differs from `model.sha256`, and `report` refuses predictions from another model version.
+- **Data.** FairFace from Hugging Face at the commit in `data.revision`; `score` refuses a label file whose sha256 differs from `data.labels_sha256`.
+- **Predictions stay out of git.** `predictions.csv` has one row per photo with its group labels. Inside the repository, `score` only writes it to a git-ignored path such as `outputs/`.
 
 ## Code
 
@@ -57,7 +59,9 @@ auth.authenticate_user()
 # 3. FairFace validation (padding 0.25) as images + the official label file
 import csv, os
 from datasets import load_dataset
-ds = load_dataset("HuggingFaceM4/FairFace", "0.25", split="validation")
+import yaml
+rev = yaml.safe_load(open("pipelines/fairness-audit/params.yaml"))["data"]["revision"]
+ds = load_dataset("HuggingFaceM4/FairFace", "0.25", split="validation", revision=rev)
 os.makedirs("/content/fairface/val", exist_ok=True)
 with open("/content/fairface/fairface_label_val.csv", "w", newline="") as f:
     w = csv.writer(f)
@@ -91,9 +95,9 @@ docker build -t mirror-fairness-audit-ci .
 
 ## Results
 
-First run on Oct 29, 2026: `cv-vit-b16-v4` on all 10,954 FairFace validation photos (9,399 in scope), T4 GPU on Colab. A second full run gave identical numbers. Full tables: [`results/fairface-v4/report.md`](results/fairface-v4/report.md); every number with its 95% interval: `report.json`.
+First run on Oct 29, 2026: `cv-vit-b16-v4` (candidate, not yet served) on all 10,954 FairFace validation photos (9,399 in scope), T4 GPU on Colab. A second full run gave identical numbers. Full tables: [`results/fairface-v4/report.md`](results/fairface-v4/report.md); every number with its 95% interval: `report.json`.
 
-**Largest gap: age.** When a face is found, the gate trusts the reading for 71.7% of people aged 20-29 but only 30.6% of people over 70 (41.1 points, beyond noise).
+**Largest gap: age.** When a face is found, the gate trusts the reading for 71.7% of people aged 20-29 but only 30.6% of people over 70 (41.1 points; the 95% intervals do not overlap).
 
 | Attribute | Finding | Gap (points) |
 |---|---|---|

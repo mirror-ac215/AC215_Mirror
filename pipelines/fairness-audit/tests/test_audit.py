@@ -49,8 +49,15 @@ def test_labels_are_read_and_checked(tmp_path: Path) -> None:
 def test_gate_thresholds_match_the_gateway() -> None:
     """params.yaml must gate photos exactly like the gateway gates webcam windows."""
     source = GATEWAY_CONFIG.read_text()
-    for name in ("min_top_prob", "min_margin"):
-        match = re.search(rf"gate_{name}: float = Field\(default=([0-9.]+)", source)
+    for name in (
+        "min_top_prob",
+        "min_margin",
+        "min_stability",
+        "window_s",
+        "min_frames",
+        "min_face_ratio",
+    ):
+        match = re.search(rf"gate_{name}: (?:float|int) = Field\(default=([0-9.]+)", source)
         assert match, f"gate_{name} not found in {GATEWAY_CONFIG}"
         assert PARAMS["gate"][name] == float(match.group(1))
 
@@ -120,7 +127,7 @@ def test_children_are_reported_separately() -> None:
     assert result["excluded_ages"]["3-9"]["n"] == 4
 
 
-def test_gap_within_noise_is_said_plainly() -> None:
+def test_overlapping_intervals_are_not_a_gap() -> None:
     groups = {
         g: {"n": 100, "metrics": {"m": {"value": v, "low": v - 0.1, "high": v + 0.1}}}
         for g, v in (("A", 0.50), ("B", 0.45))
@@ -196,3 +203,15 @@ def test_markdown_states_the_limits() -> None:
     result = audit([row() for _ in range(3)], params(min_group_size=1))
     text = markdown(result, PARAMS, {})
     assert "not how accurate" in text and "No gap could be measured" in text
+
+
+def test_fairface_source_is_pinned() -> None:
+    assert re.fullmatch(r"[0-9a-f]{40}", PARAMS["data"]["revision"])
+    assert re.fullmatch(r"[0-9a-f]{64}", PARAMS["data"]["labels_sha256"])
+    assert re.fullmatch(r"[0-9a-f]{64}", PARAMS["model"]["sha256"])
+
+
+def test_markdown_names_the_candidate_model_and_full_gate() -> None:
+    text = markdown(audit([row() for _ in range(3)], params(min_group_size=1)), PARAMS, {})
+    assert "candidate (not yet served)" in text
+    assert "window 10.0 s" in text and "not a formal significance test" in text

@@ -1,17 +1,26 @@
 {
-  "headline": "Largest gap: the gate passing when a face is found, by age: 20-29 71.7% vs more than 70 30.6%, a gap of 41.1 points, larger than the noise in either group (95% intervals do not overlap).",
+  "headline": "Largest gap: the gate passing when a face is found, by age: 20-29 71.7% vs more than 70 30.6%, a gap of 41.1 points, the two groups' 95% intervals do not overlap.",
   "params": {
     "model": {
       "version": "cv-vit-b16-v4",
-      "uri": "gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth"
+      "status": "candidate (not yet served)",
+      "uri": "gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth",
+      "sha256": "5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b"
     },
     "data": {
       "name": "FairFace validation (padding 0.25)",
-      "version": "fairface/v1-val"
+      "version": "fairface/v1-val",
+      "source": "HuggingFaceM4/FairFace",
+      "revision": "54d573cdb8b5af490ba8da9da2799628f6e5c496",
+      "labels_sha256": "3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c"
     },
     "gate": {
       "min_top_prob": 0.45,
-      "min_margin": 0.05
+      "min_margin": 0.05,
+      "min_stability": 0.5,
+      "window_s": 10.0,
+      "min_frames": 3,
+      "min_face_ratio": 0.5
     },
     "groups": {
       "attributes": [
@@ -34,7 +43,9 @@
     "code_revision": "5c77271a0706b0a045661f6e6971ba3ce3c7b8ee",
     "limit": null,
     "photos_scored": 10954,
-    "predictions_sha256": "3adb75dd0390d74ea7fbd43ebfe94726410c7f061b5ca08879bbfd0a2c292477"
+    "predictions_sha256": "3adb75dd0390d74ea7fbd43ebfe94726410c7f061b5ca08879bbfd0a2c292477",
+    "model_status": "candidate (not yet served)",
+    "data_revision": "54d573cdb8b5af490ba8da9da2799628f6e5c496"
   },
   "photos": 10954,
   "photos_in_scope": 9399,

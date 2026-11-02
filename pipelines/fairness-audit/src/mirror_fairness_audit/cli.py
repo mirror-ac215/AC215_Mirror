@@ -20,7 +20,12 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--images-dir", type=Path, required=True, help="folder that holds val/*.jpg")
     s.add_argument("--labels", type=Path, required=True, help="fairface_label_val.csv")
     s.add_argument("--checkpoint", type=Path, required=True, help="local copy of model.uri")
-    s.add_argument("--output", type=Path, required=True, help="predictions.csv (keep out of git)")
+    s.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="predictions.csv, in outputs/ or outside the repo",
+    )
     s.add_argument("--device", default="cpu")
     s.add_argument("--limit", type=int, help="score only the first N photos (smoke test)")
     s.add_argument("--code-revision", default="unknown", help="git rev-parse HEAD")
@@ -39,14 +44,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         from mirror_fairness_audit import score
         from mirror_fairness_audit.fairface import read_labels
 
+        # Check everything cheap before the slow scoring step.
+        score.check_output(args.output)
+        checkpoint_sha = score.sha256(args.checkpoint)
+        if checkpoint_sha != params["model"]["sha256"]:
+            raise ValueError(
+                f"{args.checkpoint} has sha256 {checkpoint_sha}, params.yaml expects "
+                f"{params['model']['sha256']} ({params['model']['version']})"
+            )
+        labels_sha = score.sha256(args.labels)
+        if labels_sha != params["data"]["labels_sha256"]:
+            raise ValueError(
+                f"{args.labels} has sha256 {labels_sha}, params.yaml expects "
+                f"{params['data']['labels_sha256']}: rebuild it with the README recipe"
+            )
+
         photos = read_labels(args.labels)[: args.limit]
         model = score.load_model(args.checkpoint, args.device)
         rows = score.score(photos, args.images_dir, model, score.FaceDetector(), device=args.device)
         meta = {
             "model_version": params["model"]["version"],
-            "checkpoint_sha256": score.sha256(args.checkpoint),
+            "model_status": params["model"]["status"],
+            "checkpoint_sha256": checkpoint_sha,
             "data_version": params["data"]["version"],
-            "labels_sha256": score.sha256(args.labels),
+            "data_revision": params["data"]["revision"],
+            "labels_sha256": labels_sha,
             "code_revision": args.code_revision,
             "limit": args.limit,
         }

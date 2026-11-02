@@ -1,14 +1,14 @@
 # M3-02 fairness audit
 
-**Largest gap: the gate passing when a face is found, by age: 20-29 71.7% vs more than 70 30.6%, a gap of 41.1 points, larger than the noise in either group (95% intervals do not overlap).**
+**Largest gap: the gate passing when a face is found, by age: 20-29 71.7% vs more than 70 30.6%, a gap of 41.1 points, the two groups' 95% intervals do not overlap.**
 
-Model `cv-vit-b16-v4`, data FairFace validation (padding 0.25) (`fairface/v1-val`). 9399 of 10954 photos in scope; ages 0-2, 3-9 reported separately. Gaps name only groups with at least 100 photos.
+Model `cv-vit-b16-v4`, candidate (not yet served); data FairFace validation (padding 0.25) (`fairface/v1-val`). 9399 of 10954 photos in scope; ages 0-2, 3-9 reported separately. Gaps name only groups with at least 100 photos.
 
-FairFace has no expression labels: these numbers show how differently the model behaves per group, not how accurate it is.
+FairFace has no expression labels: these numbers show how differently the model behaves per group, not how accurate it is. Non-overlapping 95% intervals are a screen for gaps worth a closer look, not a formal significance test.
 
 ## Key gaps
 
-| Attribute | Measure | Highest | Lowest | Gap (points) | Beyond noise |
+| Attribute | Measure | Highest | Lowest | Gap (points) | Intervals separate |
 |---|---|---|---|---|---|
 | race | the face detector finding a face | Southeast Asian 55.0% | Black 33.8% | 21.2 | yes |
 | race | a trusted camera reading (face found and gate passed) | Southeast Asian 38.4% | Black 20.5% | 17.9 | yes |
@@ -100,5 +100,6 @@ Top emotion per group:
 - checkpoint sha256: `5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b`
 - labels sha256: `3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c`
 - predictions sha256: `3adb75dd0390d74ea7fbd43ebfe94726410c7f061b5ca08879bbfd0a2c292477`
+- FairFace: `HuggingFaceM4/FairFace` at `54d573cdb8b5af490ba8da9da2799628f6e5c496`
 - code: `5c77271a0706b0a045661f6e6971ba3ce3c7b8ee`
-- gate: top >= 0.45, margin >= 0.05
+- gate (gateway defaults): top >= 0.45, margin >= 0.05, stability >= 0.5, window 10.0 s, at least 3 frames, face in >= 0.5 of frames; a photo is one steady frame

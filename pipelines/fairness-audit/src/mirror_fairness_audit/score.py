@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -136,6 +137,20 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def check_output(path: Path) -> None:
+    """Per-photo rows must never reach git: inside a repository, the file must be ignored."""
+    path = path.resolve()
+    repo = next((d for d in path.parents if (d / ".git").exists()), None)
+    if repo is None:
+        return
+    check = subprocess.run(["git", "-C", str(repo), "check-ignore", "-q", str(path)], check=False)
+    if check.returncode != 0:
+        raise ValueError(
+            f"{path} is inside the git repository and not ignored: "
+            "write predictions to an outputs/ folder or outside the repository"
+        )
 
 
 def write(rows: Iterable[dict[str, Any]], output: Path, meta: dict[str, Any]) -> int:

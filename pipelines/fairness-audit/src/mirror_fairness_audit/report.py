@@ -28,9 +28,9 @@ def headline(result: dict[str, Any]) -> str:
     if gap is None:
         return "No gap could be measured: fewer than two groups reach min_group_size."
     noise = (
-        "larger than the noise in either group (95% intervals do not overlap)"
+        "the two groups' 95% intervals do not overlap"
         if gap["separated"]
-        else "within the noise of the two groups (95% intervals overlap)"
+        else "the two groups' 95% intervals overlap"
     )
     return (
         f"Largest gap: {DESCRIBE[gap['metric']]}, by {gap['attribute']}: "
@@ -49,6 +49,7 @@ def _table(groups: dict[str, Any], metrics: tuple[str, ...]) -> list[str]:
 
 
 def markdown(result: dict[str, Any], params: dict[str, Any], meta: dict[str, Any]) -> str:
+    gate = params["gate"]
     shares = tuple(f"share_{label}" for label in LABELS)
     lines = [
         "# M3-02 fairness audit",
@@ -56,7 +57,8 @@ def markdown(result: dict[str, Any], params: dict[str, Any], meta: dict[str, Any
         f"**{headline(result)}**",
         "",
         (
-            f"Model `{params['model']['version']}`, data {params['data']['name']} "
+            f"Model `{params['model']['version']}`, {params['model']['status']}; "
+            f"data {params['data']['name']} "
             f"(`{params['data']['version']}`). {result['photos_in_scope']} of {result['photos']} "
             f"photos in scope; ages {', '.join(params['groups']['exclude_ages']) or 'none'} reported "
             "separately. Gaps name only groups with at least "
@@ -65,12 +67,13 @@ def markdown(result: dict[str, Any], params: dict[str, Any], meta: dict[str, Any
         "",
         (
             "FairFace has no expression labels: these numbers show how differently the model "
-            "behaves per group, not how accurate it is."
+            "behaves per group, not how accurate it is. Non-overlapping 95% intervals are "
+            "a screen for gaps worth a closer look, not a formal significance test."
         ),
         "",
         "## Key gaps",
         "",
-        "| Attribute | Measure | Highest | Lowest | Gap (points) | Beyond noise |",
+        "| Attribute | Measure | Highest | Lowest | Gap (points) | Intervals separate |",
         "|---|---|---|---|---|---|",
     ]
     for attribute, data in result["attributes"].items():
@@ -96,8 +99,14 @@ def markdown(result: dict[str, Any], params: dict[str, Any], meta: dict[str, Any
         f"- checkpoint sha256: `{meta.get('checkpoint_sha256', 'unknown')}`",
         f"- labels sha256: `{meta.get('labels_sha256', 'unknown')}`",
         f"- predictions sha256: `{meta.get('predictions_sha256', 'unknown')}`",
+        f"- FairFace: `{params['data']['source']}` at `{params['data']['revision'] or 'unknown'}`",
         f"- code: `{meta.get('code_revision', 'unknown')}`",
-        f"- gate: top >= {params['gate']['min_top_prob']}, margin >= {params['gate']['min_margin']}",
+        (
+            f"- gate (gateway defaults): top >= {gate['min_top_prob']}, "
+            f"margin >= {gate['min_margin']}, stability >= {gate['min_stability']}, "
+            f"window {gate['window_s']} s, at least {gate['min_frames']} frames, "
+            f"face in >= {gate['min_face_ratio']} of frames; a photo is one steady frame"
+        ),
         "",
     ]
     return "\n".join(lines)

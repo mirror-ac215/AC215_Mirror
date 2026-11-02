@@ -2,15 +2,24 @@
 
 import csv
 import json
+import subprocess
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 from PIL import Image
 
 from mirror_fairness_audit import LABELS
 from mirror_fairness_audit.fairface import Photo
-from mirror_fairness_audit.score import FaceDetector, build_model, score, to_tensor, write
+from mirror_fairness_audit.score import (
+    FaceDetector,
+    build_model,
+    check_output,
+    score,
+    to_tensor,
+    write,
+)
 
 
 class FixedModel(torch.nn.Module):
@@ -63,3 +72,14 @@ def test_write_keeps_numbers_and_provenance_only(tmp_path: Path) -> None:
         assert next(csv.DictReader(handle))["race"] == "Black"
     meta = json.loads(out.with_suffix(".meta.json").read_text())
     assert meta["photos_scored"] == 1 and len(meta["predictions_sha256"]) == 64
+
+
+def test_predictions_can_only_be_written_where_git_ignores_them(tmp_path: Path) -> None:
+    check_output(tmp_path / "predictions.csv")  # not a repository: fine
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / ".gitignore").write_text("outputs/\n")
+    check_output(repo / "outputs" / "predictions.csv")
+    with pytest.raises(ValueError, match="not ignored"):
+        check_output(repo / "results" / "predictions.csv")
