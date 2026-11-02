@@ -36,3 +36,18 @@ stages:
           - split
     outs:
       - data/processed/persona/v1
+  iemocap_build:
+    cmd: uv run --project pipelines/iemocap-data mirror-iemocap-data --params pipelines/iemocap-data/params.yaml
+    deps:
+      - data/raw/iemocap/IEMOCAP_full_release.tar.gz
+      - pipelines/iemocap-data/src/mirror_iemocap_data/pipeline.py
+      - pipelines/iemocap-data/src/mirror_iemocap_data/cli.py
+      - pipelines/iemocap-data/pyproject.toml
+      - pipelines/iemocap-data/uv.lock
+    params:
+      - pipelines/iemocap-data/params.yaml:
+          - input
+          - labels
+          - keep_unlabelled
+    outs:
+      - data/processed/iemocap/v1
