@@ -96,12 +96,13 @@ def test_weak_text_reading_is_unclear():
     assert "tone of their message is unclear" in system
 
 
-def test_disagreement_checks_in_once_then_respects_the_answer():
-    # D-004: the more concerning signal leads, Mirror checks in once.
+def test_disagreement_checks_in_now():
+    # D-004: fusion decides when to check in, the prompt just asks.
     system = build_system_prompt(make_context(agreement="disagree"))
     assert "more concerning one" in system
-    assert "check in once" in system
-    assert "do not ask again" in system
+    assert "check in now" in system
+    assert "accept that for now" in system
+    assert "do not ask again" not in system
 
 
 def test_agreement_adds_no_extra_line():
@@ -119,7 +120,7 @@ def test_agreement_adds_no_extra_line():
     ],
 )
 def test_unreliable_face_never_allows_talking_about_it(visual):
-    # Fail closed: no exception, not even if the patient brings it up.
+    # Also when the patient asks about their face.
     system = build_system_prompt(make_context(visual=visual))
     line = system.split("Signals for this turn:")[1]
     assert "Do not mention facial expression." in line

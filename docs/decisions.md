@@ -132,17 +132,21 @@ It does not turn an unmerged pull request into merged functionality.
 ## D-004: When face and words disagree, the more concerning signal leads
 
 - **Status:** Accepted (M3-08, agreed by Mostafa on PR #51, Oct 25, 2026).
+  Update below proposed Nov 2, 2026; waiting for Mostafa's confirmation.
 - **Decision:** When the camera and the text point in different directions,
-  Mirror leans towards the more concerning of the two and checks in once,
-  gently, about how the patient is feeling. If the patient answers, Mirror
-  takes their word for it and does not ask again.
+  Mirror leans towards the more concerning one and gently checks in about how
+  the patient is feeling. Fusion (M3-06) decides when to check in; the prompt
+  template (M3-08) only puts it into words.
 - **Limits:**
-  - The face only counts when the gate (M3-04) says the reading is
-    confident and stable over the window, never from a single frame.
+  - The face only counts when the gate (M3-04) says the reading is confident
+    and stable over the window, never from a single frame.
   - An `uncertain`, `dropped` or `camera_off` face reading never lets Mirror
-    talk about facial expression, even if the patient brings it up.
-  - Fusion (M3-06) sets `agreement` and `tone_mode`; the prompt template
-    (M3-08) only words what fusion decided.
+    talk about facial expression, even if the patient asks about it.
+- **Proposed update:** the patient's answer counts for that moment, not for
+  the whole session. Sessions have no time limit, and someone who says
+  "I'm ok" early may open up later. Fusion currently checks in once per
+  session (`TurnHistory.checked_in`); allowing a later check-in would be a
+  fusion change, tuned with M4-09.
 - **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
   gating (M3-04), prompt template (`app/prompt.py`, M3-08).
 

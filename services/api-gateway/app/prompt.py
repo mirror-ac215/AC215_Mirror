@@ -1,36 +1,24 @@
-"""Prompt template (M3-08): turns one context object + the patient's message into
-the chat messages the gateway sends to llm-service (/v1/chat/completions).
+"""Prompt template (M3-08).
 
-The template lives in the gateway, not in llm-service (docs/architecture.md:
-"the gateway owns the context object; the llm-service stays a plain model
-server").
-
-Rules the persona must follow (docs/PROJECT_CONTEXT.md):
-- never state an expression as a fact ("you look sad"); at most a tentative
-  observation followed by a question;
-- when face and words disagree, the more concerning signal leads: check in
-  once, gently, then respect the answer (D-004);
-- supportive mode by default; coach only after sustained steady signals
-  (fusion decides, M3-06).
-
-The signals reach the model as plain words, never as raw numbers: the model
-can't misread "0.46" as a measurement of a feeling. The patient's text goes in
-the "user" message only, never into the system prompt.
+Builds the messages the gateway sends to llm-service (/v1/chat/completions) from
+the context object and the patient's message. The signals go in as plain words,
+never as numbers, and the patient's text only goes in the user message.
 """
 
 from typing import Any
 
-PROMPT_VERSION = "m3-08-v2"
+PROMPT_VERSION = "m3-08-v3"
 
-# Below this probability the top label is too weak to mention.
+# Readings below this are not mentioned to the model.
 MIN_TEXT_PROB = 0.40
 MIN_VISUAL_PROB = 0.40
 
-# How many earlier turns (patient + Mirror) go into the prompt.
+# Earlier messages (patient and Mirror) kept in the prompt.
 MAX_HISTORY_MESSAGES = 6
 
-# Camera labels (FER-2013) and text labels (j-hartmann, D-003) name the same 7
-# emotions differently. One plain word for each, used in both places.
+VISUAL_STATUSES = ("ok", "uncertain", "dropped", "camera_off")
+
+# The face model and the text model (D-003) use different names for the same emotions.
 PLAIN_WORDS = {
     "angry": "angry",
     "anger": "angry",
@@ -73,18 +61,13 @@ MODE_RULES = {
 
 
 def plain(label: str) -> str | None:
-    """Plain word for a label, or None for a label the template doesn't know.
-
-    The context schema allows any label string; an unknown one must therefore not fail
-    the patient's turn: callers treat it as an unclear reading.
-    """
+    """Plain word for a label, or None if the label is unknown."""
     return PLAIN_WORDS.get(label)
 
 
 def describe_visual(visual: dict[str, Any]) -> str:
-    """One line about the camera signal, in words the model can't misread."""
     status = visual["status"]
-    if status not in ("ok", "uncertain", "dropped", "camera_off"):
+    if status not in VISUAL_STATUSES:
         raise ValueError(f"Unknown visual status: {status!r}")
     if status == "camera_off":
         return "Face: the camera is off. Do not mention facial expression."
@@ -92,16 +75,14 @@ def describe_visual(visual: dict[str, Any]) -> str:
         return "Face: no reliable reading right now. Do not mention facial expression."
     top2 = visual.get("top2") or []
     word = plain(top2[0][0]) if top2 else None
-    # Fail closed: only a confident, known reading may ever be put into words.
+    # Only a confident reading with a known label is put into words.
     if status == "uncertain" or word is None or top2[0][1] < MIN_VISUAL_PROB:
         return "Face: the reading is unclear. Do not mention facial expression."
     return f"Face: their expression may look {word}. This is an estimate."
 
 
 def describe_text(text: dict[str, Any]) -> str:
-    """One line about the tone of the patient's words."""
-    top2 = text["top2"]
-    label, prob = top2[0]
+    label, prob = text["top2"][0]
     word = plain(label)
     if word is None or prob < MIN_TEXT_PROB:
         return "Words: the tone of their message is unclear."
@@ -109,12 +90,12 @@ def describe_text(text: dict[str, Any]) -> str:
 
 
 def describe_agreement(agreement: str) -> str | None:
+    # Fusion decides when to check in (D-004); the prompt only words it.
     if agreement == "disagree":
         return (
             "The face and the words point in different directions. Lean towards the "
-            "more concerning one: check in once, gently, about how they are feeling "
-            "right now. If they have already answered, take their word for it and do "
-            "not ask again."
+            "more concerning one and gently check in now about how they are feeling. "
+            "If they say they are fine, accept that for now."
         )
     if agreement in ("agree", "n/a"):
         return None
@@ -122,15 +103,14 @@ def describe_agreement(agreement: str) -> str | None:
 
 
 def build_system_prompt(context: dict[str, Any]) -> str:
-    """System prompt for one turn: fixed rules + mode + this turn's signals."""
     mode = context["tone_mode"]
     if mode not in MODE_RULES:
         raise ValueError(f"Unknown tone_mode: {mode!r}")
-    signal_lines = [describe_visual(context["visual"]), describe_text(context["text"])]
+    lines = [describe_visual(context["visual"]), describe_text(context["text"])]
     agreement_line = describe_agreement(context["agreement"])
     if agreement_line:
-        signal_lines.append(agreement_line)
-    signals = "\n".join(f"- {line}" for line in signal_lines)
+        lines.append(agreement_line)
+    signals = "\n".join(f"- {line}" for line in lines)
     return f"{BASE_RULES}\n\n{MODE_RULES[mode]}\n\nSignals for this turn:\n{signals}"
 
 
@@ -139,11 +119,7 @@ def build_messages(
     user_text: str,
     history: list[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
-    """Messages for /v1/chat/completions: system, the last few turns, then the patient.
-
-    history items look like {"role": "user" | "assistant", "content": "..."},
-    oldest first.
-    """
+    """System prompt, the last few messages (oldest first), then the patient's message."""
     recent = (history or [])[-MAX_HISTORY_MESSAGES:]
     for item in recent:
         if item.get("role") not in ("user", "assistant"):
