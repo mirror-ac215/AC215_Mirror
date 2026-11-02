@@ -29,6 +29,12 @@ describe("CrisisDialog", () => {
     expect(screen.getByText(/clinician has been gently notified/i)).toBeTruthy();
   });
 
+  it("makes 988 and 911 tappable phone links", () => {
+    render(<CrisisDialog crisis={crisis} onClose={() => {}} />);
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(["tel:988", "tel:911"]);
+  });
+
   it("does not say the clinician was notified when no flag was created", () => {
     render(<CrisisDialog crisis={{ ...crisis, review_flag_created: false }} onClose={() => {}} />);
     expect(screen.queryByText(/clinician has been gently notified/i)).toBeNull();

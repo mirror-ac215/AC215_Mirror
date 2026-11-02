@@ -2,6 +2,12 @@ import { Heart, LifeBuoy } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { CrisisPayload } from "@/lib/api/types";
 
+// "call or text 988" -> "tel:988". Contacts without a short number stay plain text.
+function phoneLink(contact: string): string | null {
+  const number = contact.match(/\b(\d{3})\b/)?.[1];
+  return number ? `tel:${number}` : null;
+}
+
 type Props = {
   // the "crisis" event from the gateway (M3-07); null keeps the dialog closed
   crisis: CrisisPayload | null;
@@ -23,18 +29,30 @@ export function CrisisDialog({ crisis, onClose }: Props) {
           {crisis?.message}
         </DialogDescription>
         <ul className="space-y-2">
-          {crisis?.resources.map((r) => (
-            <li
-              key={r.name}
-              className="flex items-center gap-2 rounded-[11px] bg-card/70 px-4 py-2.5 text-sm"
-            >
-              <LifeBuoy className="h-4 w-4 shrink-0 text-safety" />
-              <span>
-                <span className="font-medium text-body">{r.name}</span>
-                <span className="text-muted-ink"> · {r.contact}</span>
-              </span>
-            </li>
-          ))}
+          {crisis?.resources.map((r) => {
+            const href = phoneLink(r.contact);
+            const text = (
+              <>
+                <LifeBuoy className="h-4 w-4 shrink-0 text-safety" />
+                <span>
+                  <span className="font-medium text-body">{r.name}</span>
+                  <span className="text-muted-ink"> · {r.contact}</span>
+                </span>
+              </>
+            );
+            const style = "flex items-center gap-2 rounded-[11px] bg-card/70 px-4 py-2.5 text-sm";
+            return (
+              <li key={r.name}>
+                {href ? (
+                  <a href={href} className={`${style} hover:bg-card`}>
+                    {text}
+                  </a>
+                ) : (
+                  <div className={style}>{text}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {crisis?.review_flag_created && (
           <p className="text-xs leading-relaxed text-muted-ink">

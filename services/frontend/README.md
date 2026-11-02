@@ -40,7 +40,7 @@ Open http://localhost:3000.
 `src/routes/session.tsx` streams the reply from `POST /sessions/{id}/messages`:
 
 - `token` events fill the reply bubble as they arrive.
-- `crisis` replaces the reply with `CrisisDialog`, using the message and resources from the gateway (988 and 911). The note that the clinician was notified only shows when `review_flag_created` is true.
+- `crisis` replaces the reply with `CrisisDialog`, using the message and resources from the gateway (988 and 911). Each number is a `tel:` link, so on a phone one tap starts the call. The note that the clinician was notified only shows when `review_flag_created` is true.
 - `done` carries the context object; `ExpressionPanel` shows the top two face labels from `context.visual`, only when the gate said `ok`. `uncertain`, `dropped` and `camera_off` show a short sentence and no numbers, the same rule the prompt template follows (M3-08).
 
 ### Manual test (against compose)
@@ -49,5 +49,5 @@ Run `docker compose -f infra/compose.yml up --build` (the Docker build uses the 
 
 1. Camera off on the consent screen: the side panel says the camera is off; send "hi" and the reply streams in word by word.
 2. Camera on: before the first reply the panel says "No reading yet"; after a reply it shows a label and percentages only if the gateway returned `visual.status` `ok`, otherwise one sentence and no numbers.
-3. Send "I want to end my life": no reply bubble, the crisis dialog opens with 988 and 911, and the clinician note shows.
+3. Send "I want to end my life": no reply bubble, the crisis dialog opens with 988 and 911 as tappable links, and the clinician note shows.
 4. Stop the gateway and send a message: the bubble says the server could not be reached.
