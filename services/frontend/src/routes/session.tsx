@@ -11,6 +11,7 @@ import { TopNav } from "@/components/mirror/TopNav";
 import { seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
 import type { ContextObject, CrisisPayload } from "@/lib/api/types";
+import { fillEmptyReply, type ChatMessage } from "@/lib/chat";
 import { setRole } from "@/lib/role";
 
 export const Route = createFileRoute("/session")({
@@ -37,10 +38,8 @@ export const Route = createFileRoute("/session")({
   component: Session,
 });
 
-type Msg = { from: "bot" | "user"; text: string };
-
 function Session() {
-  const [messages, setMessages] = useState<Msg[]>(seededChat);
+  const [messages, setMessages] = useState<ChatMessage[]>(seededChat);
   const [draft, setDraft] = useState("");
   const [crisis, setCrisis] = useState<CrisisPayload | null>(null);
   const [visual, setVisual] = useState<ContextObject["visual"] | null>(null);
@@ -91,6 +90,7 @@ function Session() {
           });
         }
       });
+      setMessages(fillEmptyReply);
     } catch {
       setMessages((m) => [
         ...m.slice(0, -1),
