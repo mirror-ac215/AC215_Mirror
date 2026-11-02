@@ -32,13 +32,17 @@ def read_class_order(data_dir: Path) -> list[str]:
 
 
 class ManifestDataset(Dataset):
-    """One split of the versioned dataset. Returns (image tensor, class index)."""
+    """One split of the versioned dataset. Returns (image tensor, class index), or with
+    soft_labels=True (image tensor, vote shares) read from the manifest's votes_<class> columns."""
 
     def __init__(self, data_dir: Path, split: str, class_order: Sequence[str],
-                 transform: Callable[[Image.Image], torch.Tensor]) -> None:
+                 transform: Callable[[Image.Image], torch.Tensor], every_nth: int = 1,
+                 soft_labels: bool = False) -> None:
         manifest = data_dir / "manifests" / f"{split}.csv"
         with manifest.open(encoding="utf-8", newline="") as handle:
-            rows = list(csv.DictReader(handle))
+            # Manifests are sorted by label then file, so [::n] keeps every n-th row of each label: roughly
+            # every n-th frame of each video, but the count carries over from one video to the next.
+            rows = list(csv.DictReader(handle))[::every_nth]
         index = {name: i for i, name in enumerate(class_order)}
         unknown = {row["label"] for row in rows} - set(index)
         if not rows or unknown:
@@ -46,14 +50,22 @@ class ManifestDataset(Dataset):
         self.images_dir = data_dir / "images"
         self.paths = [row["path"] for row in rows]
         self.labels = np.array([index[row["label"]] for row in rows], dtype=np.int64)
+        self.soft = None
+        if soft_labels:
+            missing = [f"votes_{name}" for name in class_order if f"votes_{name}" not in rows[0]]
+            if missing:
+                raise ValueError(f"{manifest} has no soft-label columns: {missing}")
+            votes = np.array([[float(row[f"votes_{name}"]) for name in class_order] for row in rows])
+            self.soft = torch.tensor(votes / votes.sum(axis=1, keepdims=True), dtype=torch.float)
         self.transform = transform
 
     def __len__(self) -> int:
         return len(self.paths)
 
-    def __getitem__(self, i: int) -> tuple[torch.Tensor, int]:
+    def __getitem__(self, i: int) -> tuple[torch.Tensor, int | torch.Tensor]:
+        target = self.soft[i] if self.soft is not None else int(self.labels[i])
         with Image.open(self.images_dir / self.paths[i]) as image:
-            return self.transform(image.convert("L")), int(self.labels[i])
+            return self.transform(image.convert("L")), target
 
 
 def build_train_transform(params: dict[str, Any]) -> transforms.Compose:
@@ -99,6 +111,21 @@ def build_weighted_sampler(labels: np.ndarray, num_classes: int, strength: float
                                  num_samples=len(labels), replacement=True, generator=generator)
 
 
+def build_mixed_sampler(label_sets: Sequence[np.ndarray], shares: Sequence[float], num_classes: int,
+                        strength: float, generator: torch.Generator | None = None) -> WeightedRandomSampler:
+    """Several datasets in one epoch: each source gets its share of the draws, and inside a
+    source the classes are rebalanced exactly as build_weighted_sampler does."""
+    weights = []
+    for labels, share in zip(label_sets, shares, strict=True):
+        counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+        counts = np.where(counts == 0, 1.0, counts)
+        per_sample = ((1.0 / counts) ** strength)[labels]
+        weights.append(share * per_sample / per_sample.sum())
+    return WeightedRandomSampler(torch.as_tensor(np.concatenate(weights), dtype=torch.double),
+                                 num_samples=sum(len(labels) for labels in label_sets),
+                                 replacement=True, generator=generator)
+
+
 def compute_class_weights(labels: np.ndarray, num_classes: int, scheme: str = "sqrt",
                           beta: float = 0.9999) -> torch.Tensor:
     """Per-class loss weights, normalised to mean 1. Schemes: inverse | sqrt | effective | none."""
@@ -129,9 +156,12 @@ class MixupCutmixCollator:
         self.cutmix_alpha = cutmix_alpha
         self.rng = np.random.default_rng(seed)
 
-    def __call__(self, batch: list[tuple[torch.Tensor, int]]) -> tuple[torch.Tensor, torch.Tensor]:
+    def __call__(self, batch: list[tuple[torch.Tensor, int | torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         images = torch.stack([image for image, _ in batch])
-        soft = F.one_hot(torch.tensor([label for _, label in batch]), self.num_classes).float()
+        # A batch can mix hard labels (one-hot) and FER+ vote shares (already soft).
+        soft = torch.stack([target if isinstance(target, torch.Tensor)
+                            else F.one_hot(torch.tensor(target), self.num_classes).float()
+                            for _, target in batch])
         if self.rng.random() > self.prob:
             return images, soft
         perm = torch.from_numpy(self.rng.permutation(images.size(0)))

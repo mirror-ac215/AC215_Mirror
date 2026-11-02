@@ -11,6 +11,7 @@ import yaml
 from mirror_cv_train.data import (
     MixupCutmixCollator,
     build_eval_transform,
+    build_mixed_sampler,
     build_train_transform,
     build_weighted_sampler,
     compute_class_weights,
@@ -70,3 +71,76 @@ def test_vit_head_matches_what_cv_service_loads() -> None:
     model = build_vit(num_classes=7, head_dropout=0.5, pretrained=False)
     assert isinstance(model.heads.head[0], torch.nn.Dropout)
     assert model.heads.head[1].in_features == 768 and model.heads.head[1].out_features == 7
+
+
+def test_mixed_sampler_gives_each_source_its_share() -> None:
+    big = np.zeros(900, dtype=np.int64)       # source A: 900 images
+    small = np.zeros(100, dtype=np.int64)     # source B: 100 images
+    sampler = build_mixed_sampler([big, small], [0.5, 0.5], num_classes=7, strength=0.5,
+                                  generator=torch.Generator().manual_seed(0))
+    drawn = np.array(list(sampler))
+    assert len(drawn) == 1000
+    assert 0.45 < (drawn >= 900).mean() < 0.55   # half the draws from the small source
+
+
+def test_mixed_sampler_with_share_zero_never_draws_that_source() -> None:
+    sampler = build_mixed_sampler([np.zeros(50, dtype=np.int64), np.zeros(50, dtype=np.int64)],
+                                  [1.0, 0.0], num_classes=7, strength=0.5)
+    assert max(sampler) < 50
+
+
+def test_cosine_schedule_warms_up_then_decays_to_the_floor() -> None:
+    from mirror_cv_train.cli import build_scheduler
+
+    optimizer = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=1.0)
+    scheduler = build_scheduler(optimizer, {"name": "cosine", "warmup_fraction": 0.1, "min_lr_ratio": 0.01},
+                                total_steps=100)
+    lrs = []
+    for _ in range(100):
+        lrs.append(optimizer.param_groups[0]["lr"])
+        optimizer.step()
+        scheduler.step()
+    assert lrs[0] == pytest.approx(0.1)          # warm-up starts low
+    assert max(lrs) == pytest.approx(1.0)        # peaks at optimizer.lr after warm-up
+    assert lrs[-1] < 0.02                        # ends near the 1 % floor
+    assert lrs[10:] == sorted(lrs[10:], reverse=True)  # never rises after warm-up
+
+
+def test_unknown_scheduler_is_rejected() -> None:
+    from mirror_cv_train.cli import build_scheduler
+
+    optimizer = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=1.0)
+    with pytest.raises(ValueError, match="unknown scheduler"):
+        build_scheduler(optimizer, {"name": "cosin"}, total_steps=10)
+
+def test_weight_ema_averages_and_can_be_swapped_in_and_out() -> None:
+    from mirror_cv_train.train import WeightEMA
+
+    model = torch.nn.Linear(1, 1, bias=False)
+    with torch.no_grad():
+        model.weight.fill_(0.0)
+    ema = WeightEMA(model, decay=0.9)
+    with torch.no_grad():
+        model.weight.fill_(1.0)
+    ema.update(model)
+    assert ema.average["weight"].item() == pytest.approx(0.1)  # 0.9 * 0 + 0.1 * 1
+
+    with ema.applied(model):
+        assert model.weight.item() == pytest.approx(0.1)        # scored with the average
+    assert model.weight.item() == pytest.approx(1.0)            # live weights restored
+
+
+def test_layer_decay_gives_lower_layers_smaller_learning_rates() -> None:
+    from mirror_cv_train.cli import parameter_groups
+
+    model = build_vit(7, 0.5, pretrained=False)
+    groups = parameter_groups(model, lr=1.0, layer_decay=0.5)
+    lrs = [group["lr"] for group in groups]
+    assert len(groups) == 14                       # embeddings, 12 blocks, norm + head
+    assert lrs[-1] == pytest.approx(1.0)           # head learns at the full lr
+    assert lrs[0] == pytest.approx(0.5 ** 13)      # embeddings slowest
+    assert lrs == sorted(lrs)                      # every layer at most as fast as the one above
+    assert sum(len(g["params"]) for g in groups) == len(list(model.parameters()))  # nothing left out
+
+    single = parameter_groups(model, lr=1.0, layer_decay=None)
+    assert len(single) == 1 and single[0]["lr"] == 1.0

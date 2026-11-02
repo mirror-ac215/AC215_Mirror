@@ -35,7 +35,7 @@ def create_app(
     @asynccontextmanager
     async def load_default_runtime_on_startup(application: FastAPI) -> AsyncIterator[None]:
         try:
-            detector, loaded_classifier = load_runtime(settings)
+            detector, loaded_classifier, resolved_version = load_runtime(settings)
         except Exception as exc:  # Keep the process observable; readiness stays false.
             application.state.model_load_error = str(exc)
             logger.exception("cv model startup failed")
@@ -43,6 +43,7 @@ def create_app(
             application.state.model = object()
             application.state.face_detector = detector
             application.state.classifier = loaded_classifier
+            application.state.model_version = resolved_version
         yield
 
     app = FastAPI(
@@ -97,8 +98,7 @@ def create_app(
             "model_version": app.state.model_version,
         }
 
-    @app.post("/predict")
-    async def predict(image: UploadFile = File(...)) -> dict[str, Any]:
+    async def predict_upload(image: UploadFile) -> dict[str, Any]:
         started = perf_counter()
         if image.content_type != "image/jpeg":
             raise HTTPException(status_code=422, detail="image must be a JPEG")
@@ -139,6 +139,19 @@ def create_app(
             "model_version": app.state.model_version,
             "latency_ms": round((perf_counter() - started) * 1000, 3),
         }
+
+    @app.post("/predict")
+    async def predict(image: UploadFile = File(...)) -> dict[str, Any]:
+        return await predict_upload(image)
+
+    @app.post("/predict_batch")
+    async def predict_batch(images: list[UploadFile] = File(...)) -> dict[str, list[dict[str, Any]]]:
+        if len(images) > settings.max_batch_size:
+            raise HTTPException(
+                status_code=422,
+                detail=f"batch contains more than {settings.max_batch_size} images",
+            )
+        return {"predictions": [await predict_upload(image) for image in images]}
 
     return app
 

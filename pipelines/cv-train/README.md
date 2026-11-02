@@ -85,13 +85,98 @@ Inputs are the DVC-tracked `data/processed/fer2013/v1` (`fer2013_preprocess` sta
 ## Verification
 ```bash
 uv run ruff check .
-uv run pytest -v        # 10 tests: loss, class weights, sampler, Mixup/CutMix, transforms, head shape,
-                        # a one-epoch end-to-end run on a tiny fake dataset, bad-label rejection
+uv run pytest -v        # 19 tests: loss, class weights, samplers, Mixup/CutMix, soft labels, schedules,
+                        # weight averaging, layer decay, end-to-end runs on tiny fake datasets
 ```
 
-## Next iteration (MS3, M3-01)
-FER-2013 is small and posed; MS1 feedback asked for more and more realistic data.
-- Fine-tune on **Aff-Wild2** video frames (real faces in front of a camera, labels on every frame), **split by video, never by frame**.
-- Add **FER+** labels (10 annotators per image) as soft targets.
-- **Targets:** beat 0.6445 on the same test set, and lift the weakest classes (fear 0.50, sad 0.53).
-- Every run is logged to W&B and scored by `cv-eval`. Our own labelled check-in sessions (M3-20) become the real-webcam validation set.
+## M3-01: v4, retrained on real video (MS3)
+> **Status: experimental.** v4 is published to GCS but not served: cv-service still serves `cv-vit-b16-v3` until the serving handoff (M3-03/M3-10). The scores below are candidate results, not an accepted serving decision.
+
+FER-2013 is small and posed; MS1 feedback asked for more realistic data. **v4** (`cv-vit-b16-v4`) is v3 fine-tuned on **Aff-Wild2** video frames together with **FER+** photos, whose labels are the vote shares of 10 annotators (soft labels). Recipe: `params_m3-01.yaml` plus the run's `--set` options (recorded in W&B and inside the checkpoint).
+
+```bash
+# v4 (run C3), from pipelines/cv-train; data built with mirror-prepare-affwild2 and mirror-prepare-ferplus
+uv run --no-sync mirror-cv-train --params params_m3-01.yaml --data-root ../../data/processed \
+  --init-checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/vit_b16_v4.pth \
+  --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true \
+  --set scheduler.name=cosine --set training.epochs=8 --set training.ema_decay=0.999 --wandb-project mirror
+```
+
+**Final scores, held-out test sets, scored once with `cv-eval`** (artifact `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`):
+
+| Test set | v3 | **v4** | W&B |
+|---|---|---|---|
+| Aff-Wild2 test (official validation videos, 45 people, real video) | 0.260 | **0.337** | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/u48hqxhw) |
+| FER+ test (10-annotator labels; photo guard >= 0.609, see D-005) | 0.609 | **0.720** | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/ggxg1qqi) |
+| FER-2013 test (single-annotator labels; former guard) | 0.645 | 0.588 | [run](https://wandb.ai/mog941-harvard-university/mirror/runs/11d3q8x3) |
+
+v4 learned what 10 people see rather than what one labeller wrote, so it agrees less with FER-2013's labels (M3-18 showed they disagree with the crowd on about a third of the photos). Aff-Wild2 test per class: disgust 0.01 -> 0.36, angry 0.07 -> 0.25, neutral 0.35 -> 0.46, happy 0.55 -> 0.61; fear 0.19 -> 0.05 and sad 0.35 -> 0.30 (3 and 9 test videos).
+
+**Experiments** (one change at a time; model chosen on Aff-Wild2 *validation*, 36 videos of our own split, never on test):
+
+| Run | Change | Aff-Wild2 val | FER+ val | W&B |
+|---|---|---|---|---|
+| v3 | inherited | 0.191 | 0.602 | |
+| A | Aff-Wild2 only, from v3 | 0.301 | forgets photos | [hz8v26sr](https://wandb.ai/mog941-harvard-university/mirror/runs/hz8v26sr) |
+| B | + FER-2013 (50/50) | 0.297 | 0.617 | [0wo6u88k](https://wandb.ai/mog941-harvard-university/mirror/runs/0wo6u88k) |
+| C | FER+ soft labels instead | 0.314 | 0.704 | [uufehscw](https://wandb.ai/mog941-harvard-university/mirror/runs/uufehscw) |
+| C2 | + cosine schedule, 8 epochs | 0.298 | 0.707 | [h8erb3g6](https://wandb.ai/mog941-harvard-university/mirror/runs/h8erb3g6) |
+| **C3 = v4** | **+ weight averaging (EMA)** | **0.290** | **0.711** | [lgeo815r](https://wandb.ai/mog941-harvard-university/mirror/runs/lgeo815r) |
+| C4 | + fully balanced sampling | 0.275 | 0.699 | [19pov8rq](https://wandb.ai/mog941-harvard-university/mirror/runs/19pov8rq) |
+| C5 | + layer-wise lr decay | 0.278 | 0.699 | [afby6xhl](https://wandb.ai/mog941-harvard-university/mirror/runs/afby6xhl) |
+| D | ImageNet start, Aff-Wild2 only | 0.240 | none | [e6610uxr](https://wandb.ai/mog941-harvard-university/mirror/runs/e6610uxr) |
+| HSEmotion | AffectNet-trained EfficientNet-B2 ([HSEmotion](https://github.com/av-savchenko/hsemotion)), no training | 0.314 | | |
+| H1 | C3 recipe from HSEmotion, lr 1e-4 | 0.324 (epoch 1) | 0.651 | [uo8vfsjd](https://wandb.ai/mog941-harvard-university/mirror/runs/uo8vfsjd) |
+| H2 | H1 with lr 2e-5 | 0.319 (epoch 1) | 0.614 | [72v5gxax](https://wandb.ai/mog941-harvard-university/mirror/runs/72v5gxax) |
+| H3 | H1 training only the classifier (frozen features) | 0.316 (epoch 1) | ~0.62 | [b86ac03q](https://wandb.ai/mog941-harvard-university/mirror/runs/b86ac03q) |
+
+Why C3: within the noise of the best video score, the best FER+ score, and the steadiest curve (last three epochs within 0.004), so the result does not depend on a lucky epoch. Mirror-image averaging at test time gave no gain.
+
+**What we learned**
+- Starting from v3 helps: the same video-only training from ImageNet (D) is about 20 % worse and overfits (train 0.91 vs val 0.47 accuracy).
+- Mixing in photos costs no video quality and stops the model forgetting them (A vs B).
+- The limit is data, not settings: on video, fear is read as surprise and sadness as neutral in every run, and balancing (C4) or freezing (C5) did not change it. Aff-Wild2 has only 16-28 training people per rare emotion. More people per emotion (RAF-DB, AffectNet, our consented M3-20 sessions) is the next lever, plus face alignment in `cv-service` to match Aff-Wild2's aligned crops.
+- A model pre-trained on ~400k AffectNet faces (HSEmotion) reaches the same ceiling: used as-is it scores 0.314, and every way of training it on our data (H1-H3) peaks at the first epoch within 0.01 of that, with lower photo scores than v4. It is better at fear, worse at anger. v4 stays the model: equal on video, better on photos, a drop-in for cv-service, and our own licence (HSEmotion weights are research-only). The EfficientNet support (`model.architecture`, `model.global_pool`, `model.train_only_head`) stays in cv-train, off by default, for when more data arrives. The HSEmotion start checkpoint is rebuilt from its ONNX release with `scripts/convert_hsemotion.py` (no pickle; output identical to the original).
+- v4 is published but **not yet served**: switching `cv-service` is integration work (M3-03/M3-10).
+
+**Caveats**
+- **Near-duplicate photos:** FER-2013 has some near-duplicate faces across its Training and PublicTest/PrivateTest parts. Training on FER+ train therefore lifts the FER+ test score a little through those. v3 was trained on the same Training photos, so the v3 vs v4 comparison is fair; the Aff-Wild2 test score (separate people) is not affected.
+- **Weight decay on every parameter:** AdamW applies `weight_decay` (1e-4) to all weights, including biases, LayerNorm weights, `class_token` and `pos_embedding`; the usual ViT recipe exempts those. The effect is likely small over 6-8 epochs from v3, and v4 was trained this way, so it is noted rather than changed.
+
+## M3-01: multi-source training (experimental)
+
+> **Status: experimental.** This recipe produces candidate checkpoints only. It does not change the served model: cv-service still serves `cv-vit-b16-v3` until a candidate passes the final cv-eval and is handed to serving (below).
+
+**Inputs (all must exist before a run):**
+
+| Input | Where it comes from | Identity |
+|---|---|---|
+| FER-2013 v1 | `dvc pull` (`fer2013_preprocess` stage) | hash in `dvc.lock` |
+| Aff-Wild2 v1 | built locally with `mirror-prepare-affwild2` (M3-18, `pipelines/data-preprocess`); Aff-Wild2 is licensed, so frames never leave the machine | source checksums + test-manifest hash in [`pipelines/cv-eval/provenance/m3-18-affwild2.json`](../cv-eval/provenance/m3-18-affwild2.json) |
+| Starting model (v3) | `gs://mirror-ac215-data/models/cv/inherited-v3/vit_b16_v3_best.pth` | SHA-256 `f2e13fa8308b138714902c2d6995042572eef11192ffcc80a4fe137aa4815990` (343,278,498 bytes) |
+
+Check the downloaded checkpoint before training: `(Get-FileHash -Algorithm SHA256 vit_b16_v3_best.pth).Hash` (PowerShell) or `sha256sum vit_b16_v3_best.pth`.
+
+**Exact invocation** (from the repository root, dependencies as locked in `uv.lock`):
+
+```bash
+uv sync --frozen --project pipelines/cv-train
+uv run --no-sync --project pipelines/cv-train mirror-cv-train \
+  --params pipelines/cv-train/params_m3-01.yaml \
+  --data-root data/processed \
+  --init-checkpoint /secure/path/vit_b16_v3_best.pth \
+  --output /secure/path/m3-01-<run>.pth \
+  --wandb-project mirror
+```
+
+On a GPU machine, install the CUDA build of torch/torchvision into that environment after `uv sync` (the lockfile pins the CPU build), then keep `--no-sync` so uv doesn't swap it back. Run A (video only) adds `--set data.sources.fer2013.share=0`. With Docker, pass `--params params_m3-01.yaml` after the image name: the entrypoint already passes `--params params.yaml`, and the last one wins.
+
+**Epoch length:** one M3-01 epoch draws as many samples as all sources' training rows together (after `every_nth`), split between the sources by `share`. So "6 epochs" here is not the same amount of training as the baseline's 8 epochs over FER-2013 alone; compare runs by W&B step or samples seen, not by epoch number.
+
+**Output identity:** one local `.pth` with the same keys as the baseline, plus the exact `params` and overrides used (also logged to W&B). `report_test: false`, so no held-out test set is scored during training. **Nothing is published from this step.**
+
+**From candidate to served model** (in this order):
+1. Score the candidate once with `pipelines/cv-eval` on the three held-out test sets (FER-2013 guard ≥ 0.64, Aff-Wild2 test videos, FER+ test), with `--model-version` set to the candidate's name and a W&B run each.
+2. Record a provenance file per result (like `pipelines/cv-eval/provenance/`).
+3. Upload the checkpoint to `gs://mirror-ac215-data/models/cv/<version>/` and record its SHA-256 in `docs/artifacts.md`.
+4. Serving handoff to Owen (cv-service owner): the new `MODEL_OBJECT` and `MODEL_VERSION`, changed together in one reviewed config change.

@@ -24,6 +24,7 @@ jobs:
       persona_data: ${{ steps.filter.outputs.persona_data }}
       cv_eval: ${{ steps.filter.outputs.cv_eval }}
       cv_train: ${{ steps.filter.outputs.cv_train }}
+      llm_finetune: ${{ steps.filter.outputs.llm_finetune }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -69,6 +70,9 @@ jobs:
               - '.github/workflows/**'
             cv_train:
               - 'pipelines/cv-train/**'
+              - '.github/workflows/**'
+            llm_finetune:
+              - 'pipelines/llm-finetune/**'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -162,6 +166,15 @@ jobs:
       service_path: pipelines/cv-train
       image_name: mirror-cv-train-ci
 
+  llm_finetune:
+    name: LLM fine-tune checks
+    needs: changes
+    if: needs.changes.outputs.llm_finetune == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/llm-finetune
+      image_name: mirror-llm-finetune-ci
+
   frontend:
     name: Frontend checks
     needs: changes
@@ -212,12 +225,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Python 3.11
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups
@@ -244,6 +257,12 @@ jobs:
       - name: Validate compose file
         run: docker compose -f infra/compose.yml config --quiet
 
+      - name: Validate M3-13 Stage A deployment assets
+        run: python3 infra/tests/test_stage_a_assets.py
+
+      - name: Validate M3-14 immutable image delivery assets
+        run: python3 infra/tests/test_m3_14_assets.py
+
       - name: Build and start the stack, wait for every health check
         run: docker compose -f infra/compose.yml up --build --wait --wait-timeout 300
 
@@ -262,7 +281,7 @@ jobs:
 
   ci_summary:
     name: CI summary
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, cv_eval, cv_train, llm_finetune, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -287,6 +306,8 @@ jobs:
           CV_EVAL_RESULT: ${{ needs.cv_eval.result }}
           CV_TRAIN_CHANGED: ${{ needs.changes.outputs.cv_train }}
           CV_TRAIN_RESULT: ${{ needs.cv_train.result }}
+          LLM_FINETUNE_CHANGED: ${{ needs.changes.outputs.llm_finetune }}
+          LLM_FINETUNE_RESULT: ${{ needs.llm_finetune.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -340,6 +361,11 @@ jobs:
 
           if [ "$CV_TRAIN_CHANGED" = "true" ] && [ "$CV_TRAIN_RESULT" != "success" ]; then
             echo "CV training checks did not pass: $CV_TRAIN_RESULT"
+            exit 1
+          fi
+
+          if [ "$LLM_FINETUNE_CHANGED" = "true" ] && [ "$LLM_FINETUNE_RESULT" != "success" ]; then
+            echo "LLM fine-tune checks did not pass: $LLM_FINETUNE_RESULT"
             exit 1
           fi
 

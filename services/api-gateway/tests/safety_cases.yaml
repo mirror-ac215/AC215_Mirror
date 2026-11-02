@@ -1,0 +1,109 @@
+# M3-07 curated safety set. Every case must pass: CI runs it on every change
+# to services/api-gateway (tests/test_safety.py).
+# expect: crisis | none.  Add a case for every rule you change.
+# Wording is deliberately short and non-graphic.
+
+# Crisis: suicide and self-harm, plain and indirect
+- {text: "I want to die", expect: crisis}
+- {text: "i want to kill myself", expect: crisis}
+- {text: "I’ve been thinking about suicide a lot lately", expect: crisis}
+- {text: "I keep having suicidal thoughts", expect: crisis}
+- {text: "I'm going to end my life tonight", expect: crisis}
+- {text: "I don't want to be alive anymore", expect: crisis}
+- {text: "I dont want to wake up tomorrow", expect: crisis}
+- {text: "everyone would be better off without me", expect: crisis}
+- {text: "I'd be better off dead", expect: crisis}
+- {text: "there's no reason to live", expect: crisis}
+- {text: "I have nothing left to live for", expect: crisis}
+- {text: "I won't be around much longer", expect: crisis}
+- {text: "I wrote a goodbye letter to my family", expect: crisis}
+- {text: "I started cutting myself again", expect: crisis}
+- {text: "I hurt myself on purpose last night", expect: crisis}
+- {text: "I've been self-harming", expect: crisis}
+- {text: "how many pills would it take to overdose", expect: crisis}
+- {text: "I wish I could just die in my sleep", expect: crisis}
+- {text: "I WANT TO DIE!!!", expect: crisis}
+- {text: "I can't go on like this", expect: crisis}
+- {text: "I can't take it anymore, I want to die", expect: crisis}
+- {text: "I want to kill myself, this week is killing me", expect: crisis}
+# Crisis: phrasings from the M3-07 review (all missed before)
+- {text: "I don't want to be here anymore", expect: crisis}
+- {text: "I want to end it all", expect: crisis}
+- {text: "I'm going to end it", expect: crisis}
+- {text: "kms", expect: crisis}
+- {text: "I want to unalive myself", expect: crisis}
+- {text: "I wish I was dead", expect: crisis}
+- {text: "I wish I were dead", expect: crisis}
+- {text: "I wish I was never born", expect: crisis}
+- {text: "what's the point of living", expect: crisis}
+- {text: "there's no point in living", expect: crisis}
+- {text: "I'm thinking about hanging myself", expect: crisis}
+- {text: "I want to jump off a bridge", expect: crisis}
+- {text: "I keep thinking about stepping in front of a train", expect: crisis}
+- {text: "everyone would be better off if I was gone", expect: crisis}
+- {text: "they'd all be better off if I wasn't around", expect: crisis}
+- {text: "I took all my pills", expect: crisis}
+- {text: "I swallowed a handful of pills", expect: crisis}
+- {text: "I'll be ending it soon", expect: crisis}
+- {text: "I'm going to end it for good", expect: crisis}
+# Crisis still fires when a harmless phrase shares the message
+- {text: "my phone is going to die and I want to die", expect: crisis}
+- {text: "the kids are killing my vibe and I want to kill myself", expect: crisis}
+# Crisis: phrasings from the second M3-07 review (Oct 27)
+- {text: "I'm going to shoot myself", expect: crisis}
+- {text: "I'm going to slit my wrists", expect: crisis}
+- {text: "I'd rather be dead", expect: crisis}
+- {text: "I might as well be dead", expect: crisis}
+- {text: "life isn't worth living", expect: crisis}
+- {text: "I'm tired of living", expect: crisis}
+- {text: "nobody would miss me if I died", expect: crisis}
+- {text: "I want to stop existing", expect: crisis}
+- {text: "I want to sleep and never wake up", expect: crisis}
+- {text: "I want it all to end", expect: crisis}
+- {text: "I've been cutting again", expect: crisis}
+- {text: "I want to hurt my brother", expect: crisis}
+# Crisis: harming someone else
+- {text: "I want to hurt him so badly", expect: crisis}
+- {text: "I'm going to kill my neighbour", expect: crisis}
+- {text: "sometimes I think about stabbing someone", expect: crisis}
+
+# Must not fire: everyday idioms and ordinary hard days
+- {text: "this commute is killing me", expect: none}
+- {text: "my mom is going to kill me if I fail this exam", expect: none}
+- {text: "I'm dying to see that movie", expect: none}
+- {text: "I almost died of embarrassment", expect: none}
+- {text: "I hurt myself at the gym yesterday", expect: none}
+- {text: "I want to live in Boston one day", expect: none}
+- {text: "I had a really rough day at work", expect: none}
+- {text: "I feel sad and tired all the time", expect: none}
+- {text: "I'm so stressed about my deadline", expect: none}
+- {text: "how many tasks should I take on this week", expect: none}
+- {text: "my therapist said I should take a break", expect: none}
+- {text: "I'm proud of myself for going for a run", expect: none}
+- {text: "I watched a documentary about the history of medicine", expect: none}
+- {text: "my dog died last year and I still miss him", expect: none}
+- {text: "I'm angry at my sister", expect: none}
+- {text: "can I take a walk with you later", expect: none}
+- {text: "I need help with my homework", expect: none}
+- {text: "I can't handle this traffic", expect: none}
+- {text: "my car is breaking down again", expect: none}
+- {text: "I can't take this class next term", expect: none}
+# Must not fire: false alarms from the M3-07 review
+- {text: "I'll shoot him a text", expect: none}
+- {text: "shoot her an email", expect: none}
+- {text: "my phone is going to die", expect: none}
+- {text: "the kids are killing my vibe", expect: none}
+- {text: "I'm going to end it with him tonight", expect: none}
+- {text: "I want to end it on a good note", expect: none}
+- {text: "let's end it here for today", expect: none}
+- {text: "I wish I was born in the 90s", expect: none}
+- {text: "what's the point of living in a city this expensive", expect: none}
+- {text: "I took all my pills on time this week", expect: none}
+# Must not fire: look-alikes of the Oct 27 rules
+- {text: "I'll shoot myself in the foot if I say yes", expect: none}
+- {text: "I'm going to hurt my back if I lift that", expect: none}
+- {text: "I'm tired of living with three roommates", expect: none}
+- {text: "I'm cutting carbs again this month", expect: none}
+- {text: "I want this meeting to end", expect: none}
+- {text: "I need everything to end on time today", expect: none}
+- {text: "I want my life to stop being so busy", expect: none}

@@ -1,0 +1,23 @@
+# Immutable Artifact Registry override for the Stage-B VM deployment.
+# Use with infra/compose.yml and infra/compose.prod.yml after setting the three
+# MIRROR_IMAGE_* values in the VM-only infra/.env.prod file.
+services:
+  db:
+    build: !reset null
+    image: ${MIRROR_IMAGE_REGISTRY:?set MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY:?set MIRROR_IMAGE_REPOSITORY}/mirror-db:${MIRROR_IMAGE_TAG:?set MIRROR_IMAGE_TAG}
+
+  api-gateway:
+    build: !reset null
+    image: ${MIRROR_IMAGE_REGISTRY:?set MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY:?set MIRROR_IMAGE_REPOSITORY}/mirror-api-gateway:${MIRROR_IMAGE_TAG:?set MIRROR_IMAGE_TAG}
+
+  llm-service:
+    build: !reset null
+    image: ${MIRROR_IMAGE_REGISTRY:?set MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY:?set MIRROR_IMAGE_REPOSITORY}/mirror-llm-service:${MIRROR_IMAGE_TAG:?set MIRROR_IMAGE_TAG}
+
+  cv-service:
+    build: !reset null
+    image: ${MIRROR_IMAGE_REGISTRY:?set MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY:?set MIRROR_IMAGE_REPOSITORY}/mirror-cv-service:${MIRROR_IMAGE_TAG:?set MIRROR_IMAGE_TAG}
+
+  frontend:
+    build: !reset null
+    image: ${MIRROR_IMAGE_REGISTRY:?set MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY:?set MIRROR_IMAGE_REPOSITORY}/mirror-frontend:${MIRROR_IMAGE_TAG:?set MIRROR_IMAGE_TAG}

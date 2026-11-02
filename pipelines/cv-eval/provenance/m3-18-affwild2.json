@@ -1,0 +1,26 @@
+{
+  "result": "M3-18 baseline: cv-vit-b16-v3 on Aff-Wild2 official validation videos",
+  "status": "experimental: does not change the served model (cv-service still serves cv-vit-b16-v3)",
+  "metrics": {"macro_f1": 0.2601, "accuracy": 0.3621, "top2_accuracy": 0.5672, "n_examples": 10772},
+  "sources": {
+    "cropped_aligned.zip": {"sha256": "846880fc77dd0db32b3495c04889e75a2e33227f65cb812f4edb8d942b8c64ab", "bytes": 441060696},
+    "training_set_annotations.txt.zip": {"sha256": "b1e3b8fa4e01193572d8c5f134b515cee93c6a1a1046bad125dfc5e1f697d59c", "bytes": 946969},
+    "validation_set_annotations.txt.zip": {"sha256": "5da2a274380d934ff9516493aeacbe24ae418dabafb45b84bc5e22663c8ee7b5", "bytes": 221287}
+  },
+  "dataset": {
+    "version": "affwild2/v1-test",
+    "test_manifest_sha256": "37d86a9128be30fb448e3317bc971806e40ff603a3df68f4e23cdf5e0f3fad4f",
+    "build_command": "uv run --project pipelines/data-preprocess mirror-prepare-affwild2 --frames-zip <cropped_aligned.zip> --train-annotations <training_set_annotations.txt.zip> --val-annotations <validation_set_annotations.txt.zip>"
+  },
+  "model": {
+    "version": "cv-vit-b16-v3",
+    "uri": "gs://mirror-ac215-data/models/cv/inherited-v3/vit_b16_v3_best.pth",
+    "sha256": "f2e13fa8308b138714902c2d6995042572eef11192ffcc80a4fe137aa4815990",
+    "bytes": 343278498,
+    "note": "run from a local copy; same size and CRC32C (xZX0Ug==) as the GCS object"
+  },
+  "code_sha": "9e25e3ebd6dec56c5d8701fb1bc89a0b894792aa",
+  "eval_command": "uv run --project pipelines/cv-eval mirror-cv-eval --data-dir data/processed/affwild2/v1 --checkpoint <local copy of vit_b16_v3_best.pth> --output data/reports/m3-18-affwild2.json --code-revision 9e25e3ebd6dec56c5d8701fb1bc89a0b894792aa --dataset-version affwild2/v1-test --report-only --device cuda --wandb-project mirror",
+  "wandb_run": "https://wandb.ai/mog941-harvard-university/mirror/runs/a5z2hsrk",
+  "output_report": "data/reports/m3-18-affwild2.json (local, not in git)"
+}

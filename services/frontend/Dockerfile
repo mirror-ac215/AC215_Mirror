@@ -11,6 +11,8 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 ARG VITE_USE_MOCK_API=false
 ARG VITE_API_BASE_URL=http://localhost:8000
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_USE_MOCK_API=${VITE_USE_MOCK_API}
 ENV NITRO_PRESET=node-server
 RUN npm run build
 

@@ -1,0 +1,26 @@
+{
+  "result": "M3-18 baseline: cv-vit-b16-v3 on the FER-2013 test set relabelled with FER+ majority votes",
+  "status": "experimental: does not change the served model (cv-service still serves cv-vit-b16-v3)",
+  "metrics": {"macro_f1": 0.6089, "accuracy": 0.7083, "top2_accuracy": 0.8648, "n_examples": 6722},
+  "sources": {
+    "fer2013.csv": {"sha256": "3b8d9617d1017f34733c8f2474d7784c563ce86c40a86ac12c2d37cc968f871b", "bytes": 301072766},
+    "fer2013new.csv": {"sha256": "9206e20d62f56475939f516847d61753e4860caeac9718b560129541b776fc2c", "bytes": 1602762},
+    "data/raw/fer2013/archive.zip": {"md5": "9f58794746ff496be12cf0bb2679e3d4", "bytes": 63252113, "note": "DVC-tracked (raw-fer2013.dvc); its fer2013/v1 images are relabelled"}
+  },
+  "dataset": {
+    "version": "ferplus/v1-test",
+    "test_manifest_sha256": "ed9aa5889369d12f48cc111226f35558937fd76738af7b61f677873f52270fce",
+    "build_command": "uv run --project pipelines/data-preprocess mirror-prepare-ferplus --fer2013-csv <fer2013.csv> --ferplus-csv <fer2013new.csv>"
+  },
+  "model": {
+    "version": "cv-vit-b16-v3",
+    "uri": "gs://mirror-ac215-data/models/cv/inherited-v3/vit_b16_v3_best.pth",
+    "sha256": "f2e13fa8308b138714902c2d6995042572eef11192ffcc80a4fe137aa4815990",
+    "bytes": 343278498,
+    "note": "run from a local copy; same size and CRC32C (xZX0Ug==) as the GCS object"
+  },
+  "code_sha": "a93cf98675abe293226c1d897f8da4115ebe574e",
+  "eval_command": "uv run --project pipelines/cv-eval mirror-cv-eval --data-dir data/processed/ferplus/v1 --checkpoint <local copy of vit_b16_v3_best.pth> --output data/reports/m3-18-ferplus.json --code-revision a93cf98675abe293226c1d897f8da4115ebe574e --dataset-version ferplus/v1-test --report-only --device cuda --wandb-project mirror",
+  "wandb_run": "https://wandb.ai/mog941-harvard-university/mirror/runs/3luxf8ok",
+  "output_report": "data/reports/m3-18-ferplus.json (local, not in git)"
+}
