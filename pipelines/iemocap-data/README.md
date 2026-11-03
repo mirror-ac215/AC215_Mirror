@@ -130,5 +130,34 @@ Running twice on the same input and `params.yaml` gives an identical
 
 ## Results
 
-To be filled after the first run on the real release: utterances kept per
-label, drops by reason, per-session counts.
+First run on the full release (Nov 3, 2026), from `report.json`.
+`utterances_sha256`: `cdfe975e75d63e37c2c4c52f67af3d3c6505b22c15b8b0d87503115770d2bce5`.
+
+**Read:** 151 label files and 151 transcript files (5 sessions), 10,039
+labelled utterances.
+
+**Dropped (2,510):** 2,507 `xxx` (annotators did not agree) and 3 `oth`. No
+utterance was dropped for a missing transcript.
+
+**Kept (7,529):** 5,680 with a Mirror label and 1,849 frustration rows kept
+without one.
+
+| Mirror label | IEMOCAP codes | Utterances | Share of the 5,680 |
+|---|---|---|---|
+| neutral | `neu` | 1,708 | 30.1% |
+| joy | `hap` 595 + `exc` 1,041 | 1,636 | 28.8% |
+| anger | `ang` | 1,103 | 19.4% |
+| sadness | `sad` | 1,084 | 19.1% |
+| surprise | `sur` | 107 | 1.9% |
+| fear | `fea` | 40 | 0.7% |
+| disgust | `dis` | 2 | <0.1% |
+| *(none: frustration)* | `fru` | 1,849 | kept, not scored |
+
+**Per session (kept rows):** 1: 1,403 · 2: 1,374 · 3: 1,564 · 4: 1,538 · 5: 1,650.
+
+**For M4-09.** Four labels (neutral, joy, anger, sadness) hold 97% of the
+scored rows. Fear (40) and disgust (2) are too rare for a reliable
+per-label score. M4-09 should therefore report its main face vs text
+comparison on those four labels, and list surprise, fear and disgust
+separately with their counts. Frustration (1,849 rows) is reported on its
+own, as described above.
