@@ -1,0 +1,44 @@
+[project]
+name = "mirror-fairness-audit"
+version = "0.1.0"
+description = "M3-02: how the CV model behaves across race, gender and age groups (FairFace)"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy>=2.4.0",
+    "opencv-python-headless>=4.13.0.92,<5",  # same as cv-service: 5.x drops CascadeClassifier
+    "pillow>=12.1.1",
+    "pyyaml>=6.0,<7",
+    "torch>=2.9.1",
+    "torchvision>=0.24.1",
+]
+
+# CPU wheels, as in cv-eval: CI and the image stay small. On Colab, the preinstalled
+# CUDA torch is used instead (README).
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[project.scripts]
+mirror-fairness-audit = "mirror_fairness_audit.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
