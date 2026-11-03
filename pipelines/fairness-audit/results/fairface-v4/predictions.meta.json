@@ -1,0 +1,10 @@
+{
+  "model_version": "cv-vit-b16-v4",
+  "checkpoint_sha256": "5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b",
+  "data_version": "fairface/v1-val",
+  "labels_sha256": "3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c",
+  "code_revision": "5c77271a0706b0a045661f6e6971ba3ce3c7b8ee",
+  "limit": null,
+  "photos_scored": 10954,
+  "predictions_sha256": "3adb75dd0390d74ea7fbd43ebfe94726410c7f061b5ca08879bbfd0a2c292477"
+}

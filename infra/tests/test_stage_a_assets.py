@@ -49,7 +49,8 @@ class StageAAssetTests(unittest.TestCase):
 
         self.assertIn("validate_effective_ingress", provisioner)
         self.assertIn("gcloud compute firewall-rules list", provisioner)
-        self.assertIn('--filter="network:$M3_13_NETWORK AND direction=INGRESS AND disabled=false"', provisioner)
+        self.assertIn('gcloud compute firewall-rules list "${PROJECT_ARGS[@]}" --format=json', provisioner)
+        self.assertIn('if rule.get("network", "").rsplit("/", 1)[-1] != network:', provisioner)
         self.assertIn("M3_13_HTTP_FIREWALL_RULE", provisioner)
         self.assertIn("M3_13_HTTPS_FIREWALL_RULE", provisioner)
         self.assertIn("M3_13_IAP_SSH_FIREWALL_RULE", provisioner)

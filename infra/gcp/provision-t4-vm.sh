@@ -106,12 +106,16 @@ ensure_firewall_rule() {
 }
 
 validate_effective_ingress() {
-  gcloud compute firewall-rules list "${PROJECT_ARGS[@]}" \
-    --filter="network:$M3_13_NETWORK AND direction=INGRESS AND disabled=false" --format=json | \
+  gcloud compute firewall-rules list "${PROJECT_ARGS[@]}" --format=json | \
     python3 -c '
 import json, sys
-managed_rules = set(sys.argv[1:])
+network, *managed_rule_names = sys.argv[1:]
+managed_rules = set(managed_rule_names)
 for rule in json.load(sys.stdin):
+    if rule.get("network", "").rsplit("/", 1)[-1] != network:
+        continue
+    if rule.get("direction") != "INGRESS" or rule.get("disabled") is True:
+        continue
     name = rule.get("name", "<unnamed>")
     target_tags = set(rule.get("targetTags", []))
     if name not in managed_rules and rule.get("allowed") and (
@@ -120,7 +124,7 @@ for rule in json.load(sys.stdin):
         raise SystemExit(
             f"Non-managed ALLOW ingress rule {name} could apply to the Stage A VM; refusing VPC reuse"
         )
-' "$M3_13_HTTP_FIREWALL_RULE" "$M3_13_HTTPS_FIREWALL_RULE" "$M3_13_IAP_SSH_FIREWALL_RULE"
+' "$M3_13_NETWORK" "$M3_13_HTTP_FIREWALL_RULE" "$M3_13_HTTPS_FIREWALL_RULE" "$M3_13_IAP_SSH_FIREWALL_RULE"
 }
 
 gcloud services enable compute.googleapis.com "${PROJECT_ARGS[@]}"
