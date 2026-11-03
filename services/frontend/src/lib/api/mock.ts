@@ -42,7 +42,10 @@ export async function sendMessage(
       data: {
         message:
           "It sounds like you're going through something really painful. You don't have to face it alone.",
-        resources: [{ name: "988 Suicide & Crisis Lifeline", contact: "call or text 988" }],
+        resources: [
+          { name: "988 Suicide & Crisis Lifeline", contact: "call or text 988" },
+          { name: "Emergency services", contact: "call 911 if you are in immediate danger" },
+        ],
         review_flag_created: true,
       },
     });
