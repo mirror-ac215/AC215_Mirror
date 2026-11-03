@@ -1,4 +1,4 @@
-md5: 60389aca6e702fca2e8debe6c14d7996
+md5: 3ebe3f88c284ca24a4537f3cf5b3ccd9
 frozen: true
 deps:
 - etag: 0887c3a0a8aadf97031001
@@ -9,3 +9,5 @@ deps:
 outs:
 - hash: md5
   path: data/raw/iemocap/IEMOCAP_full_release.tar.gz
+  md5: 521be1e5eec425ae21fdc27c763ca813
+  size: 17695884032
