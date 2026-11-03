@@ -188,6 +188,31 @@ uv run ruff check .
 uv run pytest -q
 ```
 
+## Prompt template (M3-08)
+
+`app/prompt.py` turns the context object and the patient's message into the messages the gateway sends to llm-service. It sits in the gateway because the gateway owns the context object (`docs/architecture.md`); llm-service stays a plain model server.
+
+Each turn the model gets:
+
+1. Fixed rules: 2 to 4 sentences, at most one question, never claims to be a person or a clinician, no medical advice, never mentions cameras or numbers.
+2. The mode from fusion (M3-06): **supportive** by default, **coach** only after steady turns.
+3. This turn's signals in plain words, for example:
+   - `Face: their expression may look sad. This is an estimate.`
+   - `Face: the camera is off. Do not mention facial expression.`
+   - `The face and the words point in different directions. Lean towards the more concerning one and gently check in now ...` (D-004; fusion decides when, the prompt only words it)
+4. The last 6 messages, then the patient's new message.
+
+- **Words, not numbers:** "0.46 sad" invites the model to say "you are 46% sad". A plain word plus "this is an estimate" keeps it guessing and asking.
+- **Weak readings are hidden:** a top label under 0.40 or an unknown label becomes "unclear". An `uncertain`, `dropped` or `camera_off` face always becomes "do not mention facial expression", even if the patient asks about it. An unknown label never breaks the turn.
+- **Safety:** the patient's text only goes in the `user` message, and the history can't carry a `system` message. The crisis check (M3-07) runs first.
+
+Review the 20 sample cases (`tests/prompt_cases.json`):
+
+```bash
+uv run python -m scripts.prompt_samples > prompt_samples.md                                # prompts only
+uv run python -m scripts.prompt_samples --llm-url http://localhost:8002 > prompt_samples.md  # with Mirror's replies
+```
+
 ## Docker
 
 Build and run from this directory:

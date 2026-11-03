@@ -129,6 +129,28 @@ It does not turn an unmerged pull request into merged functionality.
 - **Evidence:** `pipelines/llm-eval/text-emotion-selection/`
   (`compare.py`, `compare_full.py`, `results/`).
 
+## D-004: When face and words disagree, the more concerning signal leads
+
+- **Status:** Accepted (M3-08, agreed by Mostafa on PR #51, Oct 25, 2026).
+  Update accepted Nov 2; fusion change planned for M4.
+- **Decision:** When the camera and the text point in different directions,
+  Mirror leans towards the more concerning one and gently checks in about how
+  the patient is feeling. Fusion (M3-06) decides when to check in; the prompt
+  template (M3-08) only puts it into words.
+- **Limits:**
+  - The face only counts when the gate (M3-04) says the reading is confident
+    and stable over the window, never from a single frame.
+  - An `uncertain`, `dropped` or `camera_off` face reading never lets Mirror
+    talk about facial expression, even if the patient asks about it.
+- **Update (accepted by Mostafa on PR #51, Nov 2, 2026):** the patient's
+  answer counts for that moment, not for the whole session. Sessions have no
+  time limit, and someone who says "I'm ok" early may open up later. For MS3,
+  fusion keeps checking in once per session (`TurnHistory.checked_in`). In M4,
+  fusion adds a cooldown: Mirror may ask again after N turns, with N tuned in
+  M4-09.
+- **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
+  gating (M3-04), prompt template (`app/prompt.py`, M3-08).
+
 ## D-005: Judge soft-label CV models on FER+, not on FER-2013's single labels
 
 - **Status:** Accepted (M3-01, decided by Mostafa, CV owner, Oct 26, 2026).
