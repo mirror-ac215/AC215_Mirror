@@ -295,6 +295,8 @@ jobs:
       DB_USER: mirror_app
       DB_PASSWORD: ci-only-password
       MIRROR_DEMO_PASSWORD: ci-only-demo-password
+      # Non-secret throwaway key satisfying the gateway's runtime validation.
+      JWT_SIGNING_KEY: ci-only-signing-key-with-at-least-thirty-two-characters
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
