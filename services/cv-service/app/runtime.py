@@ -25,8 +25,8 @@ class ModelSettings(BaseSettings):
 
     model_bucket: str = "mirror-ac215-data"
     model_project: str = "mirror-ac215"
-    model_object: str = "models/cv/inherited-v3/vit_b16_v3_best.pth"
-    model_version: str = "cv-vit-b16-v3"
+    model_object: str = "models/cv/v4/vit_b16_v4.pth"
+    model_version: str = "cv-vit-b16-v4"
     model_cache_dir: Path = Path("/tmp/mirror-cv-model")
     max_batch_size: int = Field(default=8, ge=1, le=64)
     uncertain_margin: float = Field(default=0.1, ge=0.0, le=1.0)

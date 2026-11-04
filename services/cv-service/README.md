@@ -20,7 +20,7 @@ The immutable public contract is [`docs/contracts/cv-service.openapi.yaml`](../.
 At application startup the service downloads exactly this configured artifact with Application Default Credentials (ADC), saves it only to `MODEL_CACHE_DIR`, then loads it on CPU:
 
 ```text
-gs://mirror-ac215-data/models/cv/inherited-v3/vit_b16_v3_best.pth
+gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth
 ```
 
 Defaults are in `.env.example`. The checkpoint, credentials, cached model, and frames must never be added to Git or a Docker build context. The service logs one JSON record per HTTP request with `request_id`, path, status, and latency; it returns the ID in `X-Request-ID`.

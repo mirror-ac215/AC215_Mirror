@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     # result is noisy, so the gateway averages the recent ones and decides
     # whether the reading is steady enough to use.
     # Provisional (experimental) thresholds: chosen with a sweep on held-out Aff-Wild2 video
-    # (scripts/gate_sweep.py, see the README) using cv-vit-b16-v4, which is not the served
-    # model yet. Re-run the sweep when the served model changes or our own labelled sessions
+    # (scripts/gate_sweep.py, see the README) using cv-vit-b16-v4, the served model.
+    # Re-run the sweep when the served model changes or our own labelled sessions
     # (M3-20) are ready. Out-of-range values are rejected at startup.
     # allow_inf_nan=False: an infinite window would keep stale frames forever.
     gate_window_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)  # only frames from the last N seconds count

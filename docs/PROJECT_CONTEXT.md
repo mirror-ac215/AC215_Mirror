@@ -25,13 +25,11 @@ already runnable.
 
 This section changes often; the open pull requests on GitHub and the team board are the live view.
 
-**Merged baseline (on `main`):** the MS2 foundation (contracts, service template, shared CI with the required `CI summary` check, DVC data jobs, cv-eval with the FER-2013 guard >= 0.64, the cv-train baseline, the Compose v0 stack), the M2-07 crop-alignment protocol, the text-emotion module (M3-05), the Stage A GPU VM deployment scripts (M3-13) and the deterministic crisis check (M3-07). cv-service serves **v3** (`cv-vit-b16-v3`).
+**Merged baseline (on `main`):** the MS2 foundation (contracts, service template, shared CI with the required `CI summary` check, DVC data jobs, cv-eval with the FER-2013 guard >= 0.64, the cv-train baseline, the Compose v0 stack), the M2-07 crop-alignment protocol, the text-emotion module (M3-05), the Stage A GPU VM deployment scripts (M3-13) and the deterministic crisis check (M3-07). cv-service serves **v3** (`cv-vit-b16-v4`).
 
 **Open experiments (in review, not accepted serving direction):**
-- CV retraining (M3-18, M3-01): Aff-Wild2 and FER+ evaluation data, multi-source training, and a candidate model **v4** (`cv-vit-b16-v4`, stored at `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`; candidate test macro-F1: Aff-Wild2 0.337 vs v3 0.260, FER+ 0.720 vs 0.609, FER-2013 0.588 vs 0.645). An HSEmotion start reached the same video ceiling, so it was not taken further. Proposed decision D-005 (judge soft-label models on FER+ test >= 0.609) arrives with that work.
+- CV retraining (M3-18, M3-01): Aff-Wild2 and FER+ evaluation data, multi-source training, and model **v4**, now served (`cv-vit-b16-v4`, stored at `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth`; test macro-F1: Aff-Wild2 0.337 vs v3 0.260, FER+ 0.720 vs 0.609, FER-2013 0.588 vs 0.645). An HSEmotion start reached the same video ceiling, so it was not taken further. Decision D-005 judges soft-label models on FER+ test >= 0.609.
 - Gateway pipeline (M3-04, M3-06, M3-08): smoothing and gating with provisional thresholds, fusion, the prompt template; proposed decision D-004 (the more concerning signal leads).
-
-**Pending handoff (training -> serving):** v4 is not served. Switching needs the final cv-eval record, then a serving change by the cv-service owner that sets `MODEL_OBJECT` and `MODEL_VERSION` together in one reviewed config change (see `pipelines/cv-train/README.md`).
 
 **Data notes:** Aff-Wild2 is licensed and stays local (not in DVC or the bucket); FER+ labels come from Microsoft's `fer2013new.csv` (MIT), matched to FER-2013 by pixels.
 
@@ -108,7 +106,7 @@ Response:
   "top2": [["sad",0.46],["neutral",0.31]],
   "margin": 0.15,
   "uncertain": false,
-  "model_version": "cv-vit-b16-v3",
+  "model_version": "cv-vit-b16-v4",
   "latency_ms": 42
 }
 ```

@@ -8,7 +8,7 @@ The verified M2-08 baseline run evaluated 7,178 FER-2013 v1 test examples with t
 
 ## M3-18 baselines on new data (no training)
 
-> **Status: experimental.** These numbers measure the current model on new data. They do not change the accepted cv-service artifact or the serving baseline: cv-service still serves `cv-vit-b16-v3`, and the FER-2013 guard (≥ 0.64) is unchanged.
+> **Status: historical baseline.** These numbers measure v3 on new data, before the retrain. cv-service now serves `cv-vit-b16-v4`, and D-005 replaced the FER-2013 guard for soft-label models.
 
 The same inherited checkpoint (`cv-vit-b16-v3`) and the same evaluator, run with `--report-only` on data it was never trained on. These are the "before" numbers that M3-01's retrain must beat.
 
@@ -41,7 +41,7 @@ Run this before any CV model is published or handed to cv-service. It is cv-eval
 | Model | Checkpoint SHA-256 | Macro-F1 | Result |
 |---|---|---|---|
 | `cv-vit-b16-v4` | `5b003e0a…1e862b` | 0.7202 | PASS |
-| `cv-vit-b16-v3` (served today) | `f2e13fa8…815990` | 0.6089 | FAIL: a new model must beat v3, so v3 itself sits just below the line |
+| `cv-vit-b16-v3` (previous served model) | `f2e13fa8…815990` | 0.6089 | FAIL: a new model must beat v3, so v3 itself sits just below the line |
 
 Both runs were on CPU (about 6 min each) at code `431790f`. CPU and GPU give identical results (see M3-18).
 

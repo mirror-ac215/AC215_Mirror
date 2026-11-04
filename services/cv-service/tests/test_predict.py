@@ -36,7 +36,7 @@ async def test_predict_returns_normal_no_face_response() -> None:
     assert body["top2"] == []
     assert body["margin"] is None
     assert body["uncertain"] is None
-    assert body["model_version"] == "cv-vit-b16-v3"
+    assert body["model_version"] == "cv-vit-b16-v4"
     assert isinstance(body["latency_ms"], float)
 
 
@@ -74,7 +74,7 @@ async def test_predict_returns_top_two_probabilities_for_a_detected_face() -> No
         "top2": [["sad", 0.46], ["neutral", 0.31]],
         "margin": 0.15,
         "uncertain": False,
-        "model_version": "cv-vit-b16-v3",
+        "model_version": "cv-vit-b16-v4",
         "latency_ms": 0.0,
     }
 

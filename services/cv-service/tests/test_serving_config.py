@@ -16,5 +16,5 @@ def test_documented_serving_configuration_has_no_independent_version_tag() -> No
 def test_documented_default_object_and_version_are_present() -> None:
     settings = ModelSettings()
 
-    assert settings.model_object == "models/cv/inherited-v3/vit_b16_v3_best.pth"
-    assert settings.model_version == "cv-vit-b16-v3"
+    assert settings.model_object == "models/cv/v4/vit_b16_v4.pth"
+    assert settings.model_version == "cv-vit-b16-v4"

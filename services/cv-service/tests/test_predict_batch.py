@@ -37,7 +37,7 @@ async def test_predict_batch_returns_a_no_face_result_for_each_input() -> None:
             "top2": [],
             "margin": None,
             "uncertain": None,
-            "model_version": "cv-vit-b16-v3",
+            "model_version": "cv-vit-b16-v4",
             "latency_ms": pytest.approx(response.json()["predictions"][0]["latency_ms"]),
         },
         {
@@ -46,7 +46,7 @@ async def test_predict_batch_returns_a_no_face_result_for_each_input() -> None:
             "top2": [],
             "margin": None,
             "uncertain": None,
-            "model_version": "cv-vit-b16-v3",
+            "model_version": "cv-vit-b16-v4",
             "latency_ms": pytest.approx(response.json()["predictions"][1]["latency_ms"]),
         },
     ]
