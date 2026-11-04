@@ -88,9 +88,9 @@ So fusion never lets a negative face reading lead (M3-06). These thresholds are 
 
 ## Subgroup gaps (fairness audit, M3-02)
 
-Audit of v4 on all 10,954 FairFace validation photos (9,399 in scope; children are reported separately). **FairFace has no expression labels, so this shows how differently the model behaves per group, not how accurate it is.** Accuracy gaps by group have not been measured.
+Audit of v4 on all 10,954 FairFace validation photos (9,399 in scope; children are reported separately). **FairFace has no expression labels, so this shows how differently the model behaves per group, not how accurate it is.** Accuracy gaps by group have not been measured. Non-overlapping 95% intervals are a screen for gaps worth a closer look, not a formal significance test.
 
-**Largest gap: age.** When a face is found, the gate trusts the reading for 71.7% of people aged 20-29 but only 30.6% of people over 70 (41.1 points).
+**Largest gap: age.** When a face is found, the gate trusts the reading for 71.7% of people aged 20-29 but only 30.6% of people over 70 (41.1 points). That counts only photos where a face was found. The table below uses all photos, and its largest gap is 22.9 points. The over-70 group is small: 118 photos, about 49 with a face found.
 
 | Attribute | Measure | Highest | Lowest | Gap (points) |
 |---|---|---|---|---|
@@ -105,7 +105,7 @@ What this means:
 
 - **Older patients get the weakest signal,** with fewer trusted readings and more negative ones. A negative reading may reflect age, not mood.
 - **The race gap comes mostly from the face detector.** Once a face is found, the gate passes for 58-70% of every race group. A modern detector is the most direct fix, and this audit can measure it.
-- **The gender gap may be partly real,** because people may smile more in some photos. Without expression labels, the audit can't separate this from model bias.
+- **The gender gap is not only about smiling.** The detector finds women's faces more often (54.6% vs 42.2%), and once a face is found the gate passes for 70.1% of women vs 59.7% of men. People may also smile more in some photos. Without expression labels, the audit can't separate these causes from model bias.
 
 Full tables: `pipelines/fairness-audit/results/fairface-v4/report.md`.
 
