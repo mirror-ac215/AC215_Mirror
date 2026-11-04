@@ -57,6 +57,7 @@ def test_a_model_above_the_guard_passes(ferplus, monkeypatch) -> None:
     assert report["regression_guard"]["macro_f1_threshold"] == 0.609
     assert report["identity"]["dataset_version"] == "ferplus/v2"
     assert report["release_check"]["checkpoint_sha256"] == release_check.sha256_of(checkpoint)
+    assert report["identity"]["model_uri"] == f"local:{checkpoint.name}"
 
 
 def test_a_model_below_the_guard_fails(ferplus, monkeypatch) -> None:
