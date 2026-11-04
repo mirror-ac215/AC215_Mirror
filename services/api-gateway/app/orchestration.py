@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
 
-from app import safety
+from app import metrics, safety
 from app.fusion import TurnHistory, fuse
 from app.prompt import build_messages
 from app.text_emotion import TextEmotion, TextEmotionUnavailable
+
+logger = logging.getLogger("mirror")
+
+
+def main_signal(context: dict) -> str:
+    """The fixed signal label embedded in fusion's human-readable note."""
+    note = context["note"]
+    if note.startswith("main signal: face"):
+        return "face"
+    if note.startswith("main signal: text"):
+        return "text"
+    return "none"
 
 
 class TurnRepository(Protocol):
@@ -60,15 +73,27 @@ class ChatOrchestrator:
         conversation: list[dict[str, str]],
     ) -> ChatTurn:
         safety_result = safety.check(text)
-        patient_message_id = await self._repository.add_message(
-            session_id, "patient", text, safety_result.hit
-        )
         if safety_result.kind == "crisis":
-            await self._repository.add_review_flag(patient_id, patient_message_id)
-
             async def no_tokens() -> AsyncIterator[str]:
                 if False:
                     yield ""
+
+            try:
+                patient_message_id = await self._repository.add_message(
+                    session_id, "patient", text, True
+                )
+                await self._repository.add_review_flag(patient_id, patient_message_id)
+            except Exception as exc:  # noqa: BLE001 -- crisis resources must survive any DB failure
+                # Do not make emergency resources depend on database availability,
+                # and never put patient text in logs.
+                logger.error("crisis_persistence_failed type=%s", type(exc).__name__)
+                return ChatTurn(
+                    message_id="",
+                    context=None,
+                    tokens=no_tokens(),
+                    crisis=safety.crisis_payload(review_flag_created=False),
+                    safety_rule=safety_result.rule_id,
+                )
 
             return ChatTurn(
                 message_id=patient_message_id,
@@ -78,11 +103,19 @@ class ChatOrchestrator:
                 safety_rule=safety_result.rule_id,
             )
 
+        patient_message_id = await self._repository.add_message(
+            session_id, "patient", text, False
+        )
+
         try:
             text_context = self._text_emotion.analyse(text).as_context()
         except TextEmotionUnavailable:
             text_context = None
         context = fuse(visual, text_context, history)
+        metrics.record_gate(context["visual"]["status"])
+        metrics.record_fusion(
+            context["agreement"], context["tone_mode"], main_signal(context)
+        )
         llm_messages = build_messages(context, text, conversation)
 
         async def forward_and_persist() -> AsyncIterator[str]:

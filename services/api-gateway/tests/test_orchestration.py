@@ -12,9 +12,13 @@ from app.text_emotion import TextEmotion
 
 class FakeRepository:
     def __init__(self) -> None:
+        self.sessions: list[dict] = []
         self.messages: list[dict] = []
         self.windows: list[dict] = []
         self.flags: list[dict] = []
+
+    async def add_session(self, session_id, patient_id, started_at, camera_consent) -> None:
+        self.sessions.append({"id": session_id, "patient_id": patient_id})
 
     async def add_message(
         self, session_id: str, role: str, text: str, safety_hit: bool
@@ -86,6 +90,19 @@ async def test_normal_turn_runs_emotion_fusion_llm_and_persists_both_messages_an
     assert repository.flags == []
     assert llm.calls[0][-1] == {"role": "user", "content": "Today was hard"}
     assert turn.context["tone_mode"] == "supportive"
+    from app import metrics
+
+    assert metrics.REGISTRY.get_sample_value(
+        "mirror_gateway_gate_total", {"status": "camera_off"}
+    ) is not None
+    assert metrics.REGISTRY.get_sample_value(
+        "mirror_gateway_fusion_total",
+        {
+            "agreement": turn.context["agreement"],
+            "tone_mode": turn.context["tone_mode"],
+            "main_signal": "text",
+        },
+    ) is not None
 
 
 @pytest.mark.anyio
@@ -119,6 +136,32 @@ async def test_crisis_persists_patient_message_and_review_flag_without_calling_l
     ]
     assert repository.flags == [{"patient_id": "patient-2", "message_id": "message-1"}]
     assert repository.windows == []
+    assert llm.calls == []
+
+
+@pytest.mark.anyio
+async def test_crisis_returns_988_without_llm_when_persistence_fails() -> None:
+    class FailingRepository(FakeRepository):
+        async def add_message(self, *args, **kwargs) -> str:
+            raise RuntimeError("database unavailable")
+
+    llm = FakeLLM()
+    service = ChatOrchestrator(
+        repository=FailingRepository(), llm=llm, text_emotion=text_emotion()
+    )
+
+    turn = await service.start_turn(
+        session_id="session-3",
+        patient_id="patient-3",
+        text="I want to die",
+        visual={"status": "camera_off"},
+        history=TurnHistory(),
+        conversation=[],
+    )
+
+    assert turn.crisis is not None
+    assert "988" in str(turn.crisis["resources"])
+    assert turn.crisis["review_flag_created"] is False
     assert llm.calls == []
 
 

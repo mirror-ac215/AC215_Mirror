@@ -37,7 +37,9 @@ frame_windows: dict[str, FrameWindow] = {}
 turn_histories: dict[str, TurnHistory] = {}
 conversations: dict[str, list[dict[str, str]]] = {}
 repository = PostgresRepository.from_dsn(settings.database_url)
-llm_client = LLMServiceClient(settings.llm_service_url, settings.dependency_timeout_s)
+llm_client = LLMServiceClient(
+    settings.llm_service_url, settings.llm_timeout_s, settings.llm_model
+)
 cv_client = CVClient(settings.cv_service_url, settings.dependency_timeout_s)
 logger = logging.getLogger("mirror")
 # Compatibility-only audit view; the durable source of review flags is Postgres.
@@ -78,7 +80,7 @@ def login(body: LoginRequest) -> LoginResponse:
         403: {"description": "Patients only"},
     },
 )
-def start_session(
+async def start_session(
     body: SessionCreate, user: Annotated[DemoUser, Depends(require_patient)]
 ) -> Session:
     session = Session(
@@ -86,6 +88,15 @@ def start_session(
         started_at=datetime.now(UTC),
         camera_consent=body.camera_consent,
     )
+    try:
+        await repository.add_session(
+            session.session_id, user.user_id, session.started_at, session.camera_consent
+        )
+    except Exception as exc:
+        logger.error("session_persistence_failed type=%s", type(exc).__name__)
+        raise HTTPException(
+            status_code=503, detail="Session is temporarily unavailable"
+        ) from exc
     sessions[session.session_id] = session
     session_owners[session.session_id] = user.user_id
     frame_windows[session.session_id] = FrameWindow(settings.gate_max_frames)
@@ -104,6 +115,7 @@ def start_session(
         409: {"description": "Camera consent not given"},
         413: {"description": "Frame too large"},
         415: {"description": "Unsupported Media Type"},
+        503: {"description": "Camera analysis is temporarily unavailable"},
     },
 )
 async def receive_frame(
@@ -129,9 +141,8 @@ async def receive_frame(
     frame_windows[session_id].add(
         FrameReading.from_cv_payload(prediction, time.monotonic())
     )
-    # The upload was accepted and queued into the gate; the next chat turn uses
-    # the truthful gated status (often ``dropped`` until enough frames arrive).
-    return FrameAck(visual_status="ok")
+    # Return the current gate result, not an optimistic usable-reading claim.
+    return FrameAck(visual_status=visual_context(session_id, session)["status"])
 
 
 @router.post(

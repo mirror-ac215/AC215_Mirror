@@ -72,6 +72,30 @@ async def test_sessions_need_a_token_401_and_a_patient_403() -> None:
 
 
 @pytest.mark.anyio
+async def test_session_is_persisted_with_authenticated_patient_id_before_it_is_usable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import chat
+
+    calls: list[tuple[str, str, bool]] = []
+
+    class Repository:
+        async def add_session(
+            self, session_id: str, patient_id: str, started_at, camera_consent: bool
+        ) -> None:
+            calls.append((session_id, patient_id, camera_consent))
+
+    monkeypatch.setattr(chat, "repository", Repository())
+    async with client() as c:
+        response = await c.post("/sessions", json={"camera_consent": True}, headers=PATIENT)
+
+    assert response.status_code == 201
+    assert calls == [
+        (response.json()["session_id"], "00000000-0000-0000-0000-000000000201", True)
+    ]
+
+
+@pytest.mark.anyio
 async def test_frame_accepted_202_only_with_consent() -> None:
     async with client() as c:
         with_consent = await new_session(c, consent=True)
@@ -80,7 +104,7 @@ async def test_frame_accepted_202_only_with_consent() -> None:
         conflict = await c.post(f"/sessions/{without}/frames", files=FRAME, headers=PATIENT)
         unknown = await c.post("/sessions/nope/frames", files=FRAME, headers=PATIENT)
     assert ok.status_code == 202
-    assert ok.json() == {"visual_status": "ok"}
+    assert ok.json() == {"visual_status": "dropped"}
     assert conflict.status_code == 409
     assert unknown.status_code == 404
 

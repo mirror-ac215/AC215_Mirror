@@ -1,10 +1,18 @@
+from datetime import datetime
+
 import pytest
 
 
 class TestRepository:
     def __init__(self) -> None:
+        self.sessions: list[dict] = []
         self.messages: list[dict] = []
         self.flags: list[dict] = []
+
+    async def add_session(
+        self, session_id: str, patient_id: str, started_at: datetime, camera_consent: bool
+    ) -> None:
+        self.sessions.append({"id": session_id, "patient_id": patient_id})
 
     async def add_message(
         self, session_id: str, role: str, text: str, safety_hit: bool

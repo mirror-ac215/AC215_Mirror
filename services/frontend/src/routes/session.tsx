@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,9 +49,12 @@ function Session() {
   const [sessionFailed, setSessionFailed] = useState(false);
   const [attempt, setAttempt] = useState(0); // bump to retry starting the session
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraRequested, setCameraRequested] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => setRole("patient"), []);
   // Start a session with the gateway (or the mock) when the screen opens.
@@ -68,16 +71,28 @@ function Session() {
   }, [cameraConsent, attempt]);
 
   useEffect(() => {
-    if (!cameraConsent || !sessionId) return;
-    let interval: ReturnType<typeof setInterval> | undefined;
+    if (!cameraConsent || !sessionId || !cameraRequested) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraActive(false);
+      return;
+    }
+    let disposed = false;
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: false })
       .then((stream) => {
+        if (disposed) {
+          stopCamera(stream);
+          return;
+        }
         cameraStreamRef.current = stream;
-        if (!videoRef.current) return;
+        if (!videoRef.current) {
+          stopCamera(stream);
+          cameraStreamRef.current = null;
+          return;
+        }
         videoRef.current.srcObject = stream;
         setCameraActive(true);
-        interval = setInterval(async () => {
+        captureIntervalRef.current = setInterval(async () => {
           if (!videoRef.current || !cameraStreamRef.current) return;
           try {
             const jpeg = await captureJpeg(videoRef.current);
@@ -89,12 +104,14 @@ function Session() {
       })
       .catch(() => setCameraActive(false));
     return () => {
-      if (interval) clearInterval(interval);
+      disposed = true;
+      if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
       stopCamera(cameraStreamRef.current);
       cameraStreamRef.current = null;
       setCameraActive(false);
     };
-  }, [cameraConsent, sessionId]);
+  }, [cameraConsent, sessionId, cameraRequested]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -124,7 +141,17 @@ function Session() {
         }
       });
       setMessages(fillEmptyReply);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("401")) {
+        api.logout();
+        navigate({
+          to: "/",
+          search: {
+            notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
+          },
+        });
+        return;
+      }
       setMessages((m) => [
         ...m.slice(0, -1),
         { from: "bot", text: "Sorry, I couldn't reach the server. Please try again." },
@@ -227,13 +254,11 @@ function Session() {
               <button
                 type="button"
                 onClick={() => {
-                  stopCamera(cameraStreamRef.current);
-                  cameraStreamRef.current = null;
-                  setCameraActive(false);
+                  setCameraRequested((requested) => !requested);
                 }}
                 className="text-xs text-muted-ink underline"
               >
-                {cameraActive ? "Turn camera off" : "Camera unavailable — chat is text-only"}
+                {cameraActive ? "Turn camera off" : "Turn camera on"}
               </button>
             )}
             <ExpressionPanel cameraConsent={cameraConsent && cameraActive} visual={visual} />

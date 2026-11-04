@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, Protocol, Self
 
 
@@ -29,9 +30,22 @@ class InMemoryRepository:
     """Ephemeral adapter for isolated tests only; production uses PostgresRepository."""
 
     def __init__(self) -> None:
+        self.sessions: list[dict] = []
         self.messages: list[dict] = []
         self.windows: list[dict] = []
         self.flags: list[dict] = []
+
+    async def add_session(
+        self, session_id: str, patient_id: str, started_at: datetime, camera_consent: bool
+    ) -> None:
+        self.sessions.append(
+            {
+                "id": session_id,
+                "patient_id": patient_id,
+                "started_at": started_at,
+                "camera_consent": camera_consent,
+            }
+        )
 
     async def add_message(
         self, session_id: str, role: str, text: str, safety_hit: bool
@@ -73,6 +87,16 @@ class PostgresRepository:
             return psycopg.connect(dsn)
 
         return cls(connect)
+
+    async def add_session(
+        self, session_id: str, patient_id: str, started_at: datetime, camera_consent: bool
+    ) -> None:
+        await asyncio.to_thread(
+            self._execute,
+            """INSERT INTO sessions (id, patient_id, started_at, camera_consent)
+               VALUES (%s, %s, %s, %s)""",
+            (session_id, patient_id, started_at, camera_consent),
+        )
 
     async def add_message(
         self, session_id: str, role: str, text: str, safety_hit: bool

@@ -27,7 +27,7 @@ class CVClient:
 
 
 class LLMServiceClient:
-    def __init__(self, base_url: str, timeout_s: float, model: str = "mirror") -> None:
+    def __init__(self, base_url: str, timeout_s: float, model: str = "mirror-persona-v1") -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
         self._model = model

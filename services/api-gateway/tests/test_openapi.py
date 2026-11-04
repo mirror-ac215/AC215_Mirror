@@ -18,7 +18,7 @@ CONTRACT = Path(__file__).parents[3] / "docs" / "contracts" / "api-gateway.opena
 EXPECTED_CODES = {
     ("post", "/auth/login"): {"200", "401"},
     ("post", "/sessions"): {"201", "401", "403"},
-    ("post", "/sessions/{session_id}/frames"): {"202", "401", "403", "404", "409", "413", "415"},
+    ("post", "/sessions/{session_id}/frames"): {"202", "401", "403", "404", "409", "413", "415", "503"},
     ("post", "/sessions/{session_id}/messages"): {"200", "401", "403", "404"},
 }
 

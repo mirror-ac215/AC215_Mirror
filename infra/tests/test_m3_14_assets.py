@@ -146,7 +146,9 @@ def test_cleanup_policy_keeps_recent_images_and_expires_old_versions() -> None:
 def test_registry_override_resolves_with_nonsecret_values() -> None:
     """Compose must resolve a registry deployment using placeholders only."""
     env = os.environ | {
-        "POSTGRES_PASSWORD": "ci-only-password",
+        "DB_NAME": "mirror",
+        "DB_USER": "mirror_app",
+        "DB_PASSWORD": "ci-only-password",
         "MIRROR_DEMO_PASSWORD": "ci-only-demo-password",
         "CADDY_DOMAIN": "mirror.example.test",
         "LLM_ADAPTER_HOST_PATH": "/tmp/mirror-adapter",
