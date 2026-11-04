@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     llm_service_url: str = "http://llm-service:8002"
     db_host: str = "db"
     db_port: int = 5432
+    database_url: str = "postgresql://postgres:postgres@db:5432/mirror"
     dependency_timeout_s: float = 2.0
 
     # Biggest camera frame we accept. The frontend sends small downscaled JPEGs
@@ -47,13 +48,27 @@ class Settings(BaseSettings):
     # Re-run the sweep when the served model changes or our own labelled sessions
     # (M3-20) are ready. Out-of-range values are rejected at startup.
     # allow_inf_nan=False: an infinite window would keep stale frames forever.
-    gate_window_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)  # only frames from the last N seconds count
-    gate_min_frames: int = Field(default=3, ge=1)  # fewer frames with a face -> "dropped"
-    gate_min_face_ratio: float = Field(default=0.5, ge=0, le=1)  # face in under half -> "dropped"
-    gate_min_top_prob: float = Field(default=0.45, ge=0, le=1)  # averaged top emotion must reach this
-    gate_min_margin: float = Field(default=0.05, ge=0, le=1)  # ...and lead the second by this much
-    gate_min_stability: float = Field(default=0.50, ge=0, le=1)  # ...and be top in this share of frames
-    gate_max_frames: int = Field(default=30, ge=1)  # cap per session (about 30-60 s of frames)
+    gate_window_s: float = Field(
+        default=10.0, gt=0, allow_inf_nan=False
+    )  # only frames from the last N seconds count
+    gate_min_frames: int = Field(
+        default=3, ge=1
+    )  # fewer frames with a face -> "dropped"
+    gate_min_face_ratio: float = Field(
+        default=0.5, ge=0, le=1
+    )  # face in under half -> "dropped"
+    gate_min_top_prob: float = Field(
+        default=0.45, ge=0, le=1
+    )  # averaged top emotion must reach this
+    gate_min_margin: float = Field(
+        default=0.05, ge=0, le=1
+    )  # ...and lead the second by this much
+    gate_min_stability: float = Field(
+        default=0.50, ge=0, le=1
+    )  # ...and be top in this share of frames
+    gate_max_frames: int = Field(
+        default=30, ge=1
+    )  # cap per session (about 30-60 s of frames)
 
     @model_validator(mode="after")
     def _window_can_hold_enough_frames(self) -> Settings:

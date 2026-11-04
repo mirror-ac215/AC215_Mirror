@@ -12,6 +12,7 @@ import { seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
 import type { ContextObject, CrisisPayload } from "@/lib/api/types";
 import { fillEmptyReply, type ChatMessage } from "@/lib/chat";
+import { captureJpeg, stopCamera } from "@/lib/camera";
 import { setRole } from "@/lib/role";
 
 export const Route = createFileRoute("/session")({
@@ -47,6 +48,9 @@ function Session() {
   const [sending, setSending] = useState(false);
   const [sessionFailed, setSessionFailed] = useState(false);
   const [attempt, setAttempt] = useState(0); // bump to retry starting the session
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setRole("patient"), []);
@@ -62,6 +66,35 @@ function Session() {
         setSessionFailed(true);
       });
   }, [cameraConsent, attempt]);
+
+  useEffect(() => {
+    if (!cameraConsent || !sessionId) return;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: false })
+      .then((stream) => {
+        cameraStreamRef.current = stream;
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        setCameraActive(true);
+        interval = setInterval(async () => {
+          if (!videoRef.current || !cameraStreamRef.current) return;
+          try {
+            const jpeg = await captureJpeg(videoRef.current);
+            await api.sendFrame(sessionId, jpeg);
+          } catch {
+            // Camera/network errors leave chat usable as text-only.
+          }
+        }, 1500);
+      })
+      .catch(() => setCameraActive(false));
+    return () => {
+      if (interval) clearInterval(interval);
+      stopCamera(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      setCameraActive(false);
+    };
+  }, [cameraConsent, sessionId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -188,7 +221,23 @@ function Session() {
           </section>
 
           {/* side panel */}
-          <ExpressionPanel cameraConsent={cameraConsent} visual={visual} />
+          <div className="space-y-2">
+            <video ref={videoRef} autoPlay muted playsInline className="hidden" />
+            {cameraConsent && (
+              <button
+                type="button"
+                onClick={() => {
+                  stopCamera(cameraStreamRef.current);
+                  cameraStreamRef.current = null;
+                  setCameraActive(false);
+                }}
+                className="text-xs text-muted-ink underline"
+              >
+                {cameraActive ? "Turn camera off" : "Camera unavailable — chat is text-only"}
+              </button>
+            )}
+            <ExpressionPanel cameraConsent={cameraConsent && cameraActive} visual={visual} />
+          </div>
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-ink">

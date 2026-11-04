@@ -1,12 +1,8 @@
-"""Login, sessions, frames and messages.
+"""Login, sessions, camera readings, and safety-first chat turns."""
 
-v0 stubs: the shapes follow the contract, the data is fake. The real CV call,
-safety check, fusion and LLM call arrive in MS3.
-"""
-
-import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Annotated
@@ -15,10 +11,14 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from app import metrics, safety
+from app import metrics
 from app.auth import DemoUser, demo_login, require_patient
+from app.clients import CVClient, LLMServiceClient
 from app.config import Settings
-from app.logging_config import request_id_context
+from app.fusion import TurnHistory
+from app.gating import FrameReading, FrameWindow, gate
+from app.orchestration import ChatOrchestrator
+from app.repository import PostgresRepository
 from app.schemas import (
     FrameAck,
     LoginRequest,
@@ -27,37 +27,28 @@ from app.schemas import (
     Session,
     SessionCreate,
 )
+from app.text_emotion import get_text_emotion
 
-# APIRouter groups related endpoints in their own file, which keeps main.py small. Main then plus in the router
 router = APIRouter()
-
-# Reads env vars (e.g. MAX_FRAME_BYTES), falling back to config.py defaults.
 settings = Settings()
-
-# In-memory store, lost on restart. The database replaces this later (M3-10).
 sessions: dict[str, Session] = {}
-
-# Who created each session: session_id -> user_id. Kept out of Session so the
-# response shape still matches the contract.
 session_owners: dict[str, str] = {}
-
-# Review flags for the patient's clinician, one per crisis turn.
-# In memory only for now: they are lost when the gateway restarts. M3-10 writes
-# them to the review_flags table instead (and sets messages.safety_hit).
-review_flags: list[dict] = []
-
+frame_windows: dict[str, FrameWindow] = {}
+turn_histories: dict[str, TurnHistory] = {}
+conversations: dict[str, list[dict[str, str]]] = {}
+repository = PostgresRepository.from_dsn(settings.database_url)
+llm_client = LLMServiceClient(settings.llm_service_url, settings.dependency_timeout_s)
+cv_client = CVClient(settings.cv_service_url, settings.dependency_timeout_s)
 logger = logging.getLogger("mirror")
-
-STUB_REPLY = "Thanks for telling me that. What feels most important to talk about right now?"
+# Compatibility-only audit view; the durable source of review flags is Postgres.
+review_flags: list[dict] = []
 
 
 def sse(event: str, data: dict) -> str:
-    """One Server-Sent Event: an event name, a JSON data line, then a blank line."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
 def get_owned_session(session_id: str, user: DemoUser) -> Session:
-    """404 if the session doesn't exist; 403 if it belongs to another patient."""
     session = sessions.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Unknown session")
@@ -66,10 +57,15 @@ def get_owned_session(session_id: str, user: DemoUser) -> Session:
     return session
 
 
-@router.post(
-    "/auth/login",
-    responses={401: {"description": "Not logged in"}},
-)
+def visual_context(session_id: str, session: Session) -> dict:
+    return gate(
+        frame_windows[session_id].recent(time.monotonic(), settings.gate_window_s),
+        settings,
+        session.camera_consent,
+    )
+
+
+@router.post("/auth/login", responses={401: {"description": "Not logged in"}})
 def login(body: LoginRequest) -> LoginResponse:
     return demo_login(body.email, body.password)
 
@@ -92,6 +88,9 @@ def start_session(
     )
     sessions[session.session_id] = session
     session_owners[session.session_id] = user.user_id
+    frame_windows[session.session_id] = FrameWindow(settings.gate_max_frames)
+    turn_histories[session.session_id] = TurnHistory()
+    conversations[session.session_id] = []
     return session
 
 
@@ -108,21 +107,30 @@ def start_session(
     },
 )
 async def receive_frame(
-    session_id: str, image: UploadFile, user: Annotated[DemoUser, Depends(require_patient)]
+    session_id: str,
+    image: UploadFile,
+    user: Annotated[DemoUser, Depends(require_patient)],
 ) -> FrameAck:
     session = get_owned_session(session_id, user)
     if not session.camera_consent:
         raise HTTPException(status_code=409, detail="Camera consent was not given")
-
-    # Guard 1: only JPEG frames
     if image.content_type != "image/jpeg":
         raise HTTPException(status_code=415, detail="Frame must be JPEG")
-
-    # Guard 2: bounded read. Read at most one byte past the limit, so a huge
-    # upload can't fill the gateway's memory. Frames are still never stored.
     data = await image.read(settings.max_frame_bytes + 1)
     if len(data) > settings.max_frame_bytes:
         raise HTTPException(status_code=413, detail="Frame too large")
+    try:
+        prediction = await cv_client.predict(data)
+    except Exception as exc:
+        logger.warning("cv_prediction_failed", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=503, detail="Camera analysis is unavailable"
+        ) from exc
+    frame_windows[session_id].add(
+        FrameReading.from_cv_payload(prediction, time.monotonic())
+    )
+    # The upload was accepted and queued into the gate; the next chat turn uses
+    # the truthful gated status (often ``dropped`` until enough frames arrive).
     return FrameAck(visual_status="ok")
 
 
@@ -131,7 +139,7 @@ async def receive_frame(
     response_class=StreamingResponse,
     responses={
         200: {
-            "description": "Server-sent Events: token events, then done; or one crisis event",
+            "description": "Server-sent Events",
             "content": {"text/event-stream": {}},
         },
         401: {"description": "Not logged in"},
@@ -139,47 +147,56 @@ async def receive_frame(
         404: {"description": "Unknown session"},
     },
 )
-def send_message(
-    session_id: str, body: MessageRequest, user: Annotated[DemoUser, Depends(require_patient)]
+async def send_message(
+    session_id: str,
+    body: MessageRequest,
+    user: Annotated[DemoUser, Depends(require_patient)],
 ) -> StreamingResponse:
-    get_owned_session(session_id, user)
-    message_id = str(uuid4())
+    session = get_owned_session(session_id, user)
+    orchestrator = ChatOrchestrator(repository, llm_client, get_text_emotion())
+    try:
+        turn = await orchestrator.start_turn(
+            session_id=session_id,
+            patient_id=user.user_id,
+            text=body.text,
+            visual=visual_context(session_id, session),
+            history=turn_histories[session_id],
+            conversation=conversations[session_id],
+        )
+    except Exception as exc:
+        logger.error("chat_persistence_orchestration_failed", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=503, detail="Chat is temporarily unavailable"
+        ) from exc
 
-    # Safety check first (M3-07), before text emotion, fusion or the LLM.
-    result = safety.check(body.text)
-    if result.hit:
-        # Log the rule, never the text.
-        logger.info("safety_hit kind=%s rule=%s", result.kind, result.rule_id)
-    if result.kind == "crisis":
-        metrics.CRISIS_HITS.labels(rule=result.rule_id).inc()
+    if turn.crisis is not None:
+        rule = turn.safety_rule or "unknown"
+        logger.info("safety_hit kind=crisis rule=%s", rule)
+        metrics.CRISIS_HITS.labels(rule=rule).inc()
         review_flags.append(
             {
                 "patient_id": user.user_id,
                 "session_id": session_id,
-                "message_id": message_id,
-                "rule_id": result.rule_id,
+                "message_id": turn.message_id,
+                "rule_id": rule,
                 "urgency": "urgent",
-                "request_id": request_id_context.get(),
-                "created_at": datetime.now(UTC).isoformat(),
             }
         )
-        # True means "recorded in this gateway's memory", not saved to the database (M3-10).
-        payload = safety.crisis_payload(review_flag_created=True)
         return StreamingResponse(
-            iter([sse("crisis", payload)]), media_type="text/event-stream"
+            iter([sse("crisis", turn.crisis)]), media_type="text/event-stream"
         )
 
     async def events() -> AsyncIterator[str]:
-        for word in STUB_REPLY.split(" "):
-            yield sse("token", {"text": word + " "})
-            await asyncio.sleep(0.03)
-        context = {
-            "visual": {"status": "camera_off"},
-            "text": {"top2": [["neutral", 0.6]]},
-            "agreement": "n/a",
-            "tone_mode": "coach",
-            "note": "v0 stub: no real signals yet.",
-        }
-        yield sse("done", {"message_id": message_id, "context": context})
+        reply_parts: list[str] = []
+        async for token in turn.tokens:
+            reply_parts.append(token)
+            yield sse("token", {"text": token})
+        conversations[session_id].extend(
+            (
+                {"role": "user", "content": body.text},
+                {"role": "assistant", "content": "".join(reply_parts)},
+            )
+        )
+        yield sse("done", {"message_id": turn.message_id, "context": turn.context})
 
     return StreamingResponse(events(), media_type="text/event-stream")
