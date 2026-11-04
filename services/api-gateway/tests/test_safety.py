@@ -10,13 +10,16 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import auth_headers
 from httpx import ASGITransport, AsyncClient
 
 from app import chat, safety
 from app.main import app
 
 CASES = yaml.safe_load((Path(__file__).parent / "safety_cases.yaml").read_text())
-PATIENT = {"Authorization": "Bearer dev-patient-token"}
+PATIENT = auth_headers(
+    "00000000-0000-0000-0000-000000000201", "patient.alex@example.test", "patient"
+)
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c["text"][:40] for c in CASES])
@@ -52,15 +55,23 @@ def events(body: str) -> list[tuple[str, dict]]:
     out = []
     for block in body.strip().split("\n\n"):
         name, data = block.split("\n")
-        out.append((name.removeprefix("event: "), json.loads(data.removeprefix("data: "))))
+        out.append(
+            (name.removeprefix("event: "), json.loads(data.removeprefix("data: ")))
+        )
     return out
 
 
 async def send(text: str) -> list[tuple[str, dict]]:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        session = await c.post("/sessions", json={"camera_consent": False}, headers=PATIENT)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        session = await c.post(
+            "/sessions", json={"camera_consent": False}, headers=PATIENT
+        )
         sid = session.json()["session_id"]
-        response = await c.post(f"/sessions/{sid}/messages", json={"text": text}, headers=PATIENT)
+        response = await c.post(
+            f"/sessions/{sid}/messages", json={"text": text}, headers=PATIENT
+        )
     assert response.status_code == 200
     return events(response.text)
 

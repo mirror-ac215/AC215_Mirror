@@ -3,11 +3,13 @@ name = "mirror-api-gateway"
 version = "0.1.0"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "bcrypt>=5.0.0",
     "fastapi>=0.142.2",
     "httpx>=0.28.1",
     "prometheus-client>=0.23",
     "psycopg[binary]>=3.2,<4",
     "pydantic-settings>=2.15.0",
+    "pyjwt>=2.11.0",
     "python-multipart>=0.0.32",
     "torch>=2.9.1",
     "transformers>=4.57.0",

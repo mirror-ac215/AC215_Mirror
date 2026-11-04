@@ -58,6 +58,7 @@ paths:
                   role: { type: string, enum: [patient, clinician] }
                   user_id: { type: string }
         "401": { description: Wrong email or password }
+        "429": { description: Too many login attempts from this account/client pair }
 
   /sessions:
     post:

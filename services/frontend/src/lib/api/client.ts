@@ -4,7 +4,8 @@
 import { API_BASE_URL, USE_MOCK_API } from "@/lib/config";
 import * as mock from "./mock";
 import { createSseParser } from "./sse";
-import type { ChatEvent, FrameAck, LoginResponse, Role, Session } from "./types";
+import { clearAuthenticatedUser, setAuthenticatedUser } from "@/lib/role";
+import type { ChatEvent, FrameAck, LoginResponse, Session } from "./types";
 
 let accessToken: string | null = null;
 
@@ -25,14 +26,16 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 /** Forget the current user's token (on logout, and before any new login attempt). */
 export function logout(): void {
   accessToken = null;
+  clearAuthenticatedUser();
 }
 
-export async function login(email: string, password: string, role: Role): Promise<LoginResponse> {
-  logout(); // a failed login must never leave the previous user's token active
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  logout(); // a failed login must never leave the previous user's identity active
   const result = USE_MOCK_API
-    ? await mock.login(role)
+    ? await mock.login(email)
     : await postJson<LoginResponse>("/auth/login", { email, password });
   accessToken = result.access_token;
+  setAuthenticatedUser({ user_id: result.user_id, role: result.role });
   return result;
 }
 

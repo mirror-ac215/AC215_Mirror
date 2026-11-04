@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,12 +22,16 @@ class Settings(BaseSettings):
     db_port: int = 5432
     # Compose must supply the real database identity. An empty default prevents
     # accidental fallback to a shared/default credential outside Compose.
-    database_url: str = ""
+    database_url: str = Field(min_length=1)
     dependency_timeout_s: float = 2.0
     # The mock service echoes this identity; production can configure its model
     # independently from the HTTP deadline.
     llm_model: str = "mirror-persona-v1"
     llm_timeout_s: float = 30.0
+
+    # JWT signing material is runtime-only and required outside test configuration.
+    jwt_signing_key: str = Field(min_length=32)
+    jwt_expires_minutes: int = Field(default=30, ge=1, le=60)
 
     # Biggest camera frame we accept. The frontend sends small downscaled JPEGs
     # (tens of KB), so 1 MB is generous; anything larger is rejected with 413.
@@ -68,3 +74,9 @@ class Settings(BaseSettings):
         if self.gate_max_frames < self.gate_min_frames:
             raise ValueError("gate_max_frames must be at least gate_min_frames")
         return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Build one immutable runtime configuration object from environment variables."""
+    return Settings()

@@ -30,7 +30,7 @@ describe("api client (real mode)", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.login("patient.alex@example.test", "pw", "patient");
+    await api.login("patient.alex@example.test", "pw");
     await api.startSession(false);
 
     const [loginUrl, loginInit] = fetchMock.mock.calls[0]!;
@@ -48,7 +48,7 @@ describe("api client (real mode)", () => {
 
   it("throws on a failed login so the page can show an error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 401 })));
-    await expect(api.login("x@example.test", "wrong", "patient")).rejects.toThrow("401");
+    await expect(api.login("x@example.test", "wrong")).rejects.toThrow("401");
   });
   it("logout clears the token, so later requests carry no Authorization header", async () => {
     const fetchMock = vi
@@ -65,7 +65,7 @@ describe("api client (real mode)", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.login("patient.alex@example.test", "pw", "patient");
+    await api.login("patient.alex@example.test", "pw");
     api.logout();
     await api.startSession(false);
 
@@ -88,8 +88,8 @@ describe("api client (real mode)", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.login("patient.alex@example.test", "pw", "patient");
-    await expect(api.login("patient.bri@example.test", "wrong", "patient")).rejects.toThrow();
+    await api.login("patient.alex@example.test", "pw");
+    await expect(api.login("patient.bri@example.test", "wrong")).rejects.toThrow();
     await api.startSession(false);
 
     expect(fetchMock.mock.calls[2]![1].headers.Authorization).toBeUndefined();

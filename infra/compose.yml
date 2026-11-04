@@ -20,8 +20,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD}
+      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD:?set MIRROR_DEMO_PASSWORD in infra/.env}
       DATABASE_URL: postgresql://${DB_USER:?set DB_USER in infra/.env}:${DB_PASSWORD:?set DB_PASSWORD in infra/.env}@db:5432/${DB_NAME:?set DB_NAME in infra/.env}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY in infra/.env}
       LLM_MODEL: mirror-persona-v1
     depends_on:
       db:

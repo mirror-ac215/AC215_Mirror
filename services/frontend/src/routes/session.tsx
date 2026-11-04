@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,12 @@ import {
   stopCamera,
   visualFromFrameAck,
 } from "@/lib/camera";
-import { setRole } from "@/lib/role";
+import { hasRequiredRole } from "@/lib/role";
 
 export const Route = createFileRoute("/session")({
+  beforeLoad: () => {
+    if (!hasRequiredRole("patient")) throw redirect({ to: "/" });
+  },
   // The camera choice from /consent arrives as ?camera=true. Anything else, including
   // opening /session directly, means no camera: consent is never assumed.
   validateSearch: (search: Record<string, unknown>): { camera?: boolean } =>
@@ -70,7 +73,6 @@ export function Session() {
   const endRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  useEffect(() => setRole("patient"), []);
   // Start a session with the gateway (or the mock) when the screen opens.
   const cameraConsent = Route.useSearch().camera === true;
   useEffect(() => {
