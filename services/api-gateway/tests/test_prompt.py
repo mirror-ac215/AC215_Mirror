@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from app.fusion import NEGATIVE, _signals
 from app.prompt import (
+    BASE_RULES,
     MAX_HISTORY_MESSAGES,
     MODE_RULES,
     build_messages,
@@ -32,6 +34,18 @@ def test_twenty_sample_cases():
 
 
 @pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
+def test_sample_cases_use_a_mode_fusion_can_produce(case):
+    # fuse() never sends coach when a counted face or text reading is negative.
+    context = case["context"]
+    negative = any(
+        found and found[0] in NEGATIVE
+        for found in _signals(context["visual"], context["text"])
+    )
+    if negative:
+        assert context["tone_mode"] == "supportive"
+
+
+@pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
 def test_every_sample_case_renders(case):
     messages = build_messages(case["context"], case["message"], case.get("history"))
     assert messages[0]["role"] == "system"
@@ -47,6 +61,36 @@ def test_patient_text_never_enters_the_system_prompt():
     messages = build_messages(make_context(), text)
     assert text not in messages[0]["content"]
     assert messages[-1]["content"] == text
+
+
+@pytest.mark.parametrize(
+    "visual",
+    [
+        {"status": "camera_off"},
+        {"status": "dropped"},
+        {"status": "uncertain", "top2": [["neutral", 0.36], ["sad", 0.33]]},
+        {"status": "ok", "top2": [["neutral", 0.66], ["sad", 0.2]]},
+    ],
+    ids=["camera_off", "dropped", "uncertain", "ok"],
+)
+def test_question_about_the_camera_never_gets_a_reading(visual):
+    # Case 19 on the real model: "The camera thinks you're looking a bit tired."
+    system = build_system_prompt(make_context(visual=visual))
+    assert (
+        "If they ask what the camera, the app or the software sees or thinks about them, "
+        "do not report any reading and do not guess a feeling." in system
+    )
+    assert "ask how they are feeling" in system
+    assert "Never invent one" in system
+
+
+def test_rules_ask_for_reflection_length_and_honesty_about_being_a_person():
+    # Real-model review of the 20 cases: replies too short (3, 6, 7, 16, 18, 20), no
+    # reflection (7), assumptions or leading statements (1, 6), no "not a real person" (17).
+    assert "never just one" in BASE_RULES
+    assert "Start by reflecting back" in BASE_RULES
+    assert "Ask open questions, not leading ones." in BASE_RULES
+    assert "not a real person" in BASE_RULES
 
 
 def test_camera_off_says_do_not_mention():

@@ -8,7 +8,7 @@
   {
     "id": "camera-off-sad",
     "situation": "Camera off, sad words",
-    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["sadness", 0.82], ["neutral", 0.1]]}, "agreement": "n/a", "tone_mode": "coach"},
+    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["sadness", 0.82], ["neutral", 0.1]]}, "agreement": "n/a", "tone_mode": "supportive"},
     "message": "I miss my dad a lot this week."
   },
   {
@@ -26,13 +26,13 @@
   {
     "id": "camera-off-fear",
     "situation": "Camera off, worried",
-    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["fear", 0.74], ["sadness", 0.12]]}, "agreement": "n/a", "tone_mode": "coach"},
+    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["fear", 0.74], ["sadness", 0.12]]}, "agreement": "n/a", "tone_mode": "supportive"},
     "message": "I have a job interview tomorrow and I can't stop thinking about it."
   },
   {
     "id": "camera-off-anger",
     "situation": "Camera off, frustrated",
-    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["anger", 0.69], ["disgust", 0.15]]}, "agreement": "n/a", "tone_mode": "coach"},
+    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["anger", 0.69], ["disgust", 0.15]]}, "agreement": "n/a", "tone_mode": "supportive"},
     "message": "My roommate ate my food again and acted like it was nothing."
   },
   {
@@ -56,25 +56,25 @@
   {
     "id": "disagree-smile-sad-words",
     "situation": "Smiling face, sad words",
-    "context": {"visual": {"status": "ok", "top2": [["happy", 0.62], ["neutral", 0.22]], "stability": 0.8, "window_s": 10, "n_frames": 8}, "text": {"top2": [["sadness", 0.79], ["neutral", 0.1]]}, "agreement": "disagree", "tone_mode": "coach"},
+    "context": {"visual": {"status": "ok", "top2": [["happy", 0.62], ["neutral", 0.22]], "stability": 0.8, "window_s": 10, "n_frames": 8}, "text": {"top2": [["sadness", 0.79], ["neutral", 0.1]]}, "agreement": "disagree", "tone_mode": "supportive"},
     "message": "I'm fine, it's just that nobody called on my birthday."
   },
   {
     "id": "disagree-sad-face-neutral-words",
     "situation": "Sad face, neutral words",
-    "context": {"visual": {"status": "ok", "top2": [["sad", 0.55], ["neutral", 0.3]], "stability": 0.8, "window_s": 10, "n_frames": 8}, "text": {"top2": [["neutral", 0.72], ["joy", 0.1]]}, "agreement": "disagree", "tone_mode": "coach"},
+    "context": {"visual": {"status": "ok", "top2": [["sad", 0.55], ["neutral", 0.3]], "stability": 0.8, "window_s": 10, "n_frames": 8}, "text": {"top2": [["neutral", 0.72], ["joy", 0.1]]}, "agreement": "disagree", "tone_mode": "supportive"},
     "message": "Just went grocery shopping, the usual."
   },
   {
     "id": "uncertain-face",
     "situation": "Unclear face reading",
-    "context": {"visual": {"status": "uncertain", "top2": [["neutral", 0.36], ["sad", 0.33]], "stability": 0.8, "window_s": 10, "n_frames": 8}, "text": {"top2": [["sadness", 0.6], ["neutral", 0.2]]}, "agreement": "n/a", "tone_mode": "coach"},
+    "context": {"visual": {"status": "uncertain", "top2": [["neutral", 0.36], ["sad", 0.33]], "stability": 0.8, "window_s": 10, "n_frames": 8}, "text": {"top2": [["sadness", 0.6], ["neutral", 0.2]]}, "agreement": "n/a", "tone_mode": "supportive"},
     "message": "Long day."
   },
   {
     "id": "dropped-face",
     "situation": "Face lost (looked away)",
-    "context": {"visual": {"status": "dropped"}, "text": {"top2": [["fear", 0.66], ["neutral", 0.2]]}, "agreement": "n/a", "tone_mode": "coach"},
+    "context": {"visual": {"status": "dropped"}, "text": {"top2": [["fear", 0.66], ["neutral", 0.2]]}, "agreement": "n/a", "tone_mode": "supportive"},
     "message": "My exam results come out Friday."
   },
   {
@@ -86,7 +86,7 @@
   {
     "id": "coach-next-step",
     "situation": "Coach mode, asks for help",
-    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["fear", 0.58], ["neutral", 0.3]]}, "agreement": "n/a", "tone_mode": "coach"},
+    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["fear", 0.58], ["neutral", 0.3]]}, "agreement": "n/a", "tone_mode": "supportive"},
     "message": "I keep putting off emailing my professor. How do I start?"
   },
   {
