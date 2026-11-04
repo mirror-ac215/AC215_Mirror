@@ -25,7 +25,7 @@ The **gap** for a measure is the highest group minus the lowest, among groups wi
 - **Gate on a photo.** A photo is one steady frame: stability is always 1.0, and only the gateway's top-probability (0.45) and margin (0.05) rules apply. A test keeps these equal to the gateway defaults in `services/api-gateway/app/config.py`.
 - **No face found.** cv-service would answer "no face"; the audit records that and still scores the whole photo. The model's own behaviour can therefore be compared on every photo.
 - **Children.** Ages 0-2 and 3-9 are excluded from the gaps (Mirror's patients are teenagers and adults) and reported in their own table.
-- **Model.** `cv-vit-b16-v4` (`docs/artifacts.md`), a candidate: cv-service still serves v3 until it switches (#61). `score` refuses a checkpoint whose sha256 differs from `model.sha256`, and `report` refuses predictions from another model version.
+- **Model.** `cv-vit-b16-v4` (`docs/artifacts.md`), audited as a candidate; cv-service now serves it. `score` refuses a checkpoint whose sha256 differs from `model.sha256`, and `report` refuses predictions from another model version.
 - **Data.** FairFace from Hugging Face at the commit in `data.revision`; `score` refuses a label file whose sha256 differs from `data.labels_sha256`.
 - **Predictions stay out of git.** `predictions.csv` has one row per photo with its group labels. Inside the repository, `score` only writes it to a git-ignored path such as `outputs/`.
 

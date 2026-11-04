@@ -8,7 +8,7 @@ def test_load_model_downloads_configured_checkpoint_to_cpu(tmp_path: Path) -> No
     from app.runtime import ModelSettings, load_model
 
     class Blob:
-        name = "models/cv/inherited-v3/vit_b16_v3_best.pth"
+        name = "models/cv/v4/vit_b16_v4.pth"
 
         def download_to_filename(self, filename: str) -> None:
             torch.save({"state_dict": {"weight": torch.tensor([1.0])}}, filename)
@@ -46,7 +46,7 @@ def test_load_model_downloads_configured_checkpoint_to_cpu(tmp_path: Path) -> No
 
     assert storage_client.requested_bucket == "mirror-ac215-data"
     assert storage_client.bucket_instance.requested_blob == (
-        "models/cv/inherited-v3/vit_b16_v3_best.pth"
+        "models/cv/v4/vit_b16_v4.pth"
     )
     assert model.weight.detach().tolist() == [1.0]
     assert model.training is False

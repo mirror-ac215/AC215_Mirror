@@ -18,7 +18,7 @@ from PIL import Image, UnidentifiedImageError
 
 from app.runtime import ModelSettings, load_runtime
 
-DEFAULT_MODEL_VERSION = "cv-vit-b16-v3"
+DEFAULT_MODEL_VERSION = "cv-vit-b16-v4"
 FaceDetector = Callable[[np.ndarray], np.ndarray | None]
 Classifier = Callable[[np.ndarray], Mapping[str, float]]
 logger = logging.getLogger("mirror.cv-service")

@@ -107,5 +107,5 @@ components:
         uncertain:
           type: [boolean, "null"]
           description: true when margin is below the service threshold; null when face_found is false
-        model_version: { type: string, example: cv-vit-b16-v3 }
+        model_version: { type: string, example: cv-vit-b16-v4 }
         latency_ms: { type: number }

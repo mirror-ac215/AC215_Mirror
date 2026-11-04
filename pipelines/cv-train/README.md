@@ -1,6 +1,6 @@
 # Mirror CV training (M2-17)
 
-Trains Mirror's facial-expression model: an ImageNet ViT-B/16, fully fine-tuned on FER-2013 to 7 emotions. This is the **baseline recipe** behind the model that `cv-service` serves today (`cv-vit-b16-v3`). It is now a containerised, tested, parameterised job instead of a notebook.
+Trains Mirror's facial-expression model: an ImageNet ViT-B/16, fully fine-tuned on FER-2013 to 7 emotions. This is the **baseline recipe** behind `cv-vit-b16-v3`, the model `cv-service` served before v4. It is now a containerised, tested, parameterised job instead of a notebook.
 
 ```
 data/processed/fer2013/v1 (DVC) ──> mirror-cv-train ──> checkpoint (.pth) ──> GCS models/cv/<version>/
@@ -90,7 +90,7 @@ uv run pytest -v        # 19 tests: loss, class weights, samplers, Mixup/CutMix,
 ```
 
 ## M3-01: v4, retrained on real video (MS3)
-> **Status: experimental.** v4 is published to GCS but not served: cv-service still serves `cv-vit-b16-v3` until the serving handoff (M3-03/M3-10). The scores below are candidate results, not an accepted serving decision.
+> **Status: served.** v4 is published to GCS and cv-service now serves it (M3-03). The scores below are its test results.
 
 FER-2013 is small and posed; MS1 feedback asked for more realistic data. **v4** (`cv-vit-b16-v4`) is v3 fine-tuned on **Aff-Wild2** video frames together with **FER+** photos, whose labels are the vote shares of 10 annotators (soft labels). Recipe: `params_m3-01.yaml` plus the run's `--set` options (recorded in W&B and inside the checkpoint).
 
@@ -137,7 +137,7 @@ Why C3: within the noise of the best video score, the best FER+ score, and the s
 - Mixing in photos costs no video quality and stops the model forgetting them (A vs B).
 - The limit is data, not settings: on video, fear is read as surprise and sadness as neutral in every run, and balancing (C4) or freezing (C5) did not change it. Aff-Wild2 has only 16-28 training people per rare emotion. More people per emotion (RAF-DB, AffectNet, our consented M3-20 sessions) is the next lever, plus face alignment in `cv-service` to match Aff-Wild2's aligned crops.
 - A model pre-trained on ~400k AffectNet faces (HSEmotion) reaches the same ceiling: used as-is it scores 0.314, and every way of training it on our data (H1-H3) peaks at the first epoch within 0.01 of that, with lower photo scores than v4. It is better at fear, worse at anger. v4 stays the model: equal on video, better on photos, a drop-in for cv-service, and our own licence (HSEmotion weights are research-only). The EfficientNet support (`model.architecture`, `model.global_pool`, `model.train_only_head`) stays in cv-train, off by default, for when more data arrives. The HSEmotion start checkpoint is rebuilt from its ONNX release with `scripts/convert_hsemotion.py` (no pickle; output identical to the original).
-- v4 is published but **not yet served**: switching `cv-service` is integration work (M3-03/M3-10).
+- v4 is published and **served** by `cv-service` (M3-03).
 
 **Caveats**
 - **Near-duplicate photos:** FER-2013 has some near-duplicate faces across its Training and PublicTest/PrivateTest parts. Training on FER+ train therefore lifts the FER+ test score a little through those. v3 was trained on the same Training photos, so the v3 vs v4 comparison is fair; the Aff-Wild2 test score (separate people) is not affected.
@@ -145,7 +145,7 @@ Why C3: within the noise of the best video score, the best FER+ score, and the s
 
 ## M3-01: multi-source training (experimental)
 
-> **Status: experimental.** This recipe produces candidate checkpoints only. It does not change the served model: cv-service still serves `cv-vit-b16-v3` until a candidate passes the final cv-eval and is handed to serving (below).
+> **Status: experimental.** This recipe produces candidate checkpoints only. It does not change the served model: cv-service keeps serving `cv-vit-b16-v4` until a new candidate passes the final cv-eval and is handed to serving (below).
 
 **Inputs (all must exist before a run):**
 
