@@ -86,7 +86,7 @@
   {
     "id": "coach-next-step",
     "situation": "Coach mode, asks for help",
-    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["fear", 0.58], ["neutral", 0.3]]}, "agreement": "n/a", "tone_mode": "supportive"},
+    "context": {"visual": {"status": "camera_off"}, "text": {"top2": [["neutral", 0.6], ["fear", 0.2]]}, "agreement": "n/a", "tone_mode": "coach"},
     "message": "I keep putting off emailing my professor. How do I start?"
   },
   {

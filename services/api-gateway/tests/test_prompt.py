@@ -82,6 +82,8 @@ def test_question_about_the_camera_never_gets_a_reading(visual):
     )
     assert "ask how they are feeling" in system
     assert "Never invent one" in system
+    # A feeling the patient states can still be reflected back.
+    assert "a feeling the patient told you" in system
 
 
 def test_rules_ask_for_reflection_length_and_honesty_about_being_a_person():
