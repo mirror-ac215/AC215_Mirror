@@ -39,6 +39,20 @@ export async function captureJpeg(
   }
 }
 
+export async function attachCameraStream(
+  video: HTMLVideoElement,
+  stream: MediaStream,
+): Promise<void> {
+  video.srcObject = stream;
+  await video.play();
+}
+
+/** Log only the error class so diagnostics never expose media or network details. */
+export function reportCameraCaptureFailure(error: unknown): void {
+  const errorType = error instanceof Error ? error.name : typeof error;
+  console.warn("camera_capture_failed", { error_type: errorType });
+}
+
 export function stopCamera(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track) => track.stop());
 }

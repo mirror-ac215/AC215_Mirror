@@ -10,9 +10,8 @@ j-hartmann/emotion-english-distilroberta-base. It already outputs Mirror's
 7 labels, the same 7 the camera model uses: face and text can be compared.
 
 Design notes (useful for the oral check):
-- The model is loaded lazily, on the first message or on warm_up(), not at
-  import time. Importing this file costs nothing: tests and the rest of
-  the gateway don't need torch or a model download.
+- The model is loaded during gateway startup from a pre-provisioned local cache;
+  imports remain lightweight and startup degrades safely to text-only if unavailable.
 - The classifier is injectable. Unit tests pass a small fake function and
   run in milliseconds in CI with no network.
 - The crisis check (M3-07) runs before this module, and never depends on it:
@@ -108,6 +107,9 @@ def load_hf_classifier(model_name: str, revision: str, max_tokens: int) -> Class
         revision=revision,
         top_k=None,  # return scores for all 7 labels, not just the best one
         device=-1,  # -1 = CPU
+        # Serving must use the reviewed model cache, never fetch weights or tokenizer data at runtime.
+        model_kwargs={"local_files_only": True},
+        tokenizer_kwargs={"local_files_only": True},
     )
 
     def classify(text: str) -> dict[str, float]:

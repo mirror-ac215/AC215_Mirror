@@ -44,8 +44,8 @@ export function ExpressionPanel({ cameraConsent, visual }: Props) {
           </p>
         </div>
         <p className="px-1 text-[11px] leading-relaxed text-muted-ink">
-          Replies are based on your messages only. You can turn the camera on next time from the
-          consent screen.
+          Replies are based on your messages only. Turn the camera on above to restart expression
+          sensing.
         </p>
       </aside>
     );

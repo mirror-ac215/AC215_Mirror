@@ -1,4 +1,5 @@
 import time
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
@@ -9,11 +10,24 @@ from app.chat import router as chat_router
 from app.config import Settings
 from app.health import check_dependencies
 from app.logging_config import configure_logging, request_id_context
+from app.text_emotion import TextEmotionUnavailable, get_text_emotion
 
 settings = Settings()
 logger = configure_logging(settings.log_level)
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Warm the local text model before serving without downloading model data."""
+    try:
+        get_text_emotion().warm_up()
+    except TextEmotionUnavailable as exc:
+        # Text emotion remains optional; individual turns preserve the text-only fallback.
+        logger.warning("text_emotion_warmup_failed", extra={"error_type": type(exc).__name__})
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

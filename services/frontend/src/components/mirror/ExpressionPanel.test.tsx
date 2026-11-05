@@ -13,6 +13,19 @@ describe("ExpressionPanel", () => {
     expect(screen.queryByText(/predicted expression/i)).toBeNull();
   });
 
+  it("clears an old visual reading while camera is off and identifies the on-screen restart control", () => {
+    render(
+      <ExpressionPanel
+        cameraConsent={false}
+        visual={{ status: "ok", top2: [["happy", 0.9]] as [string, number][] }}
+      />,
+    );
+    expect(screen.queryByText("Happy")).toBeNull();
+    expect(
+      screen.getByText(/turn the camera on above to restart expression sensing/i),
+    ).toBeTruthy();
+  });
+
   it("before the first reply: no numbers yet", () => {
     render(<ExpressionPanel cameraConsent={true} visual={null} />);
     expect(screen.getByText(/no reading yet/i)).toBeTruthy();

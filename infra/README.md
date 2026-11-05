@@ -58,6 +58,22 @@ Compose reads `infra/.env` automatically (it sits next to `compose.yml`). It is 
 
 If any required value is missing, Compose refuses to start and names the missing variable.
 
+### Migration from the pre-M3-10 `infra/.env`
+
+Existing local files used `POSTGRES_PASSWORD` and `MIRROR_DEMO_PASSWORD`. Before starting this
+revision, replace the former with the explicit database settings, preserving its value:
+
+```dotenv
+DB_NAME=mirror
+DB_USER=mirror_app
+DB_PASSWORD=<the previous POSTGRES_PASSWORD value>
+MIRROR_DEMO_PASSWORD=<existing value>
+```
+
+Remove `POSTGRES_PASSWORD`; Compose no longer reads it. **Do not reset `db-data` merely for this
+environment-variable migration** when those database identity values are unchanged. A reset is
+required only when changing `init.sql`, `seed.sh`, or `MIRROR_DEMO_PASSWORD`, as described below.
+
 Demo users (from `services/db/seed.sh`): `clinician.ada@example.test`, `patient.alex@example.test`, `patient.bri@example.test`, all with `MIRROR_DEMO_PASSWORD`.
 
 ## Everyday commands

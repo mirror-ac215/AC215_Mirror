@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { captureJpeg } from "./camera";
+import { describe, expect, it, vi } from "vitest";
+import { attachCameraStream, captureJpeg, reportCameraCaptureFailure } from "./camera";
 
 describe("captureJpeg", () => {
   it("captures a downscaled JPEG and releases the source bitmap", async () => {
@@ -28,5 +28,39 @@ describe("captureJpeg", () => {
     expect(canvas.width).toBe(320);
     expect(canvas.height).toBe(180);
     expect(closed).toBe(true);
+  });
+});
+
+describe("attachCameraStream", () => {
+  it("assigns each stream and immediately starts playback for recovery after an off/on cycle", async () => {
+    const assigned: MediaStream[] = [];
+    const video = {
+      set srcObject(stream: MediaStream | null) {
+        if (stream) assigned.push(stream);
+      },
+      play: async () => undefined,
+    } as unknown as HTMLVideoElement;
+    const first = {} as MediaStream;
+    const second = {} as MediaStream;
+    const play = vi.spyOn(video, "play");
+
+    await attachCameraStream(video, first);
+    await attachCameraStream(video, second);
+
+    expect(assigned).toEqual([first, second]);
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("reportCameraCaptureFailure", () => {
+  it("logs only a safe error type and never an error message", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = new Error("private camera or network details");
+
+    reportCameraCaptureFailure(error);
+
+    expect(warn).toHaveBeenCalledWith("camera_capture_failed", { error_type: "Error" });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(error.message);
+    warn.mockRestore();
   });
 });
