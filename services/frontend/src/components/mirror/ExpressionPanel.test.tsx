@@ -56,4 +56,31 @@ describe("ExpressionPanel", () => {
     expect(screen.queryByText(/contempt/i)).toBeNull();
     expect(screen.queryByText(/%/)).toBeNull();
   });
+
+  it("an ok reading whose top label is below 0.40 shows no numbers, like the prompt", () => {
+    const visual = {
+      status: "ok" as const,
+      top2: [
+        ["sad", 0.39],
+        ["neutral", 0.3],
+      ] as [string, number][],
+    };
+    render(<ExpressionPanel cameraConsent={true} visual={visual} />);
+    expect(screen.queryByText("Sad")).toBeNull();
+    expect(screen.queryByText(/%/)).toBeNull();
+    expect(screen.getByText(/unclear/i)).toBeTruthy();
+  });
+
+  it("an ok reading at exactly 0.40 is shown", () => {
+    const visual = {
+      status: "ok" as const,
+      top2: [
+        ["happy", 0.4],
+        ["neutral", 0.35],
+      ] as [string, number][],
+    };
+    render(<ExpressionPanel cameraConsent={true} visual={visual} />);
+    expect(screen.getByText("Happy")).toBeTruthy();
+    expect(screen.getByText("40%")).toBeTruthy();
+  });
 });

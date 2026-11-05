@@ -18,6 +18,10 @@ const LABELS: Record<string, string> = {
   surprise: "Surprised",
 };
 
+// Same bar as the prompt template: MIN_VISUAL_PROB in services/api-gateway/app/prompt.py (M3-08).
+// Below it the reply does not mention the face, and the panel does not show numbers either.
+const MIN_VISUAL_PROB = 0.4;
+
 // What the patient sees when there is no trusted reading. No numbers in these states.
 const UNCLEAR = "The reading is unclear right now, so it is not used.";
 const NO_READING: Record<string, string> = {
@@ -47,8 +51,12 @@ export function ExpressionPanel({ cameraConsent, visual }: Props) {
     );
   }
 
-  // Only an "ok" reading with known labels is shown as numbers (same rule as the prompt, M3-08).
-  const top2 = visual?.status === "ok" ? (visual.top2 ?? []).filter(([l]) => l in LABELS) : [];
+  // Numbers only for an "ok" reading whose top label is known and at least MIN_VISUAL_PROB:
+  // the same rule the prompt uses (M3-08), therefore the screen and the reply agree.
+  const raw = visual?.status === "ok" ? (visual.top2 ?? []) : [];
+  const first = raw[0];
+  const trusted = first !== undefined && first[0] in LABELS && first[1] >= MIN_VISUAL_PROB;
+  const top2 = trusted ? raw.filter(([l]) => l in LABELS) : [];
 
   return (
     <aside className="space-y-5">
