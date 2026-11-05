@@ -18,9 +18,14 @@ vi.mock("@/lib/api/client", () => ({
   sendMessage: vi.fn(),
   logout: vi.fn(),
 }));
+vi.mock("@/lib/config", () => ({ API_BASE_URL: "http://gateway.test", USE_MOCK_API: false }));
 vi.mock("@/components/mirror/TopNav", () => ({ TopNav: () => null }));
 vi.mock("@/components/mirror/CrisisDialog", () => ({ CrisisDialog: () => null }));
-vi.mock("@/components/mirror/ExpressionPanel", () => ({ ExpressionPanel: () => null }));
+vi.mock("@/components/mirror/ExpressionPanel", () => ({
+  ExpressionPanel: ({ videoRef }: { videoRef: React.RefObject<HTMLVideoElement | null> }) => (
+    <video ref={videoRef} />
+  ),
+}));
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -42,6 +47,15 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
 });
 
 describe("Session camera lifecycle", () => {
+  it("starts a real session with the greeting and no demo messages", async () => {
+    startSession.mockRejectedValue(new Error("/sessions failed with 503"));
+
+    render(<Session />);
+
+    expect(await screen.findByText(/glad you're here/i)).toBeTruthy();
+    expect(screen.queryByText(/overwhelmed/i)).toBeNull();
+  });
+
   it("redirects to login with 988 and 911 guidance when session creation returns 401", async () => {
     startSession.mockRejectedValue(new Error("/sessions failed with 401"));
 

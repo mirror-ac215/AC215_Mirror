@@ -8,7 +8,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CrisisDialog } from "@/components/mirror/CrisisDialog";
 import { ExpressionPanel } from "@/components/mirror/ExpressionPanel";
 import { TopNav } from "@/components/mirror/TopNav";
-import { seededChat } from "@/lib/mirror-data";
+import { USE_MOCK_API } from "@/lib/config";
+import { openingLine, seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
 import type { ContextObject, CrisisPayload } from "@/lib/api/types";
 import { fillEmptyReply, type ChatMessage } from "@/lib/chat";
@@ -17,6 +18,7 @@ import {
   captureJpeg,
   reportCameraCaptureFailure,
   stopCamera,
+  visualFromFrameAck,
 } from "@/lib/camera";
 import { setRole } from "@/lib/role";
 
@@ -45,7 +47,10 @@ export const Route = createFileRoute("/session")({
 });
 
 export function Session() {
-  const [messages, setMessages] = useState<ChatMessage[]>(seededChat);
+  // Demo messages only in mock mode: a real session starts with the greeting alone.
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    USE_MOCK_API ? seededChat : [{ from: "bot", text: openingLine }],
+  );
   const [draft, setDraft] = useState("");
   const [crisis, setCrisis] = useState<CrisisPayload | null>(null);
   const [visual, setVisual] = useState<ContextObject["visual"] | null>(null);
@@ -128,7 +133,9 @@ export function Session() {
           if (!videoRef.current || !cameraStreamRef.current) return;
           try {
             const jpeg = await captureJpeg(videoRef.current);
-            await api.sendFrame(sessionId, jpeg);
+            const ack = await api.sendFrame(sessionId, jpeg);
+            // Camera turned off while this frame was on its way: keep the panel clear.
+            if (cameraStreamRef.current) setVisual(visualFromFrameAck(ack));
           } catch (error) {
             stopWithIssue(error);
           }
@@ -281,7 +288,6 @@ export function Session() {
 
           {/* side panel */}
           <div className="space-y-2">
-            <video ref={videoRef} autoPlay muted playsInline className="hidden" />
             {cameraConsent && (
               <button
                 type="button"
@@ -298,7 +304,11 @@ export function Session() {
               </button>
             )}
             {cameraIssue && <p className="text-xs text-safety">{cameraIssue}</p>}
-            <ExpressionPanel cameraConsent={cameraConsent && cameraActive} visual={visual} />
+            <ExpressionPanel
+              cameraConsent={cameraConsent && cameraActive}
+              visual={visual}
+              videoRef={videoRef}
+            />
           </div>
         </div>
 

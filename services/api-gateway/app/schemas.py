@@ -29,6 +29,8 @@ class Session(BaseModel):
 
 class FrameAck(BaseModel):
     visual_status: VisualStatus
+    # Smoothed over the gate window, never one frame. Only present when the status is "ok".
+    top2: list[tuple[str, float]] | None = None
 
 class MessageRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)

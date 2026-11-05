@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import * as api from "@/lib/api/client";
+import { USE_MOCK_API } from "@/lib/config";
 import { setRole, useRole, type Role } from "@/lib/role";
 
 export const Route = createFileRoute("/")({
@@ -126,7 +127,8 @@ function Login() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-ink">
-          Prototype for demonstration — not medical advice. In mock mode any credentials work.
+          Prototype for demonstration — not medical advice.
+          {USE_MOCK_API && " In mock mode any credentials work."}
         </p>
       </div>
     </main>
