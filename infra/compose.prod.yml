@@ -24,6 +24,9 @@ services:
       DTYPE: ${LLM_DTYPE:-auto}
       MAX_MODEL_LEN: ${LLM_MAX_MODEL_LEN:-2048}
       MAX_NUM_SEQS: ${LLM_MAX_NUM_SEQS:-1}
+      # FlashInfer's sampler crashes on the deployed T4/vLLM combination.
+      # Keep this explicit in Git rather than relying on a VM-only edit.
+      VLLM_USE_FLASHINFER_SAMPLER: "${VLLM_USE_FLASHINFER_SAMPLER:-0}"
     volumes:
       - type: bind
         source: ${LLM_ADAPTER_HOST_PATH:?set LLM_ADAPTER_HOST_PATH in infra/.env.prod}

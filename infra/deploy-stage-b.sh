@@ -9,7 +9,7 @@ if [[ ! -f infra/.env.prod ]]; then
   exit 64
 fi
 
-for command in docker git; do
+for command in docker git gcloud; do
   command -v "$command" >/dev/null 2>&1 || {
     printf 'Required command not found: %s\n' "$command" >&2
     exit 69
@@ -27,6 +27,11 @@ for name in MIRROR_IMAGE_REGISTRY MIRROR_IMAGE_REPOSITORY MIRROR_IMAGE_TAG; do
     exit 64
   fi
 done
+
+if [[ ! "$MIRROR_IMAGE_REGISTRY" =~ ^[a-z0-9-]+-docker\.pkg\.dev$ ]]; then
+  printf 'MIRROR_IMAGE_REGISTRY must be an Artifact Registry host, such as us-central1-docker.pkg.dev.\n' >&2
+  exit 64
+fi
 
 if [[ ! "$MIRROR_IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
   printf 'MIRROR_IMAGE_TAG must be the 40-character lowercase Git SHA published by CI.\n' >&2
@@ -48,10 +53,38 @@ compose=(
   -f infra/compose.registry.yml
 )
 
+gcloud auth configure-docker "$MIRROR_IMAGE_REGISTRY" --quiet
 "${compose[@]}" config --quiet
 "${compose[@]}" pull
+# This forces Hugging Face to re-fetch and parse each safetensors shard before
+# vLLM starts. It prevents a partially cached shard from passing /health alone.
+bash infra/prepare-llm-model.sh
 "${compose[@]}" up -d --no-build --wait --wait-timeout 600
 "${compose[@]}" ps
+
+"${compose[@]}" exec -T llm-service python3 -c '
+import json
+import urllib.request
+
+request = urllib.request.Request(
+    "http://localhost:8002/v1/chat/completions",
+    data=json.dumps({
+        "model": "mirror-persona-v1",
+        "messages": [{"role": "user", "content": "Reply with the single word READY."}],
+        "max_tokens": 8,
+        "temperature": 0,
+    }).encode(),
+    headers={"Content-Type": "application/json"},
+)
+with urllib.request.urlopen(request, timeout=120) as response:
+    payload = json.load(response)
+text = payload["choices"][0]["message"]["content"]
+if not isinstance(text, str) or not text.strip() or len(text) > 1024:
+    raise SystemExit("llm smoke response was empty or implausibly large")
+if sum(character.isprintable() or character.isspace() for character in text) / len(text) < 0.95:
+    raise SystemExit("llm smoke response contained non-printable output")
+print("llm smoke response validated")
+'
 
 printf '\nStage B deployment is running immutable Artifact Registry images tagged %s.\n' "$MIRROR_IMAGE_TAG"
 printf 'Record the resolved image digests with: docker compose --env-file infra/.env.prod -f infra/compose.yml -f infra/compose.prod.yml -f infra/compose.registry.yml images\n'

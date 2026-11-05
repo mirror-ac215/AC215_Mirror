@@ -69,6 +69,9 @@ class StageAAssetTests(unittest.TestCase):
 
         self.assertIn("ubuntu-drivers", bootstrapper)
         self.assertIn("nvidia-driver-535", bootstrapper)
+        self.assertIn('DEPLOY_USER="${SUDO_USER:-$(id -un)}"', bootstrapper)
+        self.assertIn('$SUDO usermod -aG docker "$DEPLOY_USER"', bootstrapper)
+        self.assertIn("driver version", bootstrapper)
         self.assertIn("REBOOT_REQUIRED", bootstrapper)
         self.assertIn("reboot", bootstrapper)
         self.assertIn("docker run --rm --gpus all", bootstrapper)
@@ -142,9 +145,40 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("gcloud compute scp", readme)
 
     def test_stage_a_shell_scripts_parse(self) -> None:
-        for script in (INFRA / "deploy-stage-a.sh", INFRA / "gcp" / "bootstrap-vm.sh", INFRA / "gcp" / "provision-t4-vm.sh"):
+        for script in (
+            INFRA / "deploy-stage-a.sh",
+            INFRA / "deploy-stage-b.sh",
+            INFRA / "prepare-llm-model.sh",
+            INFRA / "gcp" / "bootstrap-vm.sh",
+            INFRA / "gcp" / "provision-t4-vm.sh",
+        ):
             result = run("bash", "-n", str(script))
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_stage_b_disables_t4_incompatible_flashinfer_sampler_and_allows_slow_first_model_start(self) -> None:
+        compose = (INFRA / "compose.prod.yml").read_text()
+        dockerfile = (REPO / "services" / "llm-service" / "Dockerfile").read_text()
+
+        self.assertIn('VLLM_USE_FLASHINFER_SAMPLER: "${VLLM_USE_FLASHINFER_SAMPLER:-0}"', compose)
+        self.assertIn("--start-period=600s", dockerfile)
+
+    def test_stage_b_prepares_an_integrity_checked_model_before_starting_services(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+        preparer = (INFRA / "prepare-llm-model.sh").read_text()
+
+        self.assertIn("bash infra/prepare-llm-model.sh", deployer)
+        self.assertIn("HF_HUB_DISABLE_XET", preparer)
+        self.assertIn("snapshot_download", preparer)
+        self.assertIn("allow_patterns", preparer)
+        self.assertIn("model artifact validation", preparer)
+        self.assertIn("llm smoke response", deployer)
+
+    def test_stage_b_authenticates_docker_to_the_configured_artifact_registry_host(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+
+        self.assertIn("gcloud auth configure-docker", deployer)
+        self.assertIn("MIRROR_IMAGE_REGISTRY", deployer)
+        self.assertIn("Artifact Registry host", deployer)
 
     def test_production_compose_resolves_to_only_caddy_public_ports_and_gpu_llm(self) -> None:
         result = run(
