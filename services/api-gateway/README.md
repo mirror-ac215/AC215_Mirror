@@ -194,7 +194,7 @@ uv run pytest -q
 
 Each turn the model gets:
 
-1. Fixed rules: 2 to 4 sentences, at most one question, never claims to be a person or a clinician, no medical advice, never mentions cameras or numbers.
+1. Fixed rules: 2 to 4 sentences (never one), reflect first, no assumptions or leading questions, at most one question, says plainly it is not a real person or a clinician, no medical advice, never mentions cameras or numbers. If asked what the camera or software sees, it reports no reading and asks how they feel; it never names a feeling the signals do not give.
 2. The mode from fusion (M3-06): **supportive** by default, **coach** only after steady turns.
 3. This turn's signals in plain words, for example:
    - `Face: their expression may look sad. This is an estimate.`
