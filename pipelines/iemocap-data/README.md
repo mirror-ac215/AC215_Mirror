@@ -85,14 +85,22 @@ non-commercial use only; no redistribution**. Consequently:
 
 ## Run (fresh clone)
 
-The archive is in the bucket at
-`gs://mirror-ac215-data/data/raw/iemocap/IEMOCAP_full_release.tar.gz`
-(17,695,884,032 bytes). It is tracked with `dvc import-url --no-download` (`raw-iemocap.dvc` at the
-repo root, like `raw-fer2013.dvc`); `dvc pull` fetches it. Credentials: a Google account with access to the
-`mirror-ac215` project.
+**Just the evaluation table (1.2 MB):** most people only need this.
 
 ```bash
 gcloud auth application-default login                        # choose the project account
+dvc pull iemocap_build
+```
+
+**Rebuilding the table** needs the archive. It is in the bucket at
+`gs://mirror-ac215-data/data/raw/iemocap/IEMOCAP_full_release.tar.gz`
+(17,695,884,032 bytes) and tracked with `dvc import-url --no-download` (`raw-iemocap.dvc` at the
+repo root, like `raw-fer2013.dvc`). It is not in the DVC remote, thus `dvc pull` does not fetch it.
+Credentials: a Google account with access to the `mirror-ac215` project.
+
+```bash
+gcloud auth application-default login                        # choose the project account
+gcloud storage cp gs://mirror-ac215-data/data/raw/iemocap/IEMOCAP_full_release.tar.gz data/raw/iemocap/   # 17.7 GB
 dvc repro iemocap_build
 dvc push                                                     # share the new output
 ```
