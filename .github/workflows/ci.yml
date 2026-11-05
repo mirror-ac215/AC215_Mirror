@@ -291,7 +291,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Throwaway values for CI only. Compose reads these instead of infra/.env.
-      POSTGRES_PASSWORD: ci-only-password
+      DB_NAME: mirror
+      DB_USER: mirror_app
+      DB_PASSWORD: ci-only-password
       MIRROR_DEMO_PASSWORD: ci-only-demo-password
     steps:
       - name: Check out repository
@@ -313,6 +315,9 @@ jobs:
         run: |
           curl -fsS http://localhost:8000/health
           curl -fsS http://localhost:3000/health
+
+      - name: Exercise durable ordinary and crisis chat turns
+        run: bash infra/tests/test_compose_chat.sh
 
       - name: Show logs if anything failed
         if: failure()

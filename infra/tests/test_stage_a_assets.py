@@ -18,7 +18,9 @@ INFRA = Path(__file__).resolve().parents[1]
 REPO = INFRA.parent
 DUMMY_ENV = {
     **os.environ,
-    "POSTGRES_PASSWORD": "dummy-postgres-password",
+    "DB_NAME": "mirror",
+    "DB_USER": "mirror_app",
+    "DB_PASSWORD": "dummy-postgres-password",
     "MIRROR_DEMO_PASSWORD": "dummy-demo-password",
     "CADDY_DOMAIN": "stage-a.example.test",
     "CADDY_EMAIL": "ops@example.test",
@@ -173,7 +175,7 @@ class StageAAssetTests(unittest.TestCase):
 
     def test_production_example_has_no_secret_values(self) -> None:
         example = (INFRA / ".env.prod.example").read_text()
-        for variable in ("POSTGRES_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN=", "LLM_ADAPTER_HOST_PATH="):
+        for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN=", "LLM_ADAPTER_HOST_PATH="):
             self.assertIn(variable, example)
         self.assertNotIn("replace-me", example.lower())
         self.assertNotIn("password123", example.lower())

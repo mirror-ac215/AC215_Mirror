@@ -18,7 +18,14 @@ class Settings(BaseSettings):
     llm_service_url: str = "http://llm-service:8002"
     db_host: str = "db"
     db_port: int = 5432
+    # Compose must supply the real database identity. An empty default prevents
+    # accidental fallback to a shared/default credential outside Compose.
+    database_url: str = ""
     dependency_timeout_s: float = 2.0
+    # The mock service echoes this identity; production can configure its model
+    # independently from the HTTP deadline.
+    llm_model: str = "mirror-persona-v1"
+    llm_timeout_s: float = 30.0
 
     # Biggest camera frame we accept. The frontend sends small downscaled JPEGs
     # (tens of KB), so 1 MB is generous; anything larger is rejected with 413.

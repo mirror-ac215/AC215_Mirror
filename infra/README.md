@@ -34,7 +34,7 @@ The profile mounts that credential read-only and never copies it into an image. 
 From the repository root:
 
 ```bash
-cp infra/.env.example infra/.env     # then fill in the two values
+cp infra/.env.example infra/.env     # then fill in the four values
 docker compose -f infra/compose.yml up --build -d
 docker compose -f infra/compose.yml ps
 ```
@@ -51,10 +51,28 @@ Compose reads `infra/.env` automatically (it sits next to `compose.yml`). It is 
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `db` | Password for the `mirror_app` database user. Any local value works. |
-| `MIRROR_DEMO_PASSWORD` | `db` and `api-gateway` | Password of the seeded demo users. The db seeds the users with it and the gateway checks logins against it, so both must get the same value. |
+| `DB_NAME` | `db`, `api-gateway` | PostgreSQL database name. The default development identity is `mirror`. |
+| `DB_USER` | `db`, `api-gateway` | PostgreSQL application user. The default development identity is `mirror_app`. |
+| `DB_PASSWORD` | `db`, `api-gateway` | Password for the configured database user. Any local value works. Compose derives the gateway's `DATABASE_URL` from this same value. |
+| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed local demo accounts. The M3 gateway's fixed demo-token compatibility layer does not read it; M4-02 replaces that layer with database-backed login. |
 
-If either is missing, Compose refuses to start and names the missing variable.
+If any required value is missing, Compose refuses to start and names the missing variable.
+
+### Migration from the pre-M3-10 `infra/.env`
+
+Existing local files used `POSTGRES_PASSWORD` and `MIRROR_DEMO_PASSWORD`. Before starting this
+revision, replace the former with the explicit database settings, preserving its value:
+
+```dotenv
+DB_NAME=mirror
+DB_USER=mirror_app
+DB_PASSWORD=<the previous POSTGRES_PASSWORD value>
+MIRROR_DEMO_PASSWORD=<existing value>
+```
+
+Remove `POSTGRES_PASSWORD`; Compose no longer reads it. **Do not reset `db-data` merely for this
+environment-variable migration** when those database identity values are unchanged. A reset is
+required only when changing `init.sql`, `seed.sh`, or `MIRROR_DEMO_PASSWORD`, as described below.
 
 Demo users (from `services/db/seed.sh`): `clinician.ada@example.test`, `patient.alex@example.test`, `patient.bri@example.test`, all with `MIRROR_DEMO_PASSWORD`.
 

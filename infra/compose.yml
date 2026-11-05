@@ -6,9 +6,11 @@ services:
   db:
     build: ../services/db
     environment:
-      POSTGRES_DB: mirror
-      POSTGRES_USER: mirror_app
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      # DB_* is the M4 database contract; map it explicitly to the official
+      # Postgres image variables so gateway and database share one identity.
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in infra/.env}
+      POSTGRES_USER: ${DB_USER:?set DB_USER in infra/.env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in infra/.env}
       MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD:?set MIRROR_DEMO_PASSWORD in infra/.env}
     volumes:
       - db-data:/var/lib/postgresql/data
@@ -19,6 +21,8 @@ services:
       - "8000:8000"
     environment:
       MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD}
+      DATABASE_URL: postgresql://${DB_USER:?set DB_USER in infra/.env}:${DB_PASSWORD:?set DB_PASSWORD in infra/.env}@db:5432/${DB_NAME:?set DB_NAME in infra/.env}
+      LLM_MODEL: mirror-persona-v1
     depends_on:
       db:
         condition: service_healthy

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,12 @@ import { seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
 import type { ContextObject, CrisisPayload } from "@/lib/api/types";
 import { fillEmptyReply, type ChatMessage } from "@/lib/chat";
+import {
+  attachCameraStream,
+  captureJpeg,
+  reportCameraCaptureFailure,
+  stopCamera,
+} from "@/lib/camera";
 import { setRole } from "@/lib/role";
 
 export const Route = createFileRoute("/session")({
@@ -38,7 +44,7 @@ export const Route = createFileRoute("/session")({
   component: Session,
 });
 
-function Session() {
+export function Session() {
   const [messages, setMessages] = useState<ChatMessage[]>(seededChat);
   const [draft, setDraft] = useState("");
   const [crisis, setCrisis] = useState<CrisisPayload | null>(null);
@@ -47,7 +53,14 @@ function Session() {
   const [sending, setSending] = useState(false);
   const [sessionFailed, setSessionFailed] = useState(false);
   const [attempt, setAttempt] = useState(0); // bump to retry starting the session
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraRequested, setCameraRequested] = useState(true);
+  const [cameraIssue, setCameraIssue] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => setRole("patient"), []);
   // Start a session with the gateway (or the mock) when the screen opens.
@@ -57,11 +70,80 @@ function Session() {
     api
       .startSession(cameraConsent)
       .then((s) => setSessionId(s.session_id))
-      .catch(() => {
+      .catch((error) => {
         setSessionId(null);
+        if (error instanceof Error && error.message.includes("401")) {
+          api.logout();
+          navigate({
+            to: "/",
+            search: {
+              notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
+            },
+          });
+          return;
+        }
         setSessionFailed(true);
       });
-  }, [cameraConsent, attempt]);
+  }, [cameraConsent, attempt, navigate]);
+
+  useEffect(() => {
+    if (!cameraConsent || !sessionId || !cameraRequested) return;
+    setCameraIssue(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraActive(false);
+      setVisual(null);
+      setCameraIssue("Camera frames are unavailable; messages remain text-only.");
+      return;
+    }
+    let disposed = false;
+    const stopWithIssue = (error: unknown) => {
+      reportCameraCaptureFailure(error);
+      if (!disposed) {
+        setCameraActive(false);
+        setVisual(null);
+        setCameraIssue("Camera frames are not being sent; messages remain text-only.");
+        setCameraRequested(false);
+      }
+    };
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: false })
+      .then(async (stream) => {
+        if (disposed) {
+          stopCamera(stream);
+          return;
+        }
+        cameraStreamRef.current = stream;
+        if (!videoRef.current) {
+          stopCamera(stream);
+          cameraStreamRef.current = null;
+          return;
+        }
+        await attachCameraStream(videoRef.current, stream);
+        if (disposed) {
+          stopCamera(stream);
+          return;
+        }
+        setCameraActive(true);
+        captureIntervalRef.current = setInterval(async () => {
+          if (!videoRef.current || !cameraStreamRef.current) return;
+          try {
+            const jpeg = await captureJpeg(videoRef.current);
+            await api.sendFrame(sessionId, jpeg);
+          } catch (error) {
+            stopWithIssue(error);
+          }
+        }, 1500);
+      })
+      .catch(stopWithIssue);
+    return () => {
+      disposed = true;
+      if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+      stopCamera(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      setCameraActive(false);
+    };
+  }, [cameraConsent, sessionId, cameraRequested]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -91,7 +173,17 @@ function Session() {
         }
       });
       setMessages(fillEmptyReply);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("401")) {
+        api.logout();
+        navigate({
+          to: "/",
+          search: {
+            notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
+          },
+        });
+        return;
+      }
       setMessages((m) => [
         ...m.slice(0, -1),
         { from: "bot", text: "Sorry, I couldn't reach the server. Please try again." },
@@ -188,7 +280,26 @@ function Session() {
           </section>
 
           {/* side panel */}
-          <ExpressionPanel cameraConsent={cameraConsent} visual={visual} />
+          <div className="space-y-2">
+            <video ref={videoRef} autoPlay muted playsInline className="hidden" />
+            {cameraConsent && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (cameraActive) {
+                    setVisual(null);
+                    setCameraIssue(null);
+                  }
+                  setCameraRequested((requested) => !requested);
+                }}
+                className="text-xs text-muted-ink underline"
+              >
+                {cameraActive ? "Turn camera off" : "Turn camera on"}
+              </button>
+            )}
+            {cameraIssue && <p className="text-xs text-safety">{cameraIssue}</p>}
+            <ExpressionPanel cameraConsent={cameraConsent && cameraActive} visual={visual} />
+          </div>
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-ink">

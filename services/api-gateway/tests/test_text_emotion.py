@@ -7,9 +7,11 @@ and only runs when RUN_MODEL_TESTS=1.
 
 import json
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -109,6 +111,28 @@ def test_load_failure_becomes_text_emotion_unavailable(monkeypatch: pytest.Monke
     monkeypatch.setattr("app.text_emotion.load_hf_classifier", no_model)
     with pytest.raises(TextEmotionUnavailable, match="model not found"):
         TextEmotion().analyse("hello")
+
+
+def test_loader_uses_only_preprovisioned_local_model_files(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def pipeline(*args: object, **kwargs: object):
+        calls.append(kwargs)
+        return lambda *args, **kwargs: []
+
+    monkeypatch.setitem(sys.modules, "transformers", SimpleNamespace(pipeline=pipeline))
+    text_emotion.load_hf_classifier("model", "revision", 256)
+
+    assert calls == [
+        {
+            "model": "model",
+            "revision": "revision",
+            "top_k": None,
+            "device": -1,
+            "model_kwargs": {"local_files_only": True},
+            "tokenizer_kwargs": {"local_files_only": True},
+        }
+    ]
 
 
 def test_model_is_loaded_once(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -7,6 +7,8 @@ import * as api from "@/lib/api/client";
 import { setRole, useRole, type Role } from "@/lib/role";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): { notice?: string } =>
+    typeof search["notice"] === "string" ? { notice: search["notice"] } : {},
   head: () => ({
     meta: [
       { title: "Sign in — Mirror" },
@@ -27,6 +29,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Login() {
+  const { notice } = Route.useSearch();
   const role = useRole();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -119,6 +122,7 @@ function Login() {
               Continue as {role}
             </Button>
           </form>
+          {notice && <p className="mt-4 text-sm text-safety">{notice}</p>}
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-ink">
