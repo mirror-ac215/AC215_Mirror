@@ -84,6 +84,34 @@ async def test_sessions_need_a_token_401_and_a_patient_403() -> None:
 
 
 @pytest.mark.anyio
+async def test_expired_token_is_rejected_before_message_or_camera_processing() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.auth import AuthenticatedUser, issue_access_token
+    from app.config import get_settings
+
+    expired = issue_access_token(
+        AuthenticatedUser(
+            user_id="00000000-0000-0000-0000-000000000201",
+            email="patient.alex@example.test",
+            role="patient",
+        ),
+        signing_key=get_settings().jwt_signing_key,
+        now=datetime.now(UTC) - timedelta(minutes=2),
+        expires_in=timedelta(minutes=1),
+    )
+    headers = {"Authorization": f"Bearer {expired}"}
+    async with client() as c:
+        frame = await c.post("/sessions/not-used/frames", files=FRAME, headers=headers)
+        message = await c.post(
+            "/sessions/not-used/messages", json={"text": "hello"}, headers=headers
+        )
+
+    assert frame.status_code == 401
+    assert message.status_code == 401
+
+
+@pytest.mark.anyio
 async def test_session_is_persisted_with_authenticated_patient_id_before_it_is_usable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -60,6 +60,51 @@ async def test_login_issues_a_signed_token_for_the_database_user() -> None:
 
 
 @pytest.mark.anyio
+async def test_refresh_renews_a_still_valid_authenticated_token() -> None:
+    async with client() as api:
+        login = await api.post(
+            "/auth/login",
+            json={"email": "patient.alex@example.test", "password": "test-password"},
+        )
+        refreshed = await api.post(
+            "/auth/refresh",
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        )
+
+    assert refreshed.status_code == 200
+    assert refreshed.json()["role"] == "patient"
+    assert refreshed.json()["user_id"] == "00000000-0000-0000-0000-000000000201"
+    assert refreshed.json()["access_token"].count(".") == 2
+
+
+@pytest.mark.anyio
+async def test_refresh_rejects_missing_and_expired_tokens() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.auth import AuthenticatedUser, issue_access_token
+    from app.config import get_settings
+
+    expired = issue_access_token(
+        AuthenticatedUser(
+            user_id="00000000-0000-0000-0000-000000000201",
+            email="patient.alex@example.test",
+            role="patient",
+        ),
+        signing_key=get_settings().jwt_signing_key,
+        now=datetime.now(UTC) - timedelta(minutes=2),
+        expires_in=timedelta(minutes=1),
+    )
+    async with client() as api:
+        missing = await api.post("/auth/refresh")
+        expired_response = await api.post(
+            "/auth/refresh", headers={"Authorization": f"Bearer {expired}"}
+        )
+
+    assert missing.status_code == 401
+    assert expired_response.status_code == 401
+
+
+@pytest.mark.anyio
 async def test_patient_endpoint_accepts_patient_jwt_and_rejects_clinician_jwt() -> None:
     async with client() as api:
         patient_login = await api.post(

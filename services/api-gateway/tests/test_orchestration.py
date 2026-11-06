@@ -3,12 +3,12 @@
 from collections.abc import AsyncIterator
 
 import pytest
+from conftest import auth_headers
 
 from app.fusion import TurnHistory
 from app.gating import FrameReading
 from app.orchestration import ChatOrchestrator
 from app.text_emotion import TextEmotion
-from conftest import auth_headers
 
 
 class FakeRepository:

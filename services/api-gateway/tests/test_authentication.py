@@ -1,3 +1,5 @@
+from typing import Self
+
 import bcrypt
 import pytest
 
@@ -66,7 +68,7 @@ async def test_user_lookup_uses_the_shared_database_url_with_psycopg(
             self.query: str | None = None
             self.params: tuple[str, ...] | None = None
 
-        def __enter__(self) -> "Cursor":
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *args: object) -> None:

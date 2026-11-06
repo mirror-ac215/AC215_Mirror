@@ -12,7 +12,13 @@ os.environ.setdefault(
     "JWT_SIGNING_KEY", "unit-test-jwt-signing-key-with-adequate-length"
 )
 
-from app.auth import AuthenticatedUser, StoredUser, clear_login_attempts, get_user_lookup, issue_access_token
+from app.auth import (
+    AuthenticatedUser,
+    StoredUser,
+    clear_login_attempts,
+    get_user_lookup,
+    issue_access_token,
+)
 from app.chat import session_owners, sessions
 from app.config import get_settings
 from app.main import app

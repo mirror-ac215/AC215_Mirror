@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
@@ -16,8 +16,10 @@ from app.auth import (
     AuthenticatedUser,
     UserLookup,
     clear_login_attempts,
+    current_user,
     get_user_lookup,
     is_login_allowed,
+    issue_access_token,
     login_throttle_key,
     login_user,
     record_login_failure,
@@ -101,6 +103,23 @@ async def login(
         raise
     clear_login_attempts(key)
     return response
+
+
+@router.post(
+    "/auth/refresh",
+    responses={401: {"description": "Not logged in or token expired"}},
+)
+def refresh_access_token(
+    user: Annotated[AuthenticatedUser, Depends(current_user)],
+    runtime_settings: Annotated[Settings, Depends(get_settings)],
+) -> LoginResponse:
+    """Replace a still-valid authenticated access token with a fresh short-lived one."""
+    token = issue_access_token(
+        user,
+        signing_key=runtime_settings.jwt_signing_key,
+        expires_in=timedelta(minutes=runtime_settings.jwt_expires_minutes),
+    )
+    return LoginResponse(access_token=token, role=user.role, user_id=user.user_id)
 
 
 @router.post(

@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,11 @@ import {
   visualFromFrameAck,
 } from "@/lib/camera";
 import { hasRequiredRole } from "@/lib/role";
+
+const EXPIRED_SESSION_NOTICE =
+  "Your session expired. Call or text 988, or call 911 in an emergency.";
+const UNAVAILABLE_SESSION_NOTICE =
+  "Your session ended because the service is unavailable. Call or text 988, or call 911 in an emergency.";
 
 export const Route = createFileRoute("/session")({
   beforeLoad: () => {
@@ -72,6 +77,21 @@ export function Session() {
   const runWithReadingRef = useRef<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const terminateSession = useCallback(
+    (notice: string) => {
+      if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+      stopCamera(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      setCameraActive(false);
+      setCameraRequested(false);
+      setVisual(null);
+      setSessionId(null);
+      api.logout();
+      navigate({ to: "/", search: { notice } });
+    },
+    [navigate],
+  );
 
   // Start a session with the gateway (or the mock) when the screen opens.
   const cameraConsent = Route.useSearch().camera === true;
@@ -83,18 +103,43 @@ export function Session() {
       .catch((error) => {
         setSessionId(null);
         if (error instanceof Error && error.message.includes("401")) {
-          api.logout();
-          navigate({
-            to: "/",
-            search: {
-              notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
-            },
-          });
+          terminateSession(EXPIRED_SESSION_NOTICE);
           return;
         }
         setSessionFailed(true);
       });
-  }, [cameraConsent, attempt, navigate]);
+  }, [cameraConsent, attempt, terminateSession]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRenewal = () => {
+      const delay = api.accessTokenRefreshDelayMs();
+      if (delay === null) return;
+      timer = setTimeout(() => {
+        void api
+          .refreshAccessToken()
+          .then(() => {
+            if (!disposed) scheduleRenewal();
+          })
+          .catch((error) => {
+            if (!disposed) {
+              terminateSession(
+                error instanceof Error && error.message.includes("401")
+                  ? EXPIRED_SESSION_NOTICE
+                  : UNAVAILABLE_SESSION_NOTICE,
+              );
+            }
+          });
+      }, delay);
+    };
+    scheduleRenewal();
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [sessionId, terminateSession]);
 
   useEffect(() => {
     if (!cameraConsent || !sessionId || !cameraRequested) return;
@@ -149,6 +194,9 @@ export function Session() {
             }
           } catch (error) {
             stopWithIssue(error);
+            if (error instanceof Error && error.message.includes("401")) {
+              terminateSession(EXPIRED_SESSION_NOTICE);
+            }
           }
         }, 1500);
       })
@@ -162,7 +210,7 @@ export function Session() {
       cameraStreamRef.current = null;
       setCameraActive(false);
     };
-  }, [cameraConsent, sessionId, cameraRequested]);
+  }, [cameraConsent, sessionId, cameraRequested, terminateSession]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -197,13 +245,7 @@ export function Session() {
       setMessages(fillEmptyReply);
     } catch (error) {
       if (error instanceof Error && error.message.includes("401")) {
-        api.logout();
-        navigate({
-          to: "/",
-          search: {
-            notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
-          },
-        });
+        terminateSession(EXPIRED_SESSION_NOTICE);
         return;
       }
       setMessages((m) => [

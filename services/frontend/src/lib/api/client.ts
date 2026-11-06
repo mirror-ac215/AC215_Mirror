@@ -39,6 +39,33 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return result;
 }
 
+export function accessTokenRefreshDelayMs(): number | null {
+  if (!accessToken) return null;
+  try {
+    const payload = accessToken.split(".")[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as {
+      exp?: unknown;
+      iat?: unknown;
+    };
+    if (typeof decoded.exp !== "number") return null;
+    const tokenLifetimeMs =
+      typeof decoded.iat === "number" ? Math.max(0, (decoded.exp - decoded.iat) * 1000) : 60_000;
+    const renewalLeadMs = Math.min(60_000, Math.max(5_000, Math.floor(tokenLifetimeMs / 2)));
+    return Math.max(1_000, decoded.exp * 1000 - Date.now() - renewalLeadMs);
+  } catch {
+    return null;
+  }
+}
+
+export async function refreshAccessToken(): Promise<LoginResponse> {
+  if (USE_MOCK_API) throw new Error("Token renewal is unavailable in mock mode");
+  const result = await postJson<LoginResponse>("/auth/refresh", {});
+  accessToken = result.access_token;
+  setAuthenticatedUser({ user_id: result.user_id, role: result.role });
+  return result;
+}
+
 export async function startSession(cameraConsent: boolean): Promise<Session> {
   if (USE_MOCK_API) return mock.startSession(cameraConsent);
   return postJson<Session>("/sessions", { camera_consent: cameraConsent });
