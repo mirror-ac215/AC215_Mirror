@@ -14,7 +14,7 @@ ENV MOCK_MODE=0 \
     PORT=8002
 
 EXPOSE 8002
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 

@@ -90,6 +90,8 @@ The database lives in the named volume `db-data`. The schema and seed only run w
 
 Shell scripts that run inside containers must keep LF line endings. The repository's `.gitattributes` enforces this. If a container exits with code 127 and `can't execute 'sh'`, the script was checked out with CRLF: delete it and run `git checkout -- <file>` to restore it with LF.
 
+For GCP provisioning and VM bootstrap, use Cloud Shell or a Linux/macOS shell. Git Bash on Windows can pass CRLF-terminated `gcloud` output into the provisioning shell script and is not supported for those commands.
+
 ## M3-13 Stage A: GPU VM deployment foundation
 
 > **Scope boundary:** Stage A prepares and proves the secure GPU deployment
@@ -143,12 +145,18 @@ team-only deployment, not a public service.
 
 ### 2. Bootstrap Docker and NVIDIA support
 
-Connect through IAP and run the bootstrap script. It installs Ubuntu 22.04's
-supported NVIDIA 535 driver, Docker Engine, the Compose plugin and NVIDIA
+Mostafa, as the paid-cloud operator, connects through IAP and runs the bootstrap script. It requests Ubuntu's
+supported NVIDIA 535 driver series, Docker Engine, the Compose plugin and NVIDIA
 Container Toolkit, then configures Docker's NVIDIA runtime. On a fresh VM the
 script exits after installing the kernel driver with a reboot instruction;
 reboot, reconnect through IAP, and rerun it. It calls `nvidia-smi` and the
 Docker GPU test only after a successful post-reboot run.
+
+The Ubuntu `nvidia-driver-535` package can resolve to a newer compatible runtime
+(the working VM reported 580). Treat the `nvidia-smi` output recorded after the
+bootstrap as the authoritative installed driver version. The script also adds the
+invoking non-root deploy operator to the Docker group whether it was invoked via
+`sudo` or as an ordinary user; log out and back in before using Docker without sudo.
 
 ```bash
 gcloud compute ssh mirror-gpu-prod \
@@ -305,7 +313,15 @@ Check out that exact SHA on the VM and deploy with:
 bash infra/deploy-stage-b.sh
 ```
 
-The helper rejects a non-SHA tag or a mismatch between the checkout and
-`MIRROR_IMAGE_TAG`, resolves the three Compose files, pulls images, and starts
-without local builds. Record `docker compose ... images` output with the
-resolved image digests as the M3-14 VM-pull evidence.
+Before its first pull, the helper uses the VM's attached identity to configure
+Docker credential helper access for `MIRROR_IMAGE_REGISTRY` (for example
+`us-central1-docker.pkg.dev`). It then rejects a non-SHA tag or a mismatch
+between the checkout and `MIRROR_IMAGE_TAG`, resolves the three Compose files,
+pulls immutable images, and starts without local builds.
+
+Before starting vLLM, `infra/prepare-llm-model.sh` reuses the public-model snapshot in the same default Hugging Face hub cache that vLLM serves from, with `HF_HUB_DISABLE_XET=1`. It parses `config.json`, hashes every safetensors shard against the SHA-256 in its Hugging Face LFS blob filename, and re-downloads only a mismatched shard before rechecking it. This detects truncated or structurally corrupt cached shards before `/health` can incorrectly report ready. It does not retrieve the LoRA adapter, write credentials, or prove semantic model quality. `LLM_FORCE_MODEL_DOWNLOAD` defaults to `0`; set it to `1` only for an intentional full refresh. The real LLM container allows a 600-second health start period, disables the T4-incompatible FlashInfer sampler by default, and the deploy helper requires the fixed smoke reply to contain `READY` and prints that non-patient response. This is an operational smoke check, not a substitute for the reviewed LLM evaluation suite.
+
+Record `docker compose ... images` output with the resolved image digests as the
+M3-14 VM-pull evidence. Do not start, stop, or redeploy the VM from this project
+role: notify Owen when this reviewed helper is ready, and Mostafa performs the
+paid-cloud operation and confirms the VM is stopped afterwards.
