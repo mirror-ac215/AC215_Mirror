@@ -4,6 +4,7 @@ import asyncio
 from collections import deque
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from ipaddress import ip_address, ip_network
 from typing import Annotated, Any, Protocol, cast
 
 import bcrypt
@@ -29,6 +30,11 @@ class StoredUser(AuthenticatedUser):
     """A database user with the bcrypt verifier, never returned to clients."""
 
     password_hash: str
+
+
+# A valid bcrypt verifier with a deliberately unrelated password. It equalizes
+# the expensive check for unknown accounts without representing a credential.
+_UNKNOWN_USER_PASSWORD_HASH = b"$2b$12$ZPHW5dahTr8D8RFe0AFtd.639ZiyfMfhU7eN4pZXI773B628d6R.W"
 
 
 class UserLookup(Protocol):
@@ -90,6 +96,7 @@ async def authenticate_user(
     """Authenticate against the seeded bcrypt hash without leaking which check failed."""
     stored = await users.by_email(email.lower())
     if stored is None:
+        bcrypt.checkpw(password.encode(), _UNKNOWN_USER_PASSWORD_HASH)
         return None
     try:
         valid = bcrypt.checkpw(password.encode(), stored.password_hash.encode())
@@ -156,6 +163,36 @@ _login_failures: dict[str, deque[datetime]] = {}
 def login_throttle_key(email: str, client_host: str | None) -> str:
     """Scope failed-attempt tracking to a normalized account and client address."""
     return f"{email.lower()}:{client_host or 'unknown'}"
+
+
+def login_client_ip(
+    client_host: str | None,
+    forwarded_for: str | None,
+    trusted_proxy_ips: list[str],
+) -> str | None:
+    """Return a verified client IP without trusting direct-client X-Forwarded-For.
+
+    If the direct peer is a configured proxy, work backwards through the
+    forwarded chain and choose the nearest untrusted hop. This resists a client
+    prepending arbitrary values to a header which the trusted proxy appends to.
+    """
+    if client_host is None:
+        return None
+    try:
+        peer = ip_address(client_host)
+        trusted_networks = [ip_network(proxy, strict=False) for proxy in trusted_proxy_ips]
+    except ValueError:
+        return client_host
+    if not any(peer in network for network in trusted_networks) or not forwarded_for:
+        return str(peer)
+    try:
+        forwarded_hops = [ip_address(hop.strip()) for hop in forwarded_for.split(",")]
+    except ValueError:
+        return str(peer)
+    for hop in reversed(forwarded_hops):
+        if not any(hop in network for network in trusted_networks):
+            return str(hop)
+    return str(peer)
 
 
 def is_login_allowed(key: str, now: datetime | None = None) -> bool:

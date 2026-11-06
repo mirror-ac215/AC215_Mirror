@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from ipaddress import ip_network
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
     jwt_signing_key: str = Field(min_length=32)
     jwt_expires_minutes: int = Field(default=30, ge=1, le=60)
 
+    # Forwarded client addresses are accepted only from these explicitly trusted
+    # reverse-proxy addresses or networks. Keep the default empty: X-Forwarded-For
+    # is client-controlled on a direct connection.
+    trusted_proxy_ips: list[str] = []
+
     # Biggest camera frame we accept. The frontend sends small downscaled JPEGs
     # (tens of KB), so 1 MB is generous; anything larger is rejected with 413.
     max_frame_bytes: int = 1_000_000
@@ -40,9 +46,6 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the gateway (frontend dev server and container).
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
-    # Demo login password for all seeded users (same env var as services/db/seed.sh).
-    # Local development only; M4-02 replaces this with real password hashes.
-    mirror_demo_password: str = "mirror-demo"
 
     # Text-emotion module (M3-05). Model chosen in M2-11 (D-003 in docs/decisions.md).
     # Pinned to an immutable Hugging Face commit: a rebuild always loads the same weights.
@@ -73,6 +76,11 @@ class Settings(BaseSettings):
         # A window smaller than the minimum would report "dropped" forever.
         if self.gate_max_frames < self.gate_min_frames:
             raise ValueError("gate_max_frames must be at least gate_min_frames")
+        for proxy in self.trusted_proxy_ips:
+            try:
+                ip_network(proxy, strict=False)
+            except ValueError as error:
+                raise ValueError("trusted_proxy_ips must contain IP networks") from error
         return self
 
 

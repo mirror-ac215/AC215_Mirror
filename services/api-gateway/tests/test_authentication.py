@@ -2,8 +2,16 @@ from typing import Self
 
 import bcrypt
 import pytest
+from fastapi import HTTPException
 
-from app.auth import AuthenticatedUser, StoredUser, authenticate_user, get_user_lookup
+from app.auth import (
+    AuthenticatedUser,
+    StoredUser,
+    authenticate_user,
+    get_user_lookup,
+    login_client_ip,
+    require_clinician,
+)
 from app.config import Settings
 
 
@@ -57,6 +65,54 @@ async def test_authenticate_user_returns_none_for_unknown_user_or_wrong_password
         await authenticate_user(FakeUsers(seeded), seeded.email, "wrong-password")
         is None
     )
+
+
+@pytest.mark.anyio
+async def test_authenticate_user_runs_bcrypt_for_an_unknown_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checked_hashes: list[bytes] = []
+
+    def checkpw(_: bytes, password_hash: bytes) -> bool:
+        checked_hashes.append(password_hash)
+        return False
+
+    monkeypatch.setattr("app.auth.bcrypt.checkpw", checkpw)
+
+    assert await authenticate_user(FakeUsers(None), "nobody@example.test", "password") is None
+    assert len(checked_hashes) == 1
+
+
+def test_login_client_ip_ignores_forwarded_header_from_an_untrusted_peer() -> None:
+    assert (
+        login_client_ip("198.51.100.10", "203.0.113.8", ["10.0.0.0/8"])
+        == "198.51.100.10"
+    )
+
+
+def test_login_client_ip_uses_rightmost_untrusted_forwarded_hop_from_trusted_proxy() -> None:
+    assert (
+        login_client_ip(
+            "10.0.0.5",
+            "203.0.113.8, 198.51.100.10",
+            ["10.0.0.0/8"],
+        )
+        == "198.51.100.10"
+    )
+
+
+def test_require_clinician_allows_only_clinician_users() -> None:
+    clinician = AuthenticatedUser(
+        user_id="00000000-0000-0000-0000-000000000101",
+        email="clinician.ada@example.test",
+        role="clinician",
+    )
+    patient = clinician.model_copy(update={"role": "patient"})
+
+    assert require_clinician(clinician) == clinician
+    with pytest.raises(HTTPException, match="Clinicians only") as error:
+        require_clinician(patient)
+    assert error.value.status_code == 403
 
 
 @pytest.mark.anyio

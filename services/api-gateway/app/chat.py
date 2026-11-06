@@ -20,6 +20,7 @@ from app.auth import (
     get_user_lookup,
     is_login_allowed,
     issue_access_token,
+    login_client_ip,
     login_throttle_key,
     login_user,
     record_login_failure,
@@ -92,7 +93,14 @@ async def login(
     users: Annotated[UserLookup, Depends(get_user_lookup)],
     runtime_settings: Annotated[Settings, Depends(get_settings)],
 ) -> LoginResponse:
-    key = login_throttle_key(body.email, request.client.host if request.client else None)
+    key = login_throttle_key(
+        body.email,
+        login_client_ip(
+            request.client.host if request.client else None,
+            request.headers.get("X-Forwarded-For"),
+            runtime_settings.trusted_proxy_ips,
+        ),
+    )
     if not is_login_allowed(key):
         raise HTTPException(status_code=429, detail="Too many login attempts")
     try:

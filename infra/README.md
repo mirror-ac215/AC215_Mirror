@@ -44,7 +44,7 @@ The profile mounts that credential read-only and never copies it into an image. 
 From the repository root:
 
 ```bash
-cp infra/.env.example infra/.env     # then fill in the four values
+cp infra/.env.example infra/.env     # then fill in the required values
 docker compose -f infra/compose.yml up --build -d
 docker compose -f infra/compose.yml ps
 ```
@@ -64,9 +64,12 @@ Compose reads `infra/.env` automatically (it sits next to `compose.yml`). It is 
 | `DB_NAME` | `db`, `api-gateway` | PostgreSQL database name. The default development identity is `mirror`. |
 | `DB_USER` | `db`, `api-gateway` | PostgreSQL application user. The default development identity is `mirror_app`. |
 | `DB_PASSWORD` | `db`, `api-gateway` | Password for the configured database user. Any local value works. Compose derives the gateway's `DATABASE_URL` from this same value. |
-| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed local demo accounts. The M3 gateway's fixed demo-token compatibility layer does not read it; M4-02 replaces that layer with database-backed login. |
+| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed local demo accounts. The gateway does not read or receive it; M4-02 authenticates against the database's bcrypt hashes. |
+| `JWT_SIGNING_KEY` | `api-gateway` | **Required**, at least 32 random characters. Signs gateway access tokens; generate and retain it outside Git. |
+| `JWT_EXPIRES_MINUTES` | `api-gateway` | Optional access-token lifetime in minutes (default `30`, allowed `1`-`60`). |
+| `TRUSTED_PROXY_IPS` | `api-gateway` | Optional JSON array of Caddy IP/CIDR values. Only configured proxies may supply a client address through `X-Forwarded-For`; leave `[]` unless the proxy network is known and controlled. |
 
-If any required value is missing, Compose refuses to start and names the missing variable.
+If a required database value, `MIRROR_DEMO_PASSWORD`, or `JWT_SIGNING_KEY` is missing, Compose refuses to start and names the missing variable.
 
 ### Migration from the pre-M3-10 `infra/.env`
 

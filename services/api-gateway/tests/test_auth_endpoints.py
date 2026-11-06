@@ -150,3 +150,33 @@ async def test_login_throttles_repeated_failures_without_disclosing_account_stat
 
     assert [response.status_code for response in responses[:5]] == [401] * 5
     assert responses[5].status_code == 429
+
+
+@pytest.mark.anyio
+async def test_successful_login_clears_prior_failed_attempts() -> None:
+    async with client() as api:
+        failures = [
+            await api.post(
+                "/auth/login",
+                json={
+                    "email": "patient.alex@example.test",
+                    "password": "wrong-password",
+                },
+            )
+            for _ in range(4)
+        ]
+        success = await api.post(
+            "/auth/login",
+            json={"email": "patient.alex@example.test", "password": "test-password"},
+        )
+        next_failure = await api.post(
+            "/auth/login",
+            json={
+                "email": "patient.alex@example.test",
+                "password": "wrong-password",
+            },
+        )
+
+    assert [response.status_code for response in failures] == [401] * 4
+    assert success.status_code == 200
+    assert next_failure.status_code == 401
