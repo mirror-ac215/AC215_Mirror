@@ -151,7 +151,6 @@ def test_registry_override_resolves_with_nonsecret_values() -> None:
         "DB_PASSWORD": "ci-only-password",
         "MIRROR_DEMO_PASSWORD": "ci-only-demo-password",
         "CADDY_DOMAIN": "mirror.example.test",
-        "LLM_ADAPTER_HOST_PATH": "/tmp/mirror-adapter",
         "MIRROR_IMAGE_REGISTRY": "us-central1-docker.pkg.dev",
         "MIRROR_IMAGE_REPOSITORY": "mirror-project/mirror-images",
         "MIRROR_IMAGE_TAG": "a" * 40,

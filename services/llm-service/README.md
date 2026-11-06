@@ -15,7 +15,7 @@ The API gateway builds the prompt and calls this service. The gateway—not this
 | Mode | Build/run target | Purpose |
 |---|---|---|
 | Mock | default `mock` Docker target | Deterministic laptop and CI behavior with no GPU or model download. |
-| Real | explicit `real` Docker target | vLLM serving Qwen with the Mirror LoRA adapter on a compatible NVIDIA GPU. |
+| Real | explicit `real` Docker target | vLLM serving plain Qwen, with no adapter (D-006), on a compatible NVIDIA GPU. A LoRA adapter can be added with `LORA_ADAPTER_PATH`. |
 
 Both modes use port `8002` and the same `/v1/chat/completions` request shape. Streaming responses use standard OpenAI-style SSE chunks and terminate with `data: [DONE]`.
 
@@ -50,47 +50,41 @@ The mock reply is intentionally deterministic. It exercises the gateway integrat
 
 Real mode is for an NVIDIA GPU host only. This development machine does not provide an NVIDIA runtime, so it cannot validate real inference.
 
-1. On the approved GPU host, authenticate to GCP using that host's normal credential flow.
-2. Download the adapter outside this repository and outside the image:
-
-   ```bash
-   gcloud storage cp --recursive gs://mirror-ac215-data/models/llm/adapter-v1 ./adapter-v1
-   ```
-
-3. Confirm NVIDIA prerequisites:
+1. Confirm NVIDIA prerequisites:
 
    ```bash
    nvidia-smi
    docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
    ```
 
-4. Build the GPU image on the GPU host and run it with the adapter mounted read-only. Mount a persistent Hugging Face cache so the public base model need not download each time:
+2. Build the GPU image on the GPU host and run it. Mount a persistent Hugging Face cache so the public base model need not download each time:
 
    ```bash
    docker build --target real --tag mirror-llm-service:real .
    docker run --rm --gpus all --ipc=host \
      -p 18002:8002 \
-     -v "$PWD/adapter-v1:/models/adapter-v1:ro" \
      -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
      mirror-llm-service:real
    ```
 
-5. Run the same health, non-streaming, and streaming requests above. Record the GPU model, driver/CUDA version, vLLM image version, startup result, and one single-request latency in the PR or learning record.
+3. Run the same health, non-streaming, and streaming requests above. Record the GPU model, driver/CUDA version, vLLM image version, startup result, and one single-request latency in the PR or learning record.
 
 The real-mode entrypoint uses:
 
 ```text
 Qwen/Qwen2.5-3B-Instruct
---enable-lora
---lora-modules mirror-persona-v1=/models/adapter-v1
---max-lora-rank 32
+--served-model-name mirror-persona-v1
 --gpu-memory-utilization 0.9
 --dtype auto
 --max-model-len 2048
 --max-num-seqs 1
 ```
 
-The LoRA adapter, model cache, credentials, and any tokens must never be committed. `M3-13` will repeat this real-mode smoke test in the later GCP GPU VM deployment.
+The served name stays `mirror-persona-v1` so the gateway needs no change; it is a label, not a sign that an adapter is loaded.
+
+To test an adapter, mount it read-only and set `LORA_ADAPTER_PATH` to the mounted path. The entrypoint then adds `--enable-lora`, `--lora-modules` and `--max-lora-rank`, and refuses to start if the path does not exist. D-006 says what an adapter must beat before it is served.
+
+Adapters, the model cache, credentials, and any tokens must never be committed. `M3-13` will repeat this real-mode smoke test in the later GCP GPU VM deployment.
 
 ## Validation commands
 

@@ -184,11 +184,10 @@ cp infra/.env.prod.example infra/.env.prod
 chmod 600 infra/.env.prod
 ```
 
-Download the approved LoRA adapter outside the repository and set
-`LLM_ADAPTER_HOST_PATH` to that directory. The production Compose file mounts
-it read-only. Prefer the VM service account for GCS access; do not place a
-service-account key, model adapter, Hugging Face token, or database password
-in the repository, an image layer, logs, or pull request.
+Production serves the plain base model with no adapter (D-006), so nothing
+needs downloading here. Prefer the VM service account for GCS access; do not
+place a service-account key, model adapter, Hugging Face token, or database
+password in the repository, an image layer, logs, or pull request.
 
 ### 4. Start and validate Stage A
 
