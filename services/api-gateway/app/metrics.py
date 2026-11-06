@@ -39,6 +39,10 @@ REQUEST_SECONDS = Histogram(
 CRISIS_HITS = Counter(
     "mirror_gateway_crisis_hits_total", "Crisis-check hits by rule id (M3-07)", ["rule"], registry=REGISTRY,
 )
+MEDICATION_HITS = Counter(
+    "mirror_gateway_medication_hits_total", "Medication questions answered with the fixed reply (M3-09)",
+    ["rule"], registry=REGISTRY,
+)
 TEXT_EMOTION_SECONDS = Histogram(
     "mirror_gateway_text_emotion_seconds", "Time to score one message (M3-05)", registry=REGISTRY,
 )
@@ -62,6 +66,7 @@ AGREEMENTS = ("agree", "disagree", "n/a")
 TONE_MODES = ("coach", "supportive")
 MAIN_SIGNALS = ("face", "text", "none")
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
+MEDICATION_RULE_IDS = ("med-change", "med-dose", "med-mix", "med-should")  # app/safety.py
 
 
 def _closed(value: object, allowed: tuple[str, ...]) -> str:
@@ -92,6 +97,11 @@ def record_fusion(agreement: str, tone_mode: str, main_signal: str) -> None:
         tone_mode=_closed(tone_mode, TONE_MODES),
         main_signal=_closed(main_signal, MAIN_SIGNALS),
     ).inc()
+
+
+def record_medication_hit(rule: str) -> None:
+    """Count one medication question by rule id (never the message text)."""
+    MEDICATION_HITS.labels(rule=_closed(rule, MEDICATION_RULE_IDS)).inc()
 
 
 def render() -> tuple[bytes, str]:

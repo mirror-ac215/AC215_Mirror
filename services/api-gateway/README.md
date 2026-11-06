@@ -58,12 +58,14 @@ Before Mirror replies, `app/safety.py` reads the patient's message:
 | The patient writes... | Mirror does | Clinician flag |
 |---|---|---|
 | something about suicide, self-harm or hurting someone ("I want to die") | **Crisis:** shows 988 and 911 and does not reply | urgent |
+| a medication decision ("should I stop my meds?", "how many mg is safe?") | **Medication (M3-09):** sends a fixed reply pointing to their prescriber or a pharmacist; the LLM is not called | none |
 | anything else | replies as usual | none |
 
 ```mermaid
 flowchart LR
     M[Patient message] --> S{safety check}
     S -- crisis --> C[988 + 911, no reply]
+    S -- medication --> F[fixed reply, no LLM]
     S -- nothing --> N[normal reply]
 ```
 
@@ -78,10 +80,11 @@ flowchart LR
 
 | What | Where |
 |---|---|
-| The rules | top of `app/safety.py` (`CRISIS_RULES`) |
-| Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS` in `app/safety.py` |
+| The rules | top of `app/safety.py` (`CRISIS_RULES`, `MEDICATION_RULES`) |
+| Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS`, `MEDICATION_EXCEPTIONS` in `app/safety.py` |
+| The medication reply | `MEDICATION_REPLY` in `app/safety.py`; sent as normal `token` + `done` events, no contract change |
 | Where the check runs | `send_message` in `app/chat.py` |
-| Test messages | `tests/safety_cases.yaml` (96 messages) |
+| Test messages | `tests/safety_cases.yaml` (116 messages) |
 | Event shape | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`) |
 
 ### Changing a rule
@@ -97,7 +100,8 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 - Logs and flags never contain the message text, only which rule fired.
 - Crisis replies always provide 988/911 guidance. If PostgreSQL is unreachable, the gateway cannot create a durable review flag and must not claim that a clinician has been notified; the patient still receives the crisis guidance.
 - English only.
-- Medical-advice and "talk to a person" replies are a follow-up PR, together with their chat-screen handling.
+- Crisis is checked first: "how many pills to overdose" is a crisis, not a dosing question.
+- The medication rules catch a request for a decision, not every mention: "my sertraline makes me tired" gets a normal reply, and the prompt still tells the LLM never to talk about doses.
 - Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
 ## Text-emotion module (M3-05)
@@ -172,6 +176,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | `mirror_gateway_requests_total` | `route`, `method`, `status` | every HTTP request; `route` is the pattern (`/sessions/{session_id}/messages`), never a real session id; `method` is a standard one or `invalid` |
 | `mirror_gateway_request_seconds` | `route` | time to answer (for streams: until the first byte); histogram, so p50/p95 can be computed |
 | `mirror_gateway_crisis_hits_total` | `rule` | crisis-check hits by rule id (never the message text) |
+| `mirror_gateway_medication_hits_total` | `rule` | medication questions answered with the fixed reply, by rule id |
 | `mirror_gateway_text_emotion_seconds` | | time to score one message |
 | `mirror_gateway_text_emotion_unavailable_total` | | messages that went on without a text reading (fallback) |
 | `mirror_gateway_gate_total` | `status` | gate outcome per turn (ok / uncertain / dropped / camera_off) |

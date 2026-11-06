@@ -197,6 +197,11 @@ async def send_message(
             iter([sse("crisis", turn.crisis)]), media_type="text/event-stream"
         )
 
+    if turn.safety_kind == "medication":
+        rule = turn.safety_rule or "unknown"
+        logger.info("safety_hit kind=medication rule=%s", rule)
+        metrics.record_medication_hit(rule)
+
     async def events() -> AsyncIterator[str]:
         reply_parts: list[str] = []
         async for token in turn.tokens:

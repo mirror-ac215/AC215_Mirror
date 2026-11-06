@@ -5,18 +5,22 @@ rules (regular expressions), not a model: the same message always gives the
 same answer and every rule can be reviewed line by line. The face signal is
 never an input.
 
-One outcome besides "no hit":
+Two outcomes besides "no hit", checked in this order:
 - crisis: suicide, self-harm, or harming someone else. The gateway withholds
           the persona reply, streams a `crisis` event with 988 resources and
-          records a review flag for the patient's clinician (in memory until
-          M3-10 saves it to the database).
+          records a review flag for the patient's clinician.
+- medication: a question about changing, stopping, mixing or dosing
+          medication (M3-09). The LLM is skipped and the patient gets
+          MEDICATION_REPLY as an ordinary streamed reply, pointing them to
+          their prescriber. No new event type, no contract change.
 
-Rules lean towards firing: a false alarm shows 988 to someone who didn't need
-it; a miss leaves someone in crisis with a chatbot.
+Crisis rules lean towards firing: a false alarm shows 988 to someone who didn't
+need it; a miss leaves someone in crisis with a chatbot. Crisis always wins: "how
+many pills to overdose" is a crisis, not a dosing question.
 
-Changing a rule: edit CRISIS_RULES / CRISIS_EXCEPTIONS, add a
-case to tests/safety_cases.yaml, and get the change reviewed. Never log the
-message text: log the rule id only.
+Changing a rule: edit the rules / exceptions below, add a case to
+tests/safety_cases.yaml, and get the change reviewed. Never log the message
+text: log the rule id only.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Literal
 
-SafetyKind = Literal["crisis"]
+SafetyKind = Literal["crisis", "medication"]
 
 # (rule id, pattern). Patterns run on normalised text (see normalise()).
 CRISIS_RULES: list[tuple[str, str]] = [
@@ -114,9 +118,53 @@ CRISIS_EXCEPTIONS: dict[str, list[str]] = {
     "self-harm": [r"\bhurt myself (at the gym|playing \w+|running|lifting|skiing|cooking|moving)\b"],
 }
 
+# Medication (M3-09). Plain Qwen is served with no adapter for MS3, and the prompt
+# rule alone ("never talk about medication or doses") is not a guarantee. These
+# rules catch the patient asking for a medication decision, not every mention:
+# "my sertraline makes me tired" still gets a normal reply.
+_MEDS = (r"(meds|medication|medications|medicine|pills?|tablets?|antidepressants?|"
+         r"dose|doses|dosage|prescription|sertraline|zoloft|fluoxetine|prozac|escitalopram|"
+         r"lexapro|citalopram|paroxetine|paxil|venlafaxine|effexor|bupropion|wellbutrin|"
+         r"lithium|quetiapine|seroquel|aripiprazole|abilify|lamotrigine|lamictal|trazodone|"
+         r"mirtazapine|alprazolam|xanax|lorazepam|ativan|clonazepam|klonopin|diazepam|valium|"
+         r"zolpidem|ambien|adderall|ritalin|methylphenidate|propranolol|hydroxyzine)")
+MEDICATION_RULES: list[tuple[str, str]] = [
+    # "should I stop my meds", "can I double my dose", "thinking of coming off sertraline"
+    ("med-change", (r"\b(stop|stopping|quit|quitting|skip|skipping|double|doubling|increase|"
+                    r"increasing|decrease|decreasing|lower|lowering|raise|raising|halve|cut down|"
+                    r"cut back|come off|coming off|go off|going off|get off|wean off|taper|"
+                    r"tapering)( taking| on)?( my| the| your)? (\w+ )?" + _MEDS + r"\b")),
+    # "how many mg should I take", "what dose of xanax is safe"
+    ("med-dose", (r"\b(how (many|much)|what|which|what's|whats|right|safe|max|maximum) "
+                  r"(\w+ ){0,3}(mg|milligrams?|dose|dosage|pills|tablets)\b"
+                  r"|\b\d+ ?(mg|milligrams?)\b")),
+    # "can I drink on my antidepressants", "is it ok to mix xanax and alcohol"
+    ("med-mix", (r"\b(drink|drinking|alcohol|wine|beer|weed|cannabis|mix|mixing|combine|combining)\b"
+                 r"(\s\S+){0,6}\s" + _MEDS + r"\b"
+                 r"|\b" + _MEDS + r"(\s\S+){0,6}\s(alcohol|wine|beer|weed|cannabis|drinking)\b")),
+    # "should I take my meds today", "is it safe to take two pills", "do I need more medication"
+    ("med-should", (r"\b(should i|can i|could i|do i need|is it (ok|okay|safe|bad|fine)|"
+                    r"would it be (ok|okay|safe|bad)|am i allowed)\b(\s\S+){0,6}\s" + _MEDS + r"\b")),
+]
+
+MEDICATION_EXCEPTIONS: dict[str, list[str]] = {
+    # "I remembered to take my meds", "my reminder to take my pills": routine, not a question
+    "med-should": [r"\b(remember(ed)?|reminder|forgot|forget) to take (my|the) " + _MEDS + r"\b"],
+    "med-dose": [r"\bwhat a (\w+ )?dose\b"],  # "what a dose of reality"
+}
+
+MEDICATION_REPLY = (
+    "I can't give advice about medication or doses, and this is too important to "
+    "guess about. The person who prescribed it, or a pharmacist, is the right person "
+    "to ask; please contact them before changing anything. If you feel unwell right "
+    "now, call 911. I'm still here if you'd like to talk about how you're feeling."
+)
+
 _COMPILED_CRISIS = [(rid, re.compile(p)) for rid, p in CRISIS_RULES]
+_COMPILED_MEDICATION = [(rid, re.compile(p)) for rid, p in MEDICATION_RULES]
 _COMPILED_EXCEPTIONS = {
-    rid: [re.compile(p) for p in patterns] for rid, patterns in CRISIS_EXCEPTIONS.items()
+    rid: [re.compile(p) for p in patterns]
+    for rid, patterns in {**CRISIS_EXCEPTIONS, **MEDICATION_EXCEPTIONS}.items()
 }
 
 CRISIS_MESSAGE = (
@@ -146,8 +194,8 @@ def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _crisis_rule(text: str) -> str | None:
-    for rule_id, pattern in _COMPILED_CRISIS:
+def _first_rule(rules: list[tuple[str, re.Pattern]], text: str) -> str | None:
+    for rule_id, pattern in rules:
         # Blank out this rule's harmless phrases first, then look again. In
         # "I want to kill myself, this is killing me" only "is killing me" is
         # removed and "kill myself" still fires.
@@ -160,9 +208,12 @@ def _crisis_rule(text: str) -> str | None:
 
 
 def check(message: str) -> SafetyResult:
-    """Message in, crisis or no hit out."""
-    if rule_id := _crisis_rule(normalise(message)):
+    """Message in, crisis / medication / no hit out. Crisis is checked first."""
+    text = normalise(message)
+    if rule_id := _first_rule(_COMPILED_CRISIS, text):
         return SafetyResult("crisis", rule_id)
+    if rule_id := _first_rule(_COMPILED_MEDICATION, text):
+        return SafetyResult("medication", rule_id)
     return SafetyResult(None)
 
 

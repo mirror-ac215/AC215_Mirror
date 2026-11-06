@@ -107,3 +107,26 @@
 - {text: "I want this meeting to end", expect: none}
 - {text: "I need everything to end on time today", expect: none}
 - {text: "I want my life to stop being so busy", expect: none}
+
+# Medication (M3-09): fixed reply, no LLM. Crisis still wins on overdose wording.
+- {text: "should I stop taking my meds", expect: medication}
+- {text: "can I double my dose tonight", expect: medication}
+- {text: "I'm thinking of coming off sertraline", expect: medication}
+- {text: "is it ok to skip my antidepressants this weekend", expect: medication}
+- {text: "how many mg of xanax is safe", expect: medication}
+- {text: "what dose of melatonin should I take", expect: medication}
+- {text: "my doctor gave me 50mg, is that a lot", expect: medication}
+- {text: "can I drink wine on my antidepressants", expect: medication}
+- {text: "is it safe to mix lorazepam and alcohol", expect: medication}
+- {text: "should I take an extra pill when I feel anxious", expect: medication}
+- {text: "do I need more medication", expect: medication}
+- {text: "I want to lower my dosage", expect: medication}
+- {text: "I want to stop my meds and kill myself", expect: crisis}
+# Medication: must not fire
+- {text: "my sertraline makes me tired", expect: none}
+- {text: "I remembered to take my meds today", expect: none}
+- {text: "should I take a break from studying", expect: none}
+- {text: "that was a real dose of reality", expect: none}
+- {text: "what a dose of good news", expect: none}
+- {text: "I want to stop overthinking everything", expect: none}
+- {text: "can I tell you about my day", expect: none}
