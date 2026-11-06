@@ -20,6 +20,8 @@ Inside the Compose network, services reach each other by service name. The gatew
 
 `cv-service` is available behind the explicit `cv` Compose profile (`--profile cv`), because its real startup needs an approved GCS credential to download the model. The default stack and its CI smoke test do not enable that profile, so neither needs cloud credentials. Without the profile, the gateway's `/health` reports `"status": "degraded"` with only `cv-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
 
+In production (`compose.prod.yml`) `cv-service` always runs, with no credential file: it downloads the model at startup using the VM's own identity, `mirror-vm-runtime`, which has read access to the bucket. `deploy-stage-b.sh` waits for it to be healthy, so a model that cannot be loaded fails the deploy.
+
 To run CV locally, first export the path to an ADC credential file that is outside this repository, then explicitly enable the profile:
 
 ```bash

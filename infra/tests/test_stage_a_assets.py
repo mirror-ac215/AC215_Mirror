@@ -194,6 +194,17 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("SHA-256", readme)
         self.assertIn("only a mismatched shard", readme)
 
+    def test_production_runs_cv_service_with_the_vm_identity_and_no_credential_file(self) -> None:
+        result = run(
+            "docker", "compose", "--env-file", "/dev/null", "-f", "infra/compose.yml", "-f", "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        cv = json.loads(result.stdout)["services"]["cv-service"]
+        self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", cv["environment"])
+        self.assertNotIn("volumes", cv)
+        self.assertNotIn("ports", cv)
+        self.assertEqual(cv["environment"]["MODEL_OBJECT"], "models/cv/v4/vit_b16_v4.pth")
+
     def test_production_compose_resolves_to_only_caddy_public_ports_and_gpu_llm(self) -> None:
         result = run(
             "docker", "compose", "--env-file", "/dev/null", "--profile", "cv", "-f", "infra/compose.yml", "-f", "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV
