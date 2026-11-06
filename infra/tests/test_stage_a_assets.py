@@ -169,9 +169,14 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("bash infra/prepare-llm-model.sh", deployer)
         self.assertIn("HF_HUB_DISABLE_XET", preparer)
         self.assertIn("snapshot_download", preparer)
-        self.assertIn("allow_patterns", preparer)
+        self.assertIn("hf_hub_download", preparer)
+        self.assertIn("hashlib.sha256", preparer)
+        self.assertNotIn('cache_dir="/root/.cache/huggingface"', preparer)
+        self.assertIn('LLM_FORCE_MODEL_DOWNLOAD:-0', preparer)
         self.assertIn("model artifact validation", preparer)
-        self.assertIn("llm smoke response", deployer)
+        self.assertIn('"ready" not in text.lower()', deployer)
+        self.assertIn('sum(character.isprintable() or character.isspace() for character in text) / len(text) < 0.95', deployer)
+        self.assertIn('print(f"llm smoke response: {text!r}")', deployer)
 
     def test_stage_b_authenticates_docker_to_the_configured_artifact_registry_host(self) -> None:
         deployer = (INFRA / "deploy-stage-b.sh").read_text()
@@ -179,6 +184,13 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("gcloud auth configure-docker", deployer)
         self.assertIn("MIRROR_IMAGE_REGISTRY", deployer)
         self.assertIn("Artifact Registry host", deployer)
+
+    def test_stage_b_docs_describe_cache_reuse_and_selective_shard_repair(self) -> None:
+        readme = (INFRA / "README.md").read_text()
+
+        self.assertIn("defaults to `0`", readme)
+        self.assertIn("SHA-256", readme)
+        self.assertIn("only a mismatched shard", readme)
 
     def test_production_compose_resolves_to_only_caddy_public_ports_and_gpu_llm(self) -> None:
         result = run(

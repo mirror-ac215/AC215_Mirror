@@ -56,8 +56,8 @@ compose=(
 gcloud auth configure-docker "$MIRROR_IMAGE_REGISTRY" --quiet
 "${compose[@]}" config --quiet
 "${compose[@]}" pull
-# This forces Hugging Face to re-fetch and parse each safetensors shard before
-# vLLM starts. It prevents a partially cached shard from passing /health alone.
+# This validates the existing Hugging Face cache and selectively repairs a
+# mismatched safetensors shard before vLLM starts.
 bash infra/prepare-llm-model.sh
 "${compose[@]}" up -d --no-build --wait --wait-timeout 600
 "${compose[@]}" ps
@@ -81,9 +81,11 @@ with urllib.request.urlopen(request, timeout=120) as response:
 text = payload["choices"][0]["message"]["content"]
 if not isinstance(text, str) or not text.strip() or len(text) > 1024:
     raise SystemExit("llm smoke response was empty or implausibly large")
+if "ready" not in text.lower():
+    raise SystemExit("llm smoke response did not contain the expected READY token")
 if sum(character.isprintable() or character.isspace() for character in text) / len(text) < 0.95:
     raise SystemExit("llm smoke response contained non-printable output")
-print("llm smoke response validated")
+print(f"llm smoke response: {text!r}")
 '
 
 printf '\nStage B deployment is running immutable Artifact Registry images tagged %s.\n' "$MIRROR_IMAGE_TAG"

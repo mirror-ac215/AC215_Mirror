@@ -301,17 +301,7 @@ Docker credential helper access for `MIRROR_IMAGE_REGISTRY` (for example
 between the checkout and `MIRROR_IMAGE_TAG`, resolves the three Compose files,
 pulls immutable images, and starts without local builds.
 
-Before starting vLLM, `infra/prepare-llm-model.sh` forces a fresh public-model
-snapshot download with `HF_HUB_DISABLE_XET=1`, parses `config.json`, and opens
-every safetensors shard. This detects truncated or structurally corrupt cached
-shards before `/health` can incorrectly report ready. It does not retrieve the
-LoRA adapter, write credentials, or prove semantic model quality. Set
-`LLM_FORCE_MODEL_DOWNLOAD=0` only after a separately documented integrity
-decision; the Stage-B default is `1` to avoid reusing a damaged cache. The real
-LLM container allows a 600-second health start period, disables the T4-incompatible
-FlashInfer sampler by default, and the deploy helper makes a safe non-streaming
-completion request that rejects empty/non-printable output. This is an operational
-smoke check, not a substitute for the reviewed LLM evaluation suite.
+Before starting vLLM, `infra/prepare-llm-model.sh` reuses the public-model snapshot in the same default Hugging Face hub cache that vLLM serves from, with `HF_HUB_DISABLE_XET=1`. It parses `config.json`, hashes every safetensors shard against the SHA-256 in its Hugging Face LFS blob filename, and re-downloads only a mismatched shard before rechecking it. This detects truncated or structurally corrupt cached shards before `/health` can incorrectly report ready. It does not retrieve the LoRA adapter, write credentials, or prove semantic model quality. `LLM_FORCE_MODEL_DOWNLOAD` defaults to `0`; set it to `1` only for an intentional full refresh. The real LLM container allows a 600-second health start period, disables the T4-incompatible FlashInfer sampler by default, and the deploy helper requires the fixed smoke reply to contain `READY` and prints that non-patient response. This is an operational smoke check, not a substitute for the reviewed LLM evaluation suite.
 
 Record `docker compose ... images` output with the resolved image digests as the
 M3-14 VM-pull evidence. Do not start, stop, or redeploy the VM from this project
