@@ -106,6 +106,9 @@ paths:
                   visual_status: { type: string, enum: [ok, uncertain, dropped, camera_off] }
                   top2:
                     type: array
+                    minItems: 2
+                    maxItems: 2
+                    items: { $ref: "#/components/schemas/LabelProb" }
                     description: Top two labels smoothed over the gate window, never one frame. Only present when visual_status is ok.
         "401": { description: Not logged in or token is invalid }
         "403": { description: Not the patient who owns this session }
@@ -226,6 +229,15 @@ components:
       schema: { type: string }
 
   schemas:
+    LabelProb:
+      type: array
+      description: One label and its probability, as [label, probability].
+      prefixItems:
+        - { type: string }
+        - { type: number, minimum: 0, maximum: 1 }
+      minItems: 2
+      maxItems: 2
+      items: false
     Session:
       type: object
       required: [session_id, started_at, camera_consent]

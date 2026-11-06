@@ -94,6 +94,7 @@ export function Session() {
   useEffect(() => {
     if (!cameraConsent || !sessionId || !cameraRequested) return;
     setCameraIssue(null);
+    setVisual(null); // a new camera run starts with no reading, whatever came before it
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraActive(false);
       setVisual(null);
@@ -135,7 +136,7 @@ export function Session() {
             const jpeg = await captureJpeg(videoRef.current);
             const ack = await api.sendFrame(sessionId, jpeg);
             // Camera turned off while this frame was on its way: keep the panel clear.
-            if (cameraStreamRef.current) setVisual(visualFromFrameAck(ack));
+            if (!disposed && cameraStreamRef.current) setVisual(visualFromFrameAck(ack));
           } catch (error) {
             stopWithIssue(error);
           }
