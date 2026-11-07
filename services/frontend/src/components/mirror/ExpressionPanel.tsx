@@ -1,11 +1,13 @@
-import { Video, VideoOff } from "lucide-react";
+import type { RefObject } from "react";
+import { VideoOff } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import type { ContextObject } from "@/lib/api/types";
 
 type Props = {
   cameraConsent: boolean;
-  // visual part of the context object from the last reply's "done" event; null before the first reply
+  // the gateway's latest smoothed reading (from a frame or a reply); null before the first one
   visual: ContextObject["visual"] | null;
+  videoRef?: RefObject<HTMLVideoElement | null>;
 };
 
 const LABELS: Record<string, string> = {
@@ -31,26 +33,7 @@ const NO_READING: Record<string, string> = {
 };
 
 /** Side panel of the session screen. Without camera consent it shows an explicit off state. */
-export function ExpressionPanel({ cameraConsent, visual }: Props) {
-  if (!cameraConsent) {
-    return (
-      <aside className="space-y-5">
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-          <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-neutral">
-            <VideoOff className="h-6 w-6 text-muted-ink" />
-          </div>
-          <p className="mt-2.5 px-1 text-xs text-muted-ink">
-            Camera off · expression sensing is not used in this session
-          </p>
-        </div>
-        <p className="px-1 text-[11px] leading-relaxed text-muted-ink">
-          Replies are based on your messages only. Turn the camera on above to restart expression
-          sensing.
-        </p>
-      </aside>
-    );
-  }
-
+export function ExpressionPanel({ cameraConsent, visual, videoRef }: Props) {
   // Numbers only for an "ok" reading whose top label is known and at least MIN_VISUAL_PROB:
   // the same rule the prompt uses (M3-08), therefore the screen and the reply agree.
   const raw = visual?.status === "ok" ? (visual.top2 ?? []) : [];
@@ -61,40 +44,60 @@ export function ExpressionPanel({ cameraConsent, visual }: Props) {
   return (
     <aside className="space-y-5">
       <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
-        <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-neutral">
-          <Video className="h-6 w-6 text-muted-ink" />
+        <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-neutral">
+          {/* Always mounted: the camera stream attaches before the camera counts as on. */}
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            aria-label="Your camera preview"
+            className={cameraConsent ? "h-full w-full -scale-x-100 object-cover" : "hidden"}
+          />
+          {!cameraConsent && <VideoOff className="h-6 w-6 text-muted-ink" />}
         </div>
-        <p className="mt-2.5 px-1 text-xs text-muted-ink">Camera preview · expression sensing on</p>
+        <p className="mt-2.5 px-1 text-xs text-muted-ink">
+          {cameraConsent
+            ? "Camera preview · expression sensing on · never stored"
+            : "Camera off · expression sensing is not used in this session"}
+        </p>
       </div>
 
-      <div className="rounded-2xl bg-reflective p-5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-ink">
-          Predicted expression
-        </p>
-        {top2.length > 0 ? (
-          <div className="mt-4 space-y-3.5">
-            {top2.map(([label, prob]) => (
-              <div key={label}>
-                <div className="mb-1.5 flex justify-between text-xs text-body">
-                  <span>{LABELS[label]}</span>
-                  <span className="text-muted-ink">{Math.round(prob * 100)}%</span>
-                </div>
-                <Progress
-                  value={prob * 100}
-                  className="h-1.5 bg-card/70 [&>div]:bg-lavender [&>div]:transition-all [&>div]:duration-700"
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-4 text-xs text-body">
-            {visual ? (NO_READING[visual.status] ?? UNCLEAR) : "No reading yet."}
+      {cameraConsent ? (
+        <div className="rounded-2xl bg-reflective p-5">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-ink">
+            Predicted expression
           </p>
-        )}
-        <p className="mt-4 text-[11px] leading-relaxed text-muted-ink">
-          An estimate of expression, not a measure of how you truly feel.
+          {top2.length > 0 ? (
+            <div className="mt-4 space-y-3.5">
+              {top2.map(([label, prob]) => (
+                <div key={label}>
+                  <div className="mb-1.5 flex justify-between text-xs text-body">
+                    <span>{LABELS[label]}</span>
+                    <span className="text-muted-ink">{Math.round(prob * 100)}%</span>
+                  </div>
+                  <Progress
+                    value={prob * 100}
+                    className="h-1.5 bg-card/70 [&>div]:bg-lavender [&>div]:transition-all [&>div]:duration-700"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-xs text-body">
+              {visual ? (NO_READING[visual.status] ?? UNCLEAR) : "No reading yet."}
+            </p>
+          )}
+          <p className="mt-4 text-[11px] leading-relaxed text-muted-ink">
+            An estimate of expression, not a measure of how you truly feel.
+          </p>
+        </div>
+      ) : (
+        <p className="px-1 text-[11px] leading-relaxed text-muted-ink">
+          Replies are based on your messages only. Turn the camera on above to restart expression
+          sensing.
         </p>
-      </div>
+      )}
     </aside>
   );
 }

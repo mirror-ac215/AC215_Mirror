@@ -27,7 +27,13 @@ export async function startSession(cameraConsent: boolean): Promise<Session> {
 }
 
 export async function sendFrame(): Promise<FrameAck> {
-  return { visual_status: "ok" };
+  return {
+    visual_status: "ok",
+    top2: [
+      ["neutral", 0.62],
+      ["happy", 0.21],
+    ],
+  };
 }
 
 export async function sendMessage(

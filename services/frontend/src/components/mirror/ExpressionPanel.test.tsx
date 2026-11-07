@@ -26,6 +26,13 @@ describe("ExpressionPanel", () => {
     ).toBeTruthy();
   });
 
+  it("shows the live preview only while the camera is on", () => {
+    const { rerender } = render(<ExpressionPanel cameraConsent={true} visual={null} />);
+    expect(screen.getByLabelText(/camera preview/i).className).not.toContain("hidden");
+    rerender(<ExpressionPanel cameraConsent={false} visual={null} />);
+    expect(screen.getByLabelText(/camera preview/i).className).toContain("hidden");
+  });
+
   it("before the first reply: no numbers yet", () => {
     render(<ExpressionPanel cameraConsent={true} visual={null} />);
     expect(screen.getByText(/no reading yet/i)).toBeTruthy();

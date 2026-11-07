@@ -17,12 +17,14 @@ export interface Session {
 
 export type VisualStatus = "ok" | "uncertain" | "dropped" | "camera_off";
 
-export interface FrameAck {
-  visual_status: VisualStatus;
-}
-
 /** A label with its probability, e.g. ["sad", 0.46] */
 export type LabelProb = [label: string, prob: number];
+
+export interface FrameAck {
+  visual_status: VisualStatus;
+  /** Smoothed over the gate window, never one frame. Only present when the status is "ok". */
+  top2?: LabelProb[];
+}
 
 export interface ContextObject {
   visual: {

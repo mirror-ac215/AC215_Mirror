@@ -108,6 +108,7 @@ async def start_session(
 @router.post(
     "/sessions/{session_id}/frames",
     status_code=202,
+    response_model_exclude_none=True,
     responses={
         401: {"description": "Not logged in"},
         403: {"description": "Not a patient, or not this patient's session"},
@@ -142,7 +143,11 @@ async def receive_frame(
         FrameReading.from_cv_payload(prediction, time.monotonic())
     )
     # Return the current gate result, not an optimistic usable-reading claim.
-    return FrameAck(visual_status=visual_context(session_id, session)["status"])
+    visual = visual_context(session_id, session)
+    trusted = visual["status"] == "ok"
+    return FrameAck(
+        visual_status=visual["status"], top2=visual.get("top2") if trusted else None
+    )
 
 
 @router.post(
