@@ -20,6 +20,16 @@ Inside the Compose network, services reach each other by service name. The gatew
 
 `cv-service` is available behind the explicit `cv` Compose profile (`--profile cv`), because its real startup needs an approved GCS credential to download the model. The default stack and its CI smoke test do not enable that profile, so neither needs cloud credentials. Without the profile, the gateway's `/health` reports `"status": "degraded"` with only `cv-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
 
+In production (`compose.prod.yml`) `cv-service` always runs, with no credential
+file: it downloads the model at startup using the VM's configured attached
+identity. Before pulling images, `deploy-stage-b.sh` obtains a token directly
+from the VM metadata server and reads the configured
+`CV_MODEL_BUCKET`/`CV_MODEL_OBJECT` metadata with that token. This fails
+clearly unless `M3_13_SERVICE_ACCOUNT_EMAIL` has `roles/storage.objectViewer`
+on the reviewed model bucket; a local gcloud user login cannot satisfy this
+check. The helper then waits up to 600 seconds for
+Compose health, so a model that cannot be loaded also fails the deployment.
+
 To run CV locally, first export the path to an ADC credential file that is outside this repository, then explicitly enable the profile:
 
 ```bash
@@ -117,8 +127,10 @@ deploy into an unknown project or zone.
 
 Before running it, a project administrator must approve billing, a T4-capable
 zone, GPU quota, a narrow VM service account, and the team CIDRs allowed to
-reach the VM. The configured service account needs only the eventual
-artifact-read permissions; do not give the VM Owner or Editor.
+reach the VM. The configured `M3_13_SERVICE_ACCOUNT_EMAIL` needs only the
+eventual artifact-read permissions: Artifact Registry Reader for immutable
+images and `roles/storage.objectViewer` on the reviewed CV-model bucket. Do
+not give the VM Owner or Editor.
 
 ```bash
 export M3_13_PROJECT_ID='your-project-id'

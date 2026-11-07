@@ -29,8 +29,14 @@ services:
       - hf-cache:/root/.cache/huggingface
 
   cv-service:
+    # Always on in production. It reads the model with the VM's own identity
+    # (mirror-vm-runtime), so no credential file is set or mounted.
+    profiles: !reset []
     ports: !reset []
     restart: unless-stopped
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: !reset null
+    volumes: !reset []
 
   frontend:
     ports: !reset []
