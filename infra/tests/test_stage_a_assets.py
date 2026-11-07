@@ -187,6 +187,23 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("MIRROR_IMAGE_REGISTRY", deployer)
         self.assertIn("Artifact Registry host", deployer)
 
+    def test_stage_b_preflights_vm_identity_access_to_the_configured_cv_object(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+        readme = (INFRA / "README.md").read_text()
+
+        self.assertIn('CV_MODEL_BUCKET="${CV_MODEL_BUCKET:-mirror-ac215-data}"', deployer)
+        self.assertIn('CV_MODEL_OBJECT="${CV_MODEL_OBJECT:-models/cv/v4/vit_b16_v4.pth}"', deployer)
+        self.assertIn("metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", deployer)
+        self.assertIn('Metadata-Flavor: Google', deployer)
+        self.assertIn('https://storage.googleapis.com/storage/v1/b/${CV_MODEL_BUCKET}/o/${encoded_cv_object}', deployer)
+        self.assertIn("CV model access preflight failed", deployer)
+        self.assertLess(
+            deployer.index("metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"),
+            deployer.index('"${compose[@]}" pull'),
+        )
+        self.assertIn("roles/storage.objectViewer", readme)
+        self.assertIn("configured `M3_13_SERVICE_ACCOUNT_EMAIL`", readme)
+
     def test_stage_b_docs_describe_cache_reuse_and_selective_shard_repair(self) -> None:
         readme = (INFRA / "README.md").read_text()
 

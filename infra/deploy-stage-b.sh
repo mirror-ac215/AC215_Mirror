@@ -9,7 +9,7 @@ if [[ ! -f infra/.env.prod ]]; then
   exit 64
 fi
 
-for command in docker git gcloud; do
+for command in docker git gcloud curl python3; do
   command -v "$command" >/dev/null 2>&1 || {
     printf 'Required command not found: %s\n' "$command" >&2
     exit 69
@@ -20,6 +20,12 @@ set -a
 # shellcheck disable=SC1091
 source infra/.env.prod
 set +a
+
+# Keep these defaults paired with the production cv-service configuration.
+# The preflight below obtains a token from the VM metadata server directly,
+# rather than from a gcloud user login or credential-file fallback.
+CV_MODEL_BUCKET="${CV_MODEL_BUCKET:-mirror-ac215-data}"
+CV_MODEL_OBJECT="${CV_MODEL_OBJECT:-models/cv/v4/vit_b16_v4.pth}"
 
 for name in MIRROR_IMAGE_REGISTRY MIRROR_IMAGE_REPOSITORY MIRROR_IMAGE_TAG; do
   if [[ -z "${!name:-}" ]]; then
@@ -52,6 +58,25 @@ compose=(
   -f infra/compose.prod.yml
   -f infra/compose.registry.yml
 )
+
+if ! metadata_token="$(
+  curl --fail --silent --show-error \
+    --header 'Metadata-Flavor: Google' \
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' |
+  python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
+)"; then
+  printf 'CV model access preflight failed: unable to obtain the attached VM identity token.\n' >&2
+  exit 66
+fi
+
+encoded_cv_object="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$CV_MODEL_OBJECT")"
+if ! curl --fail --silent --show-error \
+  --header "Authorization: Bearer ${metadata_token}" \
+  "https://storage.googleapis.com/storage/v1/b/${CV_MODEL_BUCKET}/o/${encoded_cv_object}" >/dev/null; then
+  printf 'CV model access preflight failed for gs://%s/%s.\n' "$CV_MODEL_BUCKET" "$CV_MODEL_OBJECT" >&2
+  printf 'Grant the configured VM service account roles/storage.objectViewer on the reviewed model bucket, then retry.\n' >&2
+  exit 66
+fi
 
 gcloud auth configure-docker "$MIRROR_IMAGE_REGISTRY" --quiet
 "${compose[@]}" config --quiet
