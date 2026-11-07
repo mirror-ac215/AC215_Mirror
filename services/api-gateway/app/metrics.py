@@ -66,7 +66,7 @@ AGREEMENTS = ("agree", "disagree", "n/a")
 TONE_MODES = ("coach", "supportive")
 MAIN_SIGNALS = ("face", "text", "none")
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
-MEDICATION_RULE_IDS = ("med-change", "med-dose", "med-mix", "med-should")  # app/safety.py
+MEDICATION_RULE_IDS = ("med-change", "med-dose", "med-mix", "med-should", "med-advice")  # app/safety.py
 
 
 def _closed(value: object, allowed: tuple[str, ...]) -> str:

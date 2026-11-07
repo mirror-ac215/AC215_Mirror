@@ -58,7 +58,7 @@ Before Mirror replies, `app/safety.py` reads the patient's message:
 | The patient writes... | Mirror does | Clinician flag |
 |---|---|---|
 | something about suicide, self-harm or hurting someone ("I want to die") | **Crisis:** shows 988 and 911 and does not reply | urgent |
-| a medication decision ("should I stop my meds?", "how many mg is safe?") | **Medication (M3-09):** sends a fixed reply pointing to their prescriber or a pharmacist; the LLM is not called | none |
+| a medication decision or recommendation ("should I stop my meds?", "how many mg is safe?", "I skipped my meds", "what medication should I take?") | **Medication (M3-09):** sends a fixed reply pointing to their prescriber or a pharmacist; the LLM is not called | none |
 | anything else | replies as usual | none |
 
 ```mermaid
@@ -100,7 +100,7 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 - Logs and flags never contain the message text, only which rule fired.
 - Crisis replies always provide 988/911 guidance. If PostgreSQL is unreachable, the gateway cannot create a durable review flag and must not claim that a clinician has been notified; the patient still receives the crisis guidance.
 - English only.
-- Crisis is checked first: "how many pills to overdose" is a crisis, not a dosing question.
+- Crisis is checked first: "how many pills to overdose", "what dose of xanax is lethal" and reports such as "I took 20 xanax" are a crisis, not a dosing question.
 - The medication rules catch a request for a decision, not every mention: "my sertraline makes me tired" gets a normal reply, and the prompt still tells the LLM never to talk about doses.
 - Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
