@@ -129,7 +129,9 @@ Before running it, a project administrator must approve billing, a T4-capable
 zone, GPU quota, a narrow VM service account, and the team CIDRs allowed to
 reach the VM. The configured `M3_13_SERVICE_ACCOUNT_EMAIL` needs only the
 eventual artifact-read permissions: Artifact Registry Reader for immutable
-images and `roles/storage.objectViewer` on the reviewed CV-model bucket. Do
+images and `roles/storage.objectViewer` on the reviewed CV-model bucket. It also
+needs `roles/logging.logWriter`, because production containers log to Cloud
+Logging and will not start without it (see [monitoring](../docs/monitoring.md)). Do
 not give the VM Owner or Editor.
 
 ```bash

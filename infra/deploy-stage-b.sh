@@ -78,6 +78,19 @@ if ! curl --fail --silent --show-error \
   exit 66
 fi
 
+# The gcplogs driver refuses to start a container it cannot log for, so check this first.
+vm_project="$(curl --fail --silent --show-error --header 'Metadata-Flavor: Google' \
+  'http://metadata.google.internal/computeMetadata/v1/project/project-id')"
+if ! curl --fail --silent --show-error --request POST \
+  --header "Authorization: Bearer ${metadata_token}" \
+  --header 'Content-Type: application/json' \
+  --data "{\"logName\":\"projects/${vm_project}/logs/mirror-deploy-preflight\",\"resource\":{\"type\":\"global\"},\"entries\":[{\"severity\":\"INFO\",\"textPayload\":\"deploy preflight\"}]}" \
+  'https://logging.googleapis.com/v2/entries:write' >/dev/null; then
+  printf 'Cloud Logging preflight failed for project %s.\n' "$vm_project" >&2
+  printf 'Grant the configured VM service account roles/logging.logWriter, then retry.\n' >&2
+  exit 66
+fi
+
 gcloud auth configure-docker "$MIRROR_IMAGE_REGISTRY" --quiet
 "${compose[@]}" config --quiet
 "${compose[@]}" pull
