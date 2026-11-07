@@ -11,8 +11,10 @@ const {
   accessTokenRefreshDelayMs,
   logout,
   captureJpeg,
+  redirect,
 } = vi.hoisted(() => ({
   navigate: vi.fn(),
+  redirect: vi.fn((options: object) => options),
   startSession: vi.fn(),
   sendFrame: vi.fn(),
   sendMessage: vi.fn(),
@@ -24,6 +26,7 @@ const {
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: object) => ({ ...options, useSearch: () => ({ camera: true }) }),
+  redirect,
   useNavigate: () => navigate,
 }));
 vi.mock("@/lib/api/client", () => ({
@@ -47,7 +50,7 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-import { Session } from "./session";
+import { Route, Session } from "./session";
 
 afterEach(() => {
   cleanup();
@@ -116,6 +119,19 @@ describe("Session camera lifecycle", () => {
 
     expect(await screen.findByText(/glad you're here/i)).toBeTruthy();
     expect(screen.queryByText(/overwhelmed/i)).toBeNull();
+  });
+
+  it("preserves the 988 and 911 expiry notice when a reloaded session redirects to login", () => {
+    const route = Route as unknown as {
+      beforeLoad: (options: { search: { notice?: string } }) => void;
+      validateSearch: (search: Record<string, unknown>) => { notice?: string };
+    };
+    const notice = "Your session expired. Call or text 988, or call 911 in an emergency.";
+    const search = route.validateSearch({ notice });
+
+    expect(search).toEqual({ notice });
+    expect(() => route.beforeLoad({ search })).toThrow();
+    expect(redirect).toHaveBeenCalledWith({ to: "/", search: { notice } });
   });
 
   it("redirects to login with 988 and 911 guidance when session creation returns 401", async () => {

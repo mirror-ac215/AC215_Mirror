@@ -28,13 +28,20 @@ const UNAVAILABLE_SESSION_NOTICE =
   "Your session ended because the service is unavailable. Call or text 988, or call 911 in an emergency.";
 
 export const Route = createFileRoute("/session")({
-  beforeLoad: () => {
-    if (!hasRequiredRole("patient")) throw redirect({ to: "/" });
+  beforeLoad: ({ search }) => {
+    if (!hasRequiredRole("patient")) {
+      throw redirect({
+        to: "/",
+        search: typeof search.notice === "string" ? { notice: search.notice } : {},
+      });
+    }
   },
   // The camera choice from /consent arrives as ?camera=true. Anything else, including
   // opening /session directly, means no camera: consent is never assumed.
-  validateSearch: (search: Record<string, unknown>): { camera?: boolean } =>
-    search["camera"] === true ? { camera: true } : {},
+  validateSearch: (search: Record<string, unknown>): { camera?: boolean; notice?: string } => ({
+    ...(search["camera"] === true ? { camera: true } : {}),
+    ...(typeof search["notice"] === "string" ? { notice: search["notice"] } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Your session — Mirror" },

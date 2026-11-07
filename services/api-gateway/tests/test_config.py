@@ -7,6 +7,7 @@ def test_settings_have_safe_defaults() -> None:
     settings = Settings()
 
     assert settings.app_name == "mirror-api-gateway"
+    assert settings.trusted_proxy_ips == ["172.30.0.2/32"]
 
 
 def test_llm_model_and_timeout_are_independently_configurable(monkeypatch) -> None:

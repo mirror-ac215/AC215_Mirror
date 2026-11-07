@@ -12,6 +12,12 @@ services:
     ports: !reset []
     restart: unless-stopped
     logging: *cloud-logging
+    environment:
+      # Only the Caddy address fixed below can supply X-Forwarded-For.
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-["172.30.0.2/32"]}
+    networks:
+      default: {}
+      caddy-proxy: {}
 
   llm-service:
     build:
@@ -49,6 +55,8 @@ services:
     ports: !reset []
     restart: unless-stopped
     logging: *cloud-logging
+    networks:
+      caddy-proxy: {}
     build:
       args:
         VITE_API_BASE_URL: /api
@@ -58,6 +66,9 @@ services:
     image: caddy:2.10.2-alpine
     restart: unless-stopped
     logging: *cloud-logging
+    networks:
+      caddy-proxy:
+        ipv4_address: 172.30.0.2
     ports:
       - "80:80"
       - "443:443"
@@ -72,6 +83,13 @@ services:
         condition: service_healthy
       api-gateway:
         condition: service_healthy
+
+networks:
+  caddy-proxy:
+    name: mirror-caddy-proxy
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
 
 volumes:
   hf-cache:

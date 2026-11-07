@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Self
 
 import bcrypt
@@ -65,6 +66,15 @@ async def test_authenticate_user_returns_none_for_unknown_user_or_wrong_password
         await authenticate_user(FakeUsers(seeded), seeded.email, "wrong-password")
         is None
     )
+
+
+def test_unknown_user_bcrypt_cost_matches_seeded_password_hashes() -> None:
+    from app.auth import _UNKNOWN_USER_PASSWORD_HASH
+
+    seed_script = Path(__file__).parents[2] / "db" / "seed.sh"
+
+    assert _UNKNOWN_USER_PASSWORD_HASH.split(b"$")[2] == b"12"
+    assert "gen_salt('bf', 12)" in seed_script.read_text()
 
 
 @pytest.mark.anyio

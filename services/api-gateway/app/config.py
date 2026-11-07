@@ -34,10 +34,9 @@ class Settings(BaseSettings):
     jwt_signing_key: str = Field(min_length=32)
     jwt_expires_minutes: int = Field(default=30, ge=1, le=60)
 
-    # Forwarded client addresses are accepted only from these explicitly trusted
-    # reverse-proxy addresses or networks. Keep the default empty: X-Forwarded-For
-    # is client-controlled on a direct connection.
-    trusted_proxy_ips: list[str] = []
+    # Production pins Caddy to this address in its dedicated proxy network.
+    # The /32 trusts only that proxy, never arbitrary direct-client XFF headers.
+    trusted_proxy_ips: list[str] = ["172.30.0.2/32"]
 
     # Biggest camera frame we accept. The frontend sends small downscaled JPEGs
     # (tens of KB), so 1 MB is generous; anything larger is rejected with 413.
