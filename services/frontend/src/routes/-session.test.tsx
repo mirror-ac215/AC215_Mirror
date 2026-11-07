@@ -328,4 +328,138 @@ describe("Session camera lifecycle", () => {
     expect(screen.queryByText("Happy")).toBeNull();
     expect(screen.getByText("No reading yet.")).toBeTruthy();
   });
+
+  describe("reply that finishes late", () => {
+    const SAD_CONTEXT = {
+      type: "done",
+      data: {
+        context: {
+          visual: {
+            status: "ok",
+            top2: [
+              ["sad", 0.7],
+              ["neutral", 0.1],
+            ],
+          },
+        },
+      },
+    };
+
+    /** Sends a message and leaves it unfinished until the test calls the returned function. */
+    async function sendAndHold() {
+      let onEvent: (event: unknown) => void = () => {};
+      let finish: () => void = () => {};
+      sendMessage.mockImplementation(
+        (_id: string, _text: string, listener: (event: unknown) => void) => {
+          onEvent = listener;
+          return new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+        },
+      );
+      fireEvent.change(screen.getByPlaceholderText("Type a message…"), {
+        target: { value: "hello" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+      await waitFor(() => expect(sendMessage).toHaveBeenCalled());
+      return async () => {
+        await act(async () => {
+          onEvent(SAD_CONTEXT);
+          finish();
+        });
+      };
+    }
+
+    function setUpCamera(getUserMedia: ReturnType<typeof vi.fn>) {
+      stubCamera(getUserMedia);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+      captureJpeg.mockResolvedValue(new Blob());
+      sendFrame.mockResolvedValue(OK_ACK);
+      startSession.mockResolvedValue({ session_id: "s1" });
+      return vi.spyOn(globalThis, "setInterval");
+    }
+
+    it("updates the panel when the camera run has not changed", async () => {
+      const intervals = setUpCamera(vi.fn().mockResolvedValueOnce(fakeStream().media));
+
+      render(<Session />);
+      await screen.findByRole("button", { name: "Turn camera off" });
+      await sendOneFrame(intervals);
+      const finish = await sendAndHold();
+      await finish();
+
+      expect(screen.getByText("Sad")).toBeTruthy();
+    });
+
+    it("stays clear until the new run's reading after camera off, on, then a late reply", async () => {
+      const intervals = setUpCamera(
+        vi.fn().mockResolvedValueOnce(fakeStream().media).mockResolvedValueOnce(fakeStream().media),
+      );
+
+      render(<Session />);
+      await screen.findByRole("button", { name: "Turn camera off" });
+      await sendOneFrame(intervals);
+      const finish = await sendAndHold();
+
+      fireEvent.click(screen.getByRole("button", { name: "Turn camera off" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Turn camera on" }));
+      await screen.findByRole("button", { name: "Turn camera off" });
+      await finish();
+
+      expect(screen.queryByText("Sad")).toBeNull();
+      expect(screen.getByText("No reading yet.")).toBeTruthy();
+
+      await sendOneFrame(intervals);
+      expect(screen.getByText("Happy")).toBeTruthy();
+    });
+
+    it("stays clear after a permission failure, a retry, then a late reply", async () => {
+      const denied = new DOMException("Permission denied", "NotAllowedError");
+      const intervals = setUpCamera(
+        vi
+          .fn()
+          .mockResolvedValueOnce(fakeStream().media)
+          .mockRejectedValueOnce(denied)
+          .mockResolvedValueOnce(fakeStream().media),
+      );
+
+      render(<Session />);
+      await screen.findByRole("button", { name: "Turn camera off" });
+      await sendOneFrame(intervals);
+      const finish = await sendAndHold();
+
+      fireEvent.click(screen.getByRole("button", { name: "Turn camera off" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Turn camera on" }));
+      expect(await screen.findByText(/messages remain text-only/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Turn camera on" }));
+      await screen.findByRole("button", { name: "Turn camera off" });
+      await finish();
+
+      expect(screen.queryByText("Sad")).toBeNull();
+      expect(screen.getByText("No reading yet.")).toBeTruthy();
+
+      await sendOneFrame(intervals);
+      expect(screen.getByText("Happy")).toBeTruthy();
+    });
+
+    it("stays clear when a message is sent before the new run's first reading", async () => {
+      const intervals = setUpCamera(
+        vi.fn().mockResolvedValueOnce(fakeStream().media).mockResolvedValueOnce(fakeStream().media),
+      );
+
+      render(<Session />);
+      await screen.findByRole("button", { name: "Turn camera off" });
+      await sendOneFrame(intervals);
+      fireEvent.click(screen.getByRole("button", { name: "Turn camera off" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Turn camera on" }));
+      await screen.findByRole("button", { name: "Turn camera off" });
+
+      const finish = await sendAndHold();
+      await finish();
+
+      expect(screen.queryByText("Sad")).toBeNull();
+      expect(screen.getByText("No reading yet.")).toBeTruthy();
+    });
+  });
 });
