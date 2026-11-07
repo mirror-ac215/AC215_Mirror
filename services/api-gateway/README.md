@@ -84,7 +84,7 @@ flowchart LR
 | Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS`, `MEDICATION_EXCEPTIONS` in `app/safety.py` |
 | The medication reply | `MEDICATION_REPLY` in `app/safety.py`; sent as normal `token` + `done` events, no contract change |
 | Where the check runs | `send_message` in `app/chat.py` |
-| Test messages | `tests/safety_cases.yaml` (116 messages) |
+| Test messages | `tests/safety_cases.yaml` (147 messages) |
 | Event shape | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`) |
 
 ### Changing a rule
