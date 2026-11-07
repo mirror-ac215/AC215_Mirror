@@ -12,7 +12,7 @@ import pytest
 import yaml
 from httpx import ASGITransport, AsyncClient
 
-from app import chat, safety
+from app import chat, metrics, safety
 from app.main import app
 
 CASES = yaml.safe_load((Path(__file__).parent / "safety_cases.yaml").read_text())
@@ -29,12 +29,12 @@ def test_curated_case(case: dict) -> None:
 def test_curated_set_is_big_enough_and_covers_every_outcome() -> None:
     expects = [c["expect"] for c in CASES]
     assert len(CASES) >= 50
-    assert {"crisis", "none"} <= set(expects)
+    assert {"crisis", "medication", "none"} <= set(expects)
 
 
 def test_every_rule_is_covered_by_a_case() -> None:
     fired = {safety.check(c["text"]).rule_id for c in CASES}
-    rules = {rid for rid, _ in safety.CRISIS_RULES}
+    rules = {rid for rid, _ in safety.CRISIS_RULES + safety.MEDICATION_RULES}
     assert rules - fired == set(), "add a case for each new rule"
 
 
@@ -97,4 +97,41 @@ async def test_message_text_is_never_logged(caplog: pytest.LogCaptureFixture) ->
     finally:
         mirror_logger.removeHandler(caplog.handler)
     assert any("safety_hit kind=crisis" in r.getMessage() for r in caplog.records)
+    assert all(secret not in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.anyio
+async def test_medication_turn_gets_the_fixed_reply_not_the_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_llm(*_args, **_kwargs):
+        raise AssertionError("a medication question must not reach the LLM")
+
+    monkeypatch.setattr(chat.llm_client, "stream", no_llm)
+    stream = await send("should I stop taking my meds")
+
+    names = [name for name, _ in stream]
+    assert names == ["token", "done"]  # same events as a normal reply, no crisis screen
+    assert stream[0][1]["text"] == safety.MEDICATION_REPLY
+    assert stream[1][1]["context"] is not None
+
+
+def test_medication_reply_points_to_a_person_and_gives_no_advice() -> None:
+    reply = safety.MEDICATION_REPLY.lower()
+    assert "prescribed" in reply and "pharmacist" in reply and "911" in reply
+    assert not any(word in reply for word in ("mg", "increase", "decrease", "double"))
+
+
+def test_metric_labels_match_the_medication_rule_ids() -> None:
+    assert set(metrics.MEDICATION_RULE_IDS) == {rid for rid, _ in safety.MEDICATION_RULES}
+
+
+@pytest.mark.anyio
+async def test_medication_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> None:
+    secret = "can I double my dose of sertraline before my exam"
+    mirror_logger = logging.getLogger("mirror")
+    mirror_logger.addHandler(caplog.handler)
+    try:
+        await send(secret)
+    finally:
+        mirror_logger.removeHandler(caplog.handler)
+    assert any("safety_hit kind=medication rule=med-change" in r.getMessage() for r in caplog.records)
     assert all(secret not in r.getMessage() for r in caplog.records)

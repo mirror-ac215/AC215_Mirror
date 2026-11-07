@@ -5,18 +5,22 @@ rules (regular expressions), not a model: the same message always gives the
 same answer and every rule can be reviewed line by line. The face signal is
 never an input.
 
-One outcome besides "no hit":
+Two outcomes besides "no hit", checked in this order:
 - crisis: suicide, self-harm, or harming someone else. The gateway withholds
           the persona reply, streams a `crisis` event with 988 resources and
-          records a review flag for the patient's clinician (in memory until
-          M3-10 saves it to the database).
+          records a review flag for the patient's clinician.
+- medication: a question about changing, stopping, mixing or dosing
+          medication (M3-09). The LLM is skipped and the patient gets
+          MEDICATION_REPLY as an ordinary streamed reply, pointing them to
+          their prescriber. No new event type, no contract change.
 
-Rules lean towards firing: a false alarm shows 988 to someone who didn't need
-it; a miss leaves someone in crisis with a chatbot.
+Crisis rules lean towards firing: a false alarm shows 988 to someone who didn't
+need it; a miss leaves someone in crisis with a chatbot. Crisis always wins: "how
+many pills to overdose" is a crisis, not a dosing question.
 
-Changing a rule: edit CRISIS_RULES / CRISIS_EXCEPTIONS, add a
-case to tests/safety_cases.yaml, and get the change reviewed. Never log the
-message text: log the rule id only.
+Changing a rule: edit the rules / exceptions below, add a case to
+tests/safety_cases.yaml, and get the change reviewed. Never log the message
+text: log the rule id only.
 """
 
 from __future__ import annotations
@@ -26,7 +30,18 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Literal
 
-SafetyKind = Literal["crisis"]
+SafetyKind = Literal["crisis", "medication"]
+
+_MEDS = (r"(meds|medication|medications|medicine|pills?|tablets?|antidepressants?|"
+         r"dose|doses|dosage|prescription|sertraline|zoloft|fluoxetine|prozac|escitalopram|"
+         r"lexapro|citalopram|paroxetine|paxil|venlafaxine|effexor|bupropion|wellbutrin|"
+         r"lithium|quetiapine|seroquel|aripiprazole|abilify|lamotrigine|lamictal|trazodone|"
+         r"mirtazapine|alprazolam|xanax|lorazepam|ativan|clonazepam|klonopin|diazepam|valium|"
+         r"zolpidem|ambien|adderall|ritalin|methylphenidate|propranolol|hydroxyzine|"
+         r"insulin|birth control|the pill|melatonin|tylenol|acetaminophen|paracetamol|ibuprofen|"
+         r"advil|aspirin|benadryl|gabapentin|metformin|levothyroxine|prednisone|steroids|"
+         r"inhaler|painkillers?|sleeping pills?|sleep aids?|antipsychotics?|mood stabili[sz]ers?|"
+         r"benzos?|opioids?|oxycodone|tramadol|suboxone|methadone|naltrexone)")
 
 # (rule id, pattern). Patterns run on normalised text (see normalise()).
 CRISIS_RULES: list[tuple[str, str]] = [
@@ -71,6 +86,15 @@ CRISIS_RULES: list[tuple[str, str]] = [
     ("self-harm", (r"\b(self[- ]?harm(ing)?|cut(ting)? myself|hurt(ing)? myself|harm(ing)? myself"
                    r"|cutting( myself)? again)\b")),
     ("overdose", r"\b(overdos(e|ing)|od on)\b"),
+    # "what dose of xanax is lethal", "how many pills does it take to die" (M3-09 review)
+    ("lethal-dose", (r"\b(lethal|fatal|deadly|toxic) (\w+ ){0,2}(dose|dosage|overdose|amount of " + _MEDS + r")\b"
+                     r"|\b(dose|dosage|amount) (of )?(\w+ ){0,3}(is |would be |be )?(lethal|fatal|deadly)\b"
+                     r"|\bhow (many|much)\b(\s\S+){0,8}\s(to die|not wake up|never wake up|to kill (me|my ?self)"
+                     r"|to be dead|to end it|be (lethal|fatal|deadly))\b")),
+    # "I took too many pills", "I just took 30 of my sleeping pills", "I took 20 xanax"
+    ("took-too-many", (r"\b(took|taken|swallowed|had|taking|swallowing) (way )?(too (many|much)|\d{2,}|"
+                       r"(ten|twelve|fifteen|twenty|thirty|forty|fifty|a hundred))"
+                       r"( of)?( my| the)?( \w+){0,2} " + _MEDS + r"\b")),
     ("cant-go-on", r"\b(can't|cannot|cant|can not) go on( anymore| living| like this)?\b"),
     ("goodbye-note", r"\b(suicide|goodbye) (note|letter)\b"),
     ("harm-other", r"\b(kill|killing|stab|stabbing|shoot|shooting) (him|her|them|someone|somebody|people|my \w+)\b"),
@@ -80,6 +104,9 @@ CRISIS_RULES: list[tuple[str, str]] = [
 # Common phrases that look like a crisis rule but are not. Each one is blanked
 # out of the text before its own rule runs; the rest of the message is still checked.
 CRISIS_EXCEPTIONS: dict[str, list[str]] = {
+    # "a lethal dose of stress", "a deadly dose of reality"
+    "lethal-dose": [(r"\b(lethal|fatal|deadly|toxic) (dose|amount) of (stress|reality|drama|boredom|cuteness|"
+                     r"sarcasm|caffeine|coffee|work|homework|nostalgia|cringe)\b")],
     "kill-self": [
         r"\b(is|are|was|were|'s|'re) killing me\b",  # "this commute is killing me"
         r"\b(will|would|'ll|'d|gonna|going to) kill me\b",  # "my mom is going to kill me"
@@ -114,9 +141,76 @@ CRISIS_EXCEPTIONS: dict[str, list[str]] = {
     "self-harm": [r"\bhurt myself (at the gym|playing \w+|running|lifting|skiing|cooking|moving)\b"],
 }
 
+# Medication (M3-09). Plain Qwen is served with no adapter for MS3, and the prompt
+# rule alone ("never talk about medication or doses") is not a guarantee. These
+# rules catch the patient asking for a medication decision, not every mention:
+# "my sertraline makes me tired" still gets a normal reply.
+MEDICATION_RULES: list[tuple[str, str]] = [
+    # "should I stop my meds", "can I double my dose", "thinking of coming off sertraline"
+    # past tense too: "I stopped taking my meds", "I skipped my meds", "I doubled my dose"
+    ("med-change", (r"\b(stop|stopped|stopping|quit|quitting|skip|skipped|skipping|double|doubled|"
+                    r"doubling|increase|increased|increasing|decrease|decreased|decreasing|lower|"
+                    r"lowered|lowering|raise|raised|raising|halve|halved|cut down|cut back|come off|"
+                    r"came off|coming off|go off|went off|going off|get off|got off|wean off|taper|"
+                    r"tapered|tapering)( taking| on)?( my| the| your)? (\w+ )?" + _MEDS + r"\b"
+                    # any drug name after "taking my": "I stopped taking my lisinopril"
+                    r"|\b(stop|stopped|stopping|quit|quitting|skip|skipped|skipping) taking my "
+                    r"(?!(car|bike|bus|train|dog|dogs|kids?|son|daughter|lunch|time|classes|class|notes|"
+                    r"walks?|advice|calls?|shifts?|turn)\b)\w+"
+                    # "I'm going to take more pills tonight"
+                    r"|\b(take|taking|took) (more|extra|another|some more|a few more|a couple more)"
+                    r"( of)?( my| the)? (\w+ )?" + _MEDS + r"\b")),
+    # "how many mg should I take", "what dose of xanax is safe"
+    ("med-dose", (r"\b(how (many|much)|what|which|what's|whats|right|safe|max|maximum) "
+                  r"(\w+ ){0,3}(mg|milligrams?|dose|dosage|pills|tablets)\b"
+                  r"|\b\d+ ?(mg|milligrams?)\b")),
+    # "can I drink on my antidepressants", "is it ok to mix xanax and alcohol"
+    ("med-mix", (r"\b(drink|drinking|alcohol|wine|beer|weed|cannabis|mix|mixing|combine|combining)\b"
+                 r"(\s\S+){0,6}\s" + _MEDS + r"\b"
+                 r"|\b" + _MEDS + r"(\s\S+){0,6}\s(alcohol|wine|beer|weed|cannabis|drinking)\b")),
+    # "should I take my meds today", "is it safe to take two pills", "do I need more medication"
+    ("med-should", (r"\b(should i|can i|could i|do i need|is it (ok|okay|safe|bad|fine)|"
+                    r"would it be (ok|okay|safe|bad)|am i allowed)\b(\s\S+){0,6}\s" + _MEDS + r"\b")),
+]
+
+MEDICATION_RULES.append(
+    # "what medication should I take", "which antidepressant is best", "do you think I need
+    # medication", "can you prescribe me something", "what can I take to sleep"
+    ("med-advice", (r"\b(what|which)( \w+){0,2} " + _MEDS + r"( \w+){0,3} (should|best|better|works?|would)\b"
+                    r"|\b(do you think|you think|do u think) i (need|should (take|try|be on|start))( \w+){0,2} "
+                    + _MEDS + r"\b"
+                    r"|\b(can|could|will|would) you prescribe\b"
+                    r"|\bwhat (can|should|could) i take (to (help me )?(sleep|calm down|relax|fall asleep|stay awake|feel better)"
+                    r"|for (my |the |a )?(sleep|pain|anxiety|stress|depression|headaches?|migraines?|insomnia|"
+                    r"panic( attacks)?|nerves|mood))\b")),
+)
+
+MEDICATION_EXCEPTIONS: dict[str, list[str]] = {
+    # "I remembered to take my meds", "my reminder to take my pills": routine, not a question
+    "med-should": [
+        r"\b(remember(ed)?|reminder|forgot|forget) to take (my|the) " + _MEDS + r"\b",
+        # "can I tell you how my medication makes me feel", "can I talk about my meds"
+        r"\bcan i (tell you|talk|talk to you|vent|share|ask you something)( about)?\b",
+    ],
+    # "my doctor said I should stop my meds and I'm scared": the prescriber's decision, not a question
+    "med-change": [(r"\b(doctor|psychiatrist|prescriber|gp|nurse|pharmacist|nurse practitioner) "
+                    r"(said|says|told me|wants me|asked me)( that)?( i should| to| i need to| i have to| i can)?"
+                    r"( \w+){0,4} " + _MEDS + r"\b")],
+    "med-dose": [r"\bwhat a (\w+ )?dose\b"],  # "what a dose of reality"
+}
+
+MEDICATION_REPLY = (
+    "I can't give advice about medication or doses, and this is too important to "
+    "guess about. The person who prescribed it, or a pharmacist, is the right person "
+    "to ask; please contact them before changing anything. If you feel unwell right "
+    "now, call 911. I'm still here if you'd like to talk about how you're feeling."
+)
+
 _COMPILED_CRISIS = [(rid, re.compile(p)) for rid, p in CRISIS_RULES]
+_COMPILED_MEDICATION = [(rid, re.compile(p)) for rid, p in MEDICATION_RULES]
 _COMPILED_EXCEPTIONS = {
-    rid: [re.compile(p) for p in patterns] for rid, patterns in CRISIS_EXCEPTIONS.items()
+    rid: [re.compile(p) for p in patterns]
+    for rid, patterns in {**CRISIS_EXCEPTIONS, **MEDICATION_EXCEPTIONS}.items()
 }
 
 CRISIS_MESSAGE = (
@@ -146,8 +240,8 @@ def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _crisis_rule(text: str) -> str | None:
-    for rule_id, pattern in _COMPILED_CRISIS:
+def _first_rule(rules: list[tuple[str, re.Pattern]], text: str) -> str | None:
+    for rule_id, pattern in rules:
         # Blank out this rule's harmless phrases first, then look again. In
         # "I want to kill myself, this is killing me" only "is killing me" is
         # removed and "kill myself" still fires.
@@ -160,9 +254,12 @@ def _crisis_rule(text: str) -> str | None:
 
 
 def check(message: str) -> SafetyResult:
-    """Message in, crisis or no hit out."""
-    if rule_id := _crisis_rule(normalise(message)):
+    """Message in, crisis / medication / no hit out. Crisis is checked first."""
+    text = normalise(message)
+    if rule_id := _first_rule(_COMPILED_CRISIS, text):
         return SafetyResult("crisis", rule_id)
+    if rule_id := _first_rule(_COMPILED_MEDICATION, text):
+        return SafetyResult("medication", rule_id)
     return SafetyResult(None)
 
 
