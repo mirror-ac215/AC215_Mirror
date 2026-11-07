@@ -221,6 +221,24 @@ class StageAAssetTests(unittest.TestCase):
         self.assertNotIn("ports", cv)
         self.assertEqual(cv["environment"]["MODEL_OBJECT"], "models/cv/v4/vit_b16_v4.pth")
 
+    def test_production_logs_go_to_cloud_logging_except_the_database(self) -> None:
+        result = run(
+            "docker", "compose", "--env-file", "/dev/null", "--profile", "cv", "-f", "infra/compose.yml", "-f",
+            "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        services = json.loads(result.stdout)["services"]
+        for service in ("api-gateway", "llm-service", "cv-service", "frontend", "caddy"):
+            self.assertEqual(services[service]["logging"]["driver"], "gcplogs", service)
+        self.assertNotIn("logging", services["db"])
+
+    def test_stage_b_preflights_cloud_logging_before_starting_services(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+
+        self.assertIn("https://logging.googleapis.com/v2/entries:write", deployer)
+        self.assertIn("roles/logging.logWriter", deployer)
+        self.assertLess(deployer.index("entries:write"), deployer.index('"${compose[@]}" pull'))
+
     def test_production_compose_resolves_to_only_caddy_public_ports_and_gpu_llm(self) -> None:
         result = run(
             "docker", "compose", "--env-file", "/dev/null", "--profile", "cv", "-f", "infra/compose.yml", "-f", "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV

@@ -1,5 +1,9 @@
 # Production-only override. Keep infra/compose.yml unchanged for local laptop/CI.
 # Invoke with: docker compose --env-file infra/.env.prod -f infra/compose.yml -f infra/compose.prod.yml up -d --wait
+# Sends container logs to Cloud Logging (see docs/monitoring.md). The database is left out.
+x-cloud-logging: &cloud-logging
+  driver: gcplogs
+
 services:
   db:
     restart: unless-stopped
@@ -7,6 +11,7 @@ services:
   api-gateway:
     ports: !reset []
     restart: unless-stopped
+    logging: *cloud-logging
 
   llm-service:
     build:
@@ -14,6 +19,7 @@ services:
       target: real
     gpus: all
     restart: unless-stopped
+    logging: *cloud-logging
     environment:
       MOCK_MODE: "0"
       MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
@@ -34,6 +40,7 @@ services:
     profiles: !reset []
     ports: !reset []
     restart: unless-stopped
+    logging: *cloud-logging
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: !reset null
     volumes: !reset []
@@ -41,6 +48,7 @@ services:
   frontend:
     ports: !reset []
     restart: unless-stopped
+    logging: *cloud-logging
     build:
       args:
         VITE_API_BASE_URL: /api
@@ -49,6 +57,7 @@ services:
   caddy:
     image: caddy:2.10.2-alpine
     restart: unless-stopped
+    logging: *cloud-logging
     ports:
       - "80:80"
       - "443:443"
