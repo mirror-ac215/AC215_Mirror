@@ -12,8 +12,9 @@ const DEMO_CRISIS_WORDS = ["kill myself", "end my life", "suicide", "hurt myself
 
 let replyIndex = 0;
 
-export async function login(role: Role): Promise<LoginResponse> {
+export async function login(email: string): Promise<LoginResponse> {
   await wait(300);
+  const role: Role = email.startsWith("clinician.") ? "clinician" : "patient";
   return { access_token: "mock-token", role, user_id: role === "patient" ? "MR-1087" : "CL-01" };
 }
 

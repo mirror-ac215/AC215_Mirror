@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 
 import pytest
+from conftest import auth_headers
 
 from app.fusion import TurnHistory
 from app.gating import FrameReading
@@ -186,7 +187,11 @@ async def test_http_turn_forwards_fake_llm_sse_and_uses_fake_cv_and_persistence(
     monkeypatch.setattr(chat, "llm_client", llm)
     monkeypatch.setattr(chat, "cv_client", FakeCV())
     monkeypatch.setattr(chat, "get_text_emotion", text_emotion)
-    headers = {"Authorization": "Bearer dev-patient-token"}
+    headers = auth_headers(
+        "00000000-0000-0000-0000-000000000201",
+        "patient.alex@example.test",
+        "patient",
+    )
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

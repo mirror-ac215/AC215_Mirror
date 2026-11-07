@@ -4,7 +4,8 @@
 import { API_BASE_URL, USE_MOCK_API } from "@/lib/config";
 import * as mock from "./mock";
 import { createSseParser } from "./sse";
-import type { ChatEvent, FrameAck, LoginResponse, Role, Session } from "./types";
+import { clearAuthenticatedUser, setAuthenticatedUser } from "@/lib/role";
+import type { ChatEvent, FrameAck, LoginResponse, Session } from "./types";
 
 let accessToken: string | null = null;
 
@@ -25,14 +26,43 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 /** Forget the current user's token (on logout, and before any new login attempt). */
 export function logout(): void {
   accessToken = null;
+  clearAuthenticatedUser();
 }
 
-export async function login(email: string, password: string, role: Role): Promise<LoginResponse> {
-  logout(); // a failed login must never leave the previous user's token active
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  logout(); // a failed login must never leave the previous user's identity active
   const result = USE_MOCK_API
-    ? await mock.login(role)
+    ? await mock.login(email)
     : await postJson<LoginResponse>("/auth/login", { email, password });
   accessToken = result.access_token;
+  setAuthenticatedUser({ user_id: result.user_id, role: result.role });
+  return result;
+}
+
+export function accessTokenRefreshDelayMs(): number | null {
+  if (!accessToken) return null;
+  try {
+    const payload = accessToken.split(".")[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as {
+      exp?: unknown;
+      iat?: unknown;
+    };
+    if (typeof decoded.exp !== "number") return null;
+    const tokenLifetimeMs =
+      typeof decoded.iat === "number" ? Math.max(0, (decoded.exp - decoded.iat) * 1000) : 60_000;
+    const renewalLeadMs = Math.min(60_000, Math.max(5_000, Math.floor(tokenLifetimeMs / 2)));
+    return Math.max(1_000, decoded.exp * 1000 - Date.now() - renewalLeadMs);
+  } catch {
+    return null;
+  }
+}
+
+export async function refreshAccessToken(): Promise<LoginResponse> {
+  if (USE_MOCK_API) throw new Error("Token renewal is unavailable in mock mode");
+  const result = await postJson<LoginResponse>("/auth/refresh", {});
+  accessToken = result.access_token;
+  setAuthenticatedUser({ user_id: result.user_id, role: result.role });
   return result;
 }
 

@@ -50,14 +50,20 @@ paths:
           description: Logged in
           content:
             application/json:
-              schema:
-                type: object
-                required: [access_token, role, user_id]
-                properties:
-                  access_token: { type: string, description: "JWT; send as Authorization: Bearer <token>" }
-                  role: { type: string, enum: [patient, clinician] }
-                  user_id: { type: string }
+              schema: { $ref: "#/components/schemas/LoginResponse" }
         "401": { description: Wrong email or password }
+        "429": { description: Too many login attempts from this account/client pair }
+
+  /auth/refresh:
+    post:
+      summary: Replace a still-valid authenticated token with a fresh token
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401": { description: Not logged in or token is invalid or expired }
 
   /sessions:
     post:
@@ -238,6 +244,13 @@ components:
       minItems: 2
       maxItems: 2
       items: false
+    LoginResponse:
+      type: object
+      required: [access_token, role, user_id]
+      properties:
+        access_token: { type: string, description: "JWT; send as an Authorization Bearer token" }
+        role: { type: string, enum: [patient, clinician] }
+        user_id: { type: string }
     Session:
       type: object
       required: [session_id, started_at, camera_consent]

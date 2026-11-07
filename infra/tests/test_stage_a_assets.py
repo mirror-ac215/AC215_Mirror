@@ -22,6 +22,7 @@ DUMMY_ENV = {
     "DB_USER": "mirror_app",
     "DB_PASSWORD": "dummy-postgres-password",
     "MIRROR_DEMO_PASSWORD": "dummy-demo-password",
+    "JWT_SIGNING_KEY": "dummy-jwt-signing-key-with-adequate-length",
     "CADDY_DOMAIN": "stage-a.example.test",
     "CADDY_EMAIL": "ops@example.test",
 }
@@ -254,6 +255,29 @@ class StageAAssetTests(unittest.TestCase):
         self.assertNotIn("LORA_ADAPTER_PATH", services["llm-service"]["environment"])
         self.assertEqual([volume["target"] for volume in services["llm-service"]["volumes"]], ["/root/.cache/huggingface"])
 
+    def test_production_compose_pins_caddy_and_trusts_only_that_proxy(self) -> None:
+        result = run(
+            "docker", "compose", "--env-file", "/dev/null", "--profile", "cv", "-f", "infra/compose.yml", "-f", "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        compose = json.loads(result.stdout)
+        services = compose["services"]
+
+        self.assertEqual(
+            services["api-gateway"]["environment"]["TRUSTED_PROXY_IPS"],
+            '["172.30.0.2/32"]',
+        )
+        self.assertEqual(
+            services["caddy"]["networks"]["caddy-proxy"]["ipv4_address"],
+            "172.30.0.2",
+        )
+        self.assertIn("caddy-proxy", services["api-gateway"]["networks"])
+        self.assertIn("caddy-proxy", services["frontend"]["networks"])
+        self.assertEqual(
+            compose["networks"]["caddy-proxy"]["ipam"]["config"],
+            [{"subnet": "172.30.0.0/24", "ip_range": "172.30.0.128/25"}],
+        )
+
     def test_caddyfile_validates_with_dummy_runtime_values(self) -> None:
         result = run(
             "docker", "run", "--rm", "--network", "none", "-e", "CADDY_DOMAIN=stage-a.example.test", "-e", "CADDY_EMAIL=ops@example.test", "-v", f"{(INFRA / 'caddy' / 'Caddyfile').resolve()}:/etc/caddy/Caddyfile:ro", "caddy:2.10.2-alpine", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"
@@ -271,6 +295,7 @@ class StageAAssetTests(unittest.TestCase):
         example = (INFRA / ".env.prod.example").read_text()
         for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN="):
             self.assertIn(variable, example)
+        self.assertIn('TRUSTED_PROXY_IPS=["172.30.0.2/32"]', example)
         self.assertNotIn("replace-me", example.lower())
         self.assertNotIn("password123", example.lower())
 

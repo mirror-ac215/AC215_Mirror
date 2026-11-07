@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import * as api from "@/lib/api/client";
 import { USE_MOCK_API } from "@/lib/config";
-import { setRole, useRole, type Role } from "@/lib/role";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): { notice?: string } =>
@@ -31,22 +30,18 @@ export const Route = createFileRoute("/")({
 
 function Login() {
   const { notice } = Route.useSearch();
-  const role = useRole();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const choose = (r: Role) => setRole(r);
-  // Log in through the API client: it stores the token that every later request sends.
-  // In mock mode any credentials work; against the real gateway they must match a demo user.
+  // The gateway derives the role from verified credentials, never from the browser.
   const signIn = async () => {
     setError(null);
     setBusy(true);
     try {
-      const result = await api.login(email, password, role);
-      setRole(result.role);
+      const result = await api.login(email, password);
       navigate({ to: result.role === "patient" ? "/consent" : "/clinician" });
     } catch {
       setError("Wrong email or password.");
@@ -67,20 +62,6 @@ function Login() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-secondary p-1">
-            {(["patient", "clinician"] as Role[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => choose(r)}
-                className={`rounded-[9px] py-2 text-sm font-medium capitalize ${
-                  role === r ? "bg-card text-ink shadow-soft" : "text-muted-ink"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -120,7 +101,7 @@ function Login() {
               disabled={busy}
               className="brand-gradient h-11 w-full rounded-[11px] text-white shadow-soft hover:opacity-95"
             >
-              Continue as {role}
+              Continue
             </Button>
           </form>
           {notice && <p className="mt-4 text-sm text-safety">{notice}</p>}

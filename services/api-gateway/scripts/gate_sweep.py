@@ -31,6 +31,15 @@ GRID = {
 }
 
 
+def sweep_settings(**thresholds: float) -> Settings:
+    """Build script-only settings without weakening runtime-required secrets."""
+    return Settings(
+        database_url="postgresql://unused:unused@localhost:5432/unused",
+        jwt_signing_key="gate-sweep-local-non-secret-signing-key",
+        **thresholds,
+    )
+
+
 def load_videos(path: Path, fps: float) -> dict[str, list[tuple[FrameReading, str]]]:
     """Per video, one (reading, true label) per 1/fps seconds, like a webcam sending frames."""
     frames: dict[str, list[dict]] = defaultdict(list)
@@ -92,12 +101,12 @@ def main() -> int:
     command.add_argument("--wandb-project", help="log every combination to this W&B project")
     args = command.parse_args()
 
-    base = Settings()
+    base = sweep_settings()
     cases = windows(load_videos(args.frames, args.fps), base.gate_window_s)
     results = []
     for values in itertools.product(*GRID.values()):
         thresholds = dict(zip(GRID, values, strict=True))
-        results.append({**thresholds, **score(cases, Settings(**thresholds))})
+        results.append({**thresholds, **score(cases, sweep_settings(**thresholds))})
 
     current = next(r for r in results if all(r[k] == getattr(base, k) for k in GRID))
     reaching = [r for r in results if r["precision"] >= args.target]

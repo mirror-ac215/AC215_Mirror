@@ -1,3 +1,5 @@
+import pytest
+
 from app.config import Settings
 
 
@@ -5,6 +7,7 @@ def test_settings_have_safe_defaults() -> None:
     settings = Settings()
 
     assert settings.app_name == "mirror-api-gateway"
+    assert settings.trusted_proxy_ips == ["172.30.0.2/32"]
 
 
 def test_llm_model_and_timeout_are_independently_configurable(monkeypatch) -> None:
@@ -15,3 +18,8 @@ def test_llm_model_and_timeout_are_independently_configurable(monkeypatch) -> No
 
     assert settings.llm_model == "mirror-persona-v1"
     assert settings.llm_timeout_s == 9.5
+
+
+def test_settings_reject_an_invalid_trusted_proxy_network() -> None:
+    with pytest.raises(ValueError, match="trusted_proxy_ips"):
+        Settings(trusted_proxy_ips=["not-a-network"])
