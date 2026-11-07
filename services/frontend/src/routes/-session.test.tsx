@@ -121,15 +121,15 @@ describe("Session camera lifecycle", () => {
     expect(screen.queryByText(/overwhelmed/i)).toBeNull();
   });
 
-  it("preserves the 988 and 911 expiry notice when a reloaded session redirects to login", () => {
+  it("uses the 988 and 911 expiry notice when a reloaded session has no notice in its URL", () => {
     const route = Route as unknown as {
       beforeLoad: (options: { search: { notice?: string } }) => void;
       validateSearch: (search: Record<string, unknown>) => { notice?: string };
     };
     const notice = "Your session expired. Call or text 988, or call 911 in an emergency.";
-    const search = route.validateSearch({ notice });
+    const search = route.validateSearch({ camera: false });
 
-    expect(search).toEqual({ notice });
+    expect(search).toEqual({});
     expect(() => route.beforeLoad({ search })).toThrow();
     expect(redirect).toHaveBeenCalledWith({ to: "/", search: { notice } });
   });

@@ -275,7 +275,7 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("caddy-proxy", services["frontend"]["networks"])
         self.assertEqual(
             compose["networks"]["caddy-proxy"]["ipam"]["config"],
-            [{"subnet": "172.30.0.0/24"}],
+            [{"subnet": "172.30.0.0/24", "ip_range": "172.30.0.128/25"}],
         )
 
     def test_caddyfile_validates_with_dummy_runtime_values(self) -> None:

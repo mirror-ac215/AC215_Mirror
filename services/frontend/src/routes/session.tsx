@@ -32,7 +32,9 @@ export const Route = createFileRoute("/session")({
     if (!hasRequiredRole("patient")) {
       throw redirect({
         to: "/",
-        search: typeof search.notice === "string" ? { notice: search.notice } : {},
+        search: {
+          notice: typeof search.notice === "string" ? search.notice : EXPIRED_SESSION_NOTICE,
+        },
       });
     }
   },
