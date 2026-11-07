@@ -18,8 +18,6 @@ services:
       MOCK_MODE: "0"
       MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
       SERVED_MODEL_NAME: ${LLM_SERVED_MODEL_NAME:-mirror-persona-v1}
-      LORA_ADAPTER_PATH: /models/adapter-v1
-      MAX_LORA_RANK: ${LLM_MAX_LORA_RANK:-32}
       GPU_MEMORY_UTILIZATION: ${LLM_GPU_MEMORY_UTILIZATION:-0.9}
       DTYPE: ${LLM_DTYPE:-auto}
       MAX_MODEL_LEN: ${LLM_MAX_MODEL_LEN:-2048}
@@ -28,10 +26,6 @@ services:
       # Keep this explicit in Git rather than relying on a VM-only edit.
       VLLM_USE_FLASHINFER_SAMPLER: "${VLLM_USE_FLASHINFER_SAMPLER:-0}"
     volumes:
-      - type: bind
-        source: ${LLM_ADAPTER_HOST_PATH:?set LLM_ADAPTER_HOST_PATH in infra/.env.prod}
-        target: /models/adapter-v1
-        read_only: true
       - hf-cache:/root/.cache/huggingface
 
   cv-service:

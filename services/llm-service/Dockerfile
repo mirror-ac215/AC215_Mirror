@@ -8,7 +8,6 @@ RUN chmod +x /app/docker-entrypoint.sh
 ENV MOCK_MODE=0 \
     MODEL_NAME=Qwen/Qwen2.5-3B-Instruct \
     SERVED_MODEL_NAME=mirror-persona-v1 \
-    LORA_ADAPTER_PATH=/models/adapter-v1 \
     MAX_MODEL_LEN=2048 \
     MAX_NUM_SEQS=1 \
     PORT=8002

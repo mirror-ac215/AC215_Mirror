@@ -24,7 +24,6 @@ DUMMY_ENV = {
     "MIRROR_DEMO_PASSWORD": "dummy-demo-password",
     "CADDY_DOMAIN": "stage-a.example.test",
     "CADDY_EMAIL": "ops@example.test",
-    "LLM_ADAPTER_HOST_PATH": "/tmp/stage-a-adapter",
 }
 
 
@@ -205,6 +204,9 @@ class StageAAssetTests(unittest.TestCase):
         for service in ("api-gateway", "frontend", "cv-service"):
             self.assertNotIn("ports", services[service])
         self.assertEqual(services["llm-service"]["gpus"], [{"count": -1}])
+        # D-006: production serves the plain base model, with no adapter set or mounted.
+        self.assertNotIn("LORA_ADAPTER_PATH", services["llm-service"]["environment"])
+        self.assertEqual([volume["target"] for volume in services["llm-service"]["volumes"]], ["/root/.cache/huggingface"])
 
     def test_caddyfile_validates_with_dummy_runtime_values(self) -> None:
         result = run(
@@ -221,7 +223,7 @@ class StageAAssetTests(unittest.TestCase):
 
     def test_production_example_has_no_secret_values(self) -> None:
         example = (INFRA / ".env.prod.example").read_text()
-        for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN=", "LLM_ADAPTER_HOST_PATH="):
+        for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN="):
             self.assertIn(variable, example)
         self.assertNotIn("replace-me", example.lower())
         self.assertNotIn("password123", example.lower())

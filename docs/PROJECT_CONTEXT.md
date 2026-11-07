@@ -40,7 +40,7 @@ Inherited assets:
 | Asset | Details |
 |---|---|
 | CV model | PyTorch; FER-2013, 7 classes; best about 67% accuracy, 0.64 macro-F1; ViT-B/16, EfficientNet-B0 and MobileNetV3 checkpoints (v3). Retrained as v4 in MS3, see Current status |
-| Persona LLM | Qwen2.5-3B-Instruct with a QLoRA adapter (r=32) trained on about 380 prompt/response pairs |
+| LLM | Qwen2.5-3B-Instruct with Mirror's prompt and no adapter for MS3 (D-006); QLoRA adapters were trained on about 380 prompt/response pairs and rejected |
 
 ## Team
 
@@ -69,7 +69,7 @@ Browser (React)
 Caddy proxy ── /      -> frontend (Node/Nitro SSR, :3000)
             └─ /api   -> api-gateway (FastAPI, :8000)
                            ├─ cv-service   (FastAPI + PyTorch CPU, :8001)
-                           ├─ llm-service  (vLLM / transformers + LoRA, GPU, :8002)
+                           ├─ llm-service  (vLLM, plain Qwen, GPU, :8002)
                            └─ db           (Postgres, :5432)
 Jobs (run on demand, not always on):
   data-preprocess, persona-data, cv-train, fairness-audit, llm-finetune, llm-eval, load-test, e2e
