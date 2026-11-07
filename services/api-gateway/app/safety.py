@@ -30,7 +30,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Literal
 
-SafetyKind = Literal["crisis", "medication"]
+SafetyKind = Literal["crisis", "medication", "camera"]
 
 # (rule id, pattern). Patterns run on normalised text (see normalise()).
 CRISIS_RULES: list[tuple[str, str]] = [
@@ -160,6 +160,23 @@ MEDICATION_REPLY = (
     "now, call 911. I'm still here if you'd like to talk about how you're feeling."
 )
 
+CAMERA_RULES: list[tuple[str, str]] = [
+    ("camera-question", (r"\b(can|do|could) you (see|watch|look at) (me|my (face|camera|video))\b"
+                         r"|\bare you (recording|watching|filming|storing|saving)( me| my \w+)?\b"
+                         r"|\b(do|will) you (keep|store|save|record|share)( \w+)? (video|videos|camera|face|images?|recording)\b"
+                         r"|\bis (the|my|this) camera (recording|saving|storing|on|off|watching)\b"
+                         r"|\bwhat (does|do|did|can) (the|my|this|your) (camera|software|app) (think|see|say|show|know)\b"
+                         r"|\b(camera|software|app)\b.{0,40}\b(guess|read|tell|know)\b.{0,20}\b(feel|feeling|feelings|emotion|emotions|mood)\b"
+                         r"|\bcan you (guess|read|tell)\b.{0,20}\b(feeling|feelings|emotion|emotions|mood)\b.{0,30}\bcamera\b")),
+]
+CAMERA_REPLY = (
+    "I only read your messages, so I can't see you. If your camera is on, software makes a rough "
+    "estimate of your expression, and you can see it in the panel on this screen. No video or images "
+    "are recorded or stored, though a summary of the estimates can be shared with your clinician. "
+    "You can turn the camera off at any time."
+)
+
+_COMPILED_CAMERA = [(rid, re.compile(p)) for rid, p in CAMERA_RULES]
 _COMPILED_CRISIS = [(rid, re.compile(p)) for rid, p in CRISIS_RULES]
 _COMPILED_MEDICATION = [(rid, re.compile(p)) for rid, p in MEDICATION_RULES]
 _COMPILED_EXCEPTIONS = {
@@ -214,6 +231,8 @@ def check(message: str) -> SafetyResult:
         return SafetyResult("crisis", rule_id)
     if rule_id := _first_rule(_COMPILED_MEDICATION, text):
         return SafetyResult("medication", rule_id)
+    if rule_id := _first_rule(_COMPILED_CAMERA, text):
+        return SafetyResult("camera", rule_id)
     return SafetyResult(None)
 
 
