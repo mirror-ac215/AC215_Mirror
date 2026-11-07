@@ -108,8 +108,7 @@ def load_hf_classifier(model_name: str, revision: str, max_tokens: int) -> Class
         top_k=None,  # return scores for all 7 labels, not just the best one
         device=-1,  # -1 = CPU
         # Serving must use the reviewed model cache, never fetch weights or tokenizer data at runtime.
-        model_kwargs={"local_files_only": True},
-        tokenizer_kwargs={"local_files_only": True},
+        local_files_only=True,
     )
 
     def classify(text: str) -> dict[str, float]:
