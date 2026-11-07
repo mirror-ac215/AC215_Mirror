@@ -175,3 +175,27 @@ It does not turn an unmerged pull request into merged functionality.
   `pipelines/cv-eval/README.md`.
 - **Evidence:** `pipelines/cv-eval/README.md` (M3-18 baselines),
   `pipelines/cv-train/README.md` (M3-01 experiments and final scores).
+
+## D-006: Serve plain Qwen with no persona adapter for MS3
+
+- **Status:** Accepted (M3-09, decided by Mostafa, Nov 5, 2026; team told the same day).
+- **Decision:** For MS3, `llm-service` serves `Qwen/Qwen2.5-3B-Instruct` with Mirror's
+  system prompt and no LoRA adapter. adapter-v1 and adapter-v2 stay in the bucket as
+  tested and rejected. A medication rule in the gateway (#90, in review when this was
+  written) covers the case the prompt alone did not.
+- **Why:** with the real prompt on 70 questions, plain Qwen made no false claims about
+  credentials or a personal life and gave no harsh replies. adapter-v2 made 9 such
+  claims ("I studied psychology at the University of California, Berkeley") and gave 7
+  harsh or harmful replies to distress messages ("Try harder."). Lower-intensity
+  retrains did not fix this. The rule checks did not show the problem: adapter-v2
+  passed 48 of 50, so we chose by reading the replies.
+- **What we give up:** replies are more generic, and Mirror has no distinct persona.
+  Plain Qwen is not flawless either, see the limits in the comparison.
+- **Affected areas:** `services/llm-service` (the adapter is now optional),
+  `infra/compose.prod.yml`, `pipelines/llm-finetune` (kept, not served). The served name
+  stays `mirror-persona-v1`, so the gateway does not change.
+- **Revisit when:** a later adapter may replace plain Qwen only if it beats it on these
+  same 70 questions by reading the replies, not just the rule checks, and uses data we
+  are licensed and have consent to use. Support for other personas, a RAG layer and
+  training on supportive-conversation data are future ideas, not commitments.
+- **Evidence:** `docs/persona-model-comparison.md`, W&B run `ndtuml2x`.

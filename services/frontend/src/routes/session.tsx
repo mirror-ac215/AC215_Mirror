@@ -8,7 +8,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CrisisDialog } from "@/components/mirror/CrisisDialog";
 import { ExpressionPanel } from "@/components/mirror/ExpressionPanel";
 import { TopNav } from "@/components/mirror/TopNav";
-import { seededChat } from "@/lib/mirror-data";
+import { USE_MOCK_API } from "@/lib/config";
+import { openingLine, seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
 import type { ContextObject, CrisisPayload } from "@/lib/api/types";
 import { fillEmptyReply, type ChatMessage } from "@/lib/chat";
@@ -17,6 +18,7 @@ import {
   captureJpeg,
   reportCameraCaptureFailure,
   stopCamera,
+  visualFromFrameAck,
 } from "@/lib/camera";
 import { setRole } from "@/lib/role";
 
@@ -45,7 +47,10 @@ export const Route = createFileRoute("/session")({
 });
 
 export function Session() {
-  const [messages, setMessages] = useState<ChatMessage[]>(seededChat);
+  // Demo messages only in mock mode: a real session starts with the greeting alone.
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    USE_MOCK_API ? seededChat : [{ from: "bot", text: openingLine }],
+  );
   const [draft, setDraft] = useState("");
   const [crisis, setCrisis] = useState<CrisisPayload | null>(null);
   const [visual, setVisual] = useState<ContextObject["visual"] | null>(null);
@@ -59,6 +64,9 @@ export function Session() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Each camera run gets a number, so a late reply can't show a reading from an earlier run.
+  const cameraRunRef = useRef(0);
+  const runWithReadingRef = useRef<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -88,7 +96,9 @@ export function Session() {
 
   useEffect(() => {
     if (!cameraConsent || !sessionId || !cameraRequested) return;
+    const run = ++cameraRunRef.current;
     setCameraIssue(null);
+    setVisual(null); // a new camera run starts with no reading, whatever came before it
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraActive(false);
       setVisual(null);
@@ -99,6 +109,7 @@ export function Session() {
     const stopWithIssue = (error: unknown) => {
       reportCameraCaptureFailure(error);
       if (!disposed) {
+        cameraRunRef.current += 1;
         setCameraActive(false);
         setVisual(null);
         setCameraIssue("Camera frames are not being sent; messages remain text-only.");
@@ -128,7 +139,12 @@ export function Session() {
           if (!videoRef.current || !cameraStreamRef.current) return;
           try {
             const jpeg = await captureJpeg(videoRef.current);
-            await api.sendFrame(sessionId, jpeg);
+            const ack = await api.sendFrame(sessionId, jpeg);
+            // Camera turned off while this frame was on its way: keep the panel clear.
+            if (!disposed && cameraStreamRef.current) {
+              runWithReadingRef.current = run;
+              setVisual(visualFromFrameAck(ack));
+            }
           } catch (error) {
             stopWithIssue(error);
           }
@@ -137,6 +153,7 @@ export function Session() {
       .catch(stopWithIssue);
     return () => {
       disposed = true;
+      cameraRunRef.current += 1;
       if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
       captureIntervalRef.current = null;
       stopCamera(cameraStreamRef.current);
@@ -154,6 +171,9 @@ export function Session() {
     if (!text || !sessionId || sending) return;
     setDraft("");
     setSending(true);
+    // Until this run has its own reading, the gateway's answer may still reflect an earlier run.
+    const readingRun =
+      runWithReadingRef.current === cameraRunRef.current ? cameraRunRef.current : null;
     // Show the patient's message, plus an empty bot bubble that fills up as tokens arrive.
     setMessages((m) => [...m, { from: "user", text }, { from: "bot", text: "" }]);
     try {
@@ -163,7 +183,7 @@ export function Session() {
           setCrisis(event.data);
         } else if (event.type === "done") {
           // The readout follows the gateway's reading for this turn, never a guess in the browser.
-          setVisual(event.data.context.visual);
+          if (readingRun === cameraRunRef.current) setVisual(event.data.context.visual);
         } else if (event.type === "token") {
           setMessages((m) => {
             const last = m[m.length - 1];
@@ -281,7 +301,6 @@ export function Session() {
 
           {/* side panel */}
           <div className="space-y-2">
-            <video ref={videoRef} autoPlay muted playsInline className="hidden" />
             {cameraConsent && (
               <button
                 type="button"
@@ -298,7 +317,11 @@ export function Session() {
               </button>
             )}
             {cameraIssue && <p className="text-xs text-safety">{cameraIssue}</p>}
-            <ExpressionPanel cameraConsent={cameraConsent && cameraActive} visual={visual} />
+            <ExpressionPanel
+              cameraConsent={cameraConsent && cameraActive}
+              visual={visual}
+              videoRef={videoRef}
+            />
           </div>
         </div>
 

@@ -16,7 +16,7 @@ One page to understand the system. Details live in the contracts linked below.
 flowchart LR
     FE[frontend<br/>React] -->|HTTPS, JWT| GW[api-gateway<br/>FastAPI]
     GW -->|POST /predict<br/>one frame| CV[cv-service<br/>ViT-B/16, CPU]
-    GW -->|/v1/chat/completions| LLM[llm-service<br/>Qwen2.5-3B + LoRA, GPU]
+    GW -->|/v1/chat/completions| LLM[llm-service<br/>Plain Qwen2.5-3B, GPU<br/>no adapter for MS3 (D-006)]
     GW --> DB[(Postgres)]
 ```
 

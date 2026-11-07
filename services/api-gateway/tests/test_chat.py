@@ -110,6 +110,31 @@ async def test_frame_accepted_202_only_with_consent() -> None:
 
 
 @pytest.mark.anyio
+async def test_frame_returns_smoothed_top2_only_when_the_gate_trusts_it(monkeypatch) -> None:
+    from app import chat
+
+    class SteadyCV:
+        async def predict(self, data: bytes) -> dict:
+            return {
+                "face_found": True,
+                "probs": {
+                    "angry": 0.02, "disgust": 0.02, "fear": 0.02, "happy": 0.8,
+                    "neutral": 0.1, "sad": 0.02, "surprise": 0.02,
+                },
+            }
+
+    monkeypatch.setattr(chat, "cv_client", SteadyCV())
+    async with client() as c:
+        session_id = await new_session(c, consent=True)
+        acks = [
+            (await c.post(f"/sessions/{session_id}/frames", files=FRAME, headers=PATIENT)).json()
+            for _ in range(settings.gate_min_frames)
+        ]
+    assert acks[0] == {"visual_status": "dropped"}
+    assert acks[-1] == {"visual_status": "ok", "top2": [["happy", 0.8], ["neutral", 0.1]]}
+
+
+@pytest.mark.anyio
 async def test_frame_rejects_non_jpeg_415_and_oversized_413() -> None:
     png = {"image": ("frame.png", b"fake-png-bytes", "image/png")}
     too_big = {"image": ("big.jpg", b"x" * (settings.max_frame_bytes + 1), "image/jpeg")}

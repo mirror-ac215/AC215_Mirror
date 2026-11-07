@@ -24,7 +24,6 @@ DUMMY_ENV = {
     "MIRROR_DEMO_PASSWORD": "dummy-demo-password",
     "CADDY_DOMAIN": "stage-a.example.test",
     "CADDY_EMAIL": "ops@example.test",
-    "LLM_ADAPTER_HOST_PATH": "/tmp/stage-a-adapter",
 }
 
 
@@ -71,6 +70,9 @@ class StageAAssetTests(unittest.TestCase):
 
         self.assertIn("ubuntu-drivers", bootstrapper)
         self.assertIn("nvidia-driver-535", bootstrapper)
+        self.assertIn('DEPLOY_USER="${SUDO_USER:-$(id -un)}"', bootstrapper)
+        self.assertIn('$SUDO usermod -aG docker "$DEPLOY_USER"', bootstrapper)
+        self.assertIn("driver version", bootstrapper)
         self.assertIn("REBOOT_REQUIRED", bootstrapper)
         self.assertIn("reboot", bootstrapper)
         self.assertIn("docker run --rm --gpus all", bootstrapper)
@@ -144,9 +146,98 @@ class StageAAssetTests(unittest.TestCase):
         self.assertIn("gcloud compute scp", readme)
 
     def test_stage_a_shell_scripts_parse(self) -> None:
-        for script in (INFRA / "deploy-stage-a.sh", INFRA / "gcp" / "bootstrap-vm.sh", INFRA / "gcp" / "provision-t4-vm.sh"):
+        for script in (
+            INFRA / "deploy-stage-a.sh",
+            INFRA / "deploy-stage-b.sh",
+            INFRA / "prepare-llm-model.sh",
+            INFRA / "gcp" / "bootstrap-vm.sh",
+            INFRA / "gcp" / "provision-t4-vm.sh",
+        ):
             result = run("bash", "-n", str(script))
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_stage_b_disables_t4_incompatible_flashinfer_sampler_and_allows_slow_first_model_start(self) -> None:
+        compose = (INFRA / "compose.prod.yml").read_text()
+        dockerfile = (REPO / "services" / "llm-service" / "Dockerfile").read_text()
+
+        self.assertIn('VLLM_USE_FLASHINFER_SAMPLER: "${VLLM_USE_FLASHINFER_SAMPLER:-0}"', compose)
+        self.assertIn("--start-period=600s", dockerfile)
+
+    def test_stage_b_prepares_an_integrity_checked_model_before_starting_services(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+        preparer = (INFRA / "prepare-llm-model.sh").read_text()
+
+        self.assertIn("bash infra/prepare-llm-model.sh", deployer)
+        self.assertIn("HF_HUB_DISABLE_XET", preparer)
+        self.assertIn("snapshot_download", preparer)
+        self.assertIn("hf_hub_download", preparer)
+        self.assertIn("hashlib.sha256", preparer)
+        self.assertNotIn('cache_dir="/root/.cache/huggingface"', preparer)
+        self.assertIn('LLM_FORCE_MODEL_DOWNLOAD:-0', preparer)
+        self.assertIn("model artifact validation", preparer)
+        self.assertIn('"ready" not in text.lower()', deployer)
+        self.assertIn('sum(character.isprintable() or character.isspace() for character in text) / len(text) < 0.95', deployer)
+        self.assertIn('print(f"llm smoke response: {text!r}")', deployer)
+
+    def test_stage_b_authenticates_docker_to_the_configured_artifact_registry_host(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+
+        self.assertIn("gcloud auth configure-docker", deployer)
+        self.assertIn("MIRROR_IMAGE_REGISTRY", deployer)
+        self.assertIn("Artifact Registry host", deployer)
+
+    def test_stage_b_preflights_vm_identity_access_to_the_configured_cv_object(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+        readme = (INFRA / "README.md").read_text()
+
+        self.assertIn('CV_MODEL_BUCKET="${CV_MODEL_BUCKET:-mirror-ac215-data}"', deployer)
+        self.assertIn('CV_MODEL_OBJECT="${CV_MODEL_OBJECT:-models/cv/v4/vit_b16_v4.pth}"', deployer)
+        self.assertIn("metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", deployer)
+        self.assertIn('Metadata-Flavor: Google', deployer)
+        self.assertIn('https://storage.googleapis.com/storage/v1/b/${CV_MODEL_BUCKET}/o/${encoded_cv_object}', deployer)
+        self.assertIn("CV model access preflight failed", deployer)
+        self.assertLess(
+            deployer.index("metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"),
+            deployer.index('"${compose[@]}" pull'),
+        )
+        self.assertIn("roles/storage.objectViewer", readme)
+        self.assertIn("configured `M3_13_SERVICE_ACCOUNT_EMAIL`", readme)
+
+    def test_stage_b_docs_describe_cache_reuse_and_selective_shard_repair(self) -> None:
+        readme = (INFRA / "README.md").read_text()
+
+        self.assertIn("defaults to `0`", readme)
+        self.assertIn("SHA-256", readme)
+        self.assertIn("only a mismatched shard", readme)
+
+    def test_production_runs_cv_service_with_the_vm_identity_and_no_credential_file(self) -> None:
+        result = run(
+            "docker", "compose", "--env-file", "/dev/null", "-f", "infra/compose.yml", "-f", "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        cv = json.loads(result.stdout)["services"]["cv-service"]
+        self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", cv["environment"])
+        self.assertNotIn("volumes", cv)
+        self.assertNotIn("ports", cv)
+        self.assertEqual(cv["environment"]["MODEL_OBJECT"], "models/cv/v4/vit_b16_v4.pth")
+
+    def test_production_logs_go_to_cloud_logging_except_the_database(self) -> None:
+        result = run(
+            "docker", "compose", "--env-file", "/dev/null", "--profile", "cv", "-f", "infra/compose.yml", "-f",
+            "infra/compose.prod.yml", "config", "--format", "json", env=DUMMY_ENV,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        services = json.loads(result.stdout)["services"]
+        for service in ("api-gateway", "llm-service", "cv-service", "frontend", "caddy"):
+            self.assertEqual(services[service]["logging"]["driver"], "gcplogs", service)
+        self.assertNotIn("logging", services["db"])
+
+    def test_stage_b_preflights_cloud_logging_before_starting_services(self) -> None:
+        deployer = (INFRA / "deploy-stage-b.sh").read_text()
+
+        self.assertIn("https://logging.googleapis.com/v2/entries:write", deployer)
+        self.assertIn("roles/logging.logWriter", deployer)
+        self.assertLess(deployer.index("entries:write"), deployer.index('"${compose[@]}" pull'))
 
     def test_production_compose_resolves_to_only_caddy_public_ports_and_gpu_llm(self) -> None:
         result = run(
@@ -159,6 +250,9 @@ class StageAAssetTests(unittest.TestCase):
         for service in ("api-gateway", "frontend", "cv-service"):
             self.assertNotIn("ports", services[service])
         self.assertEqual(services["llm-service"]["gpus"], [{"count": -1}])
+        # D-006: production serves the plain base model, with no adapter set or mounted.
+        self.assertNotIn("LORA_ADAPTER_PATH", services["llm-service"]["environment"])
+        self.assertEqual([volume["target"] for volume in services["llm-service"]["volumes"]], ["/root/.cache/huggingface"])
 
     def test_caddyfile_validates_with_dummy_runtime_values(self) -> None:
         result = run(
@@ -175,7 +269,7 @@ class StageAAssetTests(unittest.TestCase):
 
     def test_production_example_has_no_secret_values(self) -> None:
         example = (INFRA / ".env.prod.example").read_text()
-        for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN=", "LLM_ADAPTER_HOST_PATH="):
+        for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN="):
             self.assertIn(variable, example)
         self.assertNotIn("replace-me", example.lower())
         self.assertNotIn("password123", example.lower())

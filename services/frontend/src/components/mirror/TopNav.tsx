@@ -9,14 +9,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import * as api from "@/lib/api/client";
+import { USE_MOCK_API } from "@/lib/config";
 import { setRole, useRole } from "@/lib/role";
 
 export function TopNav() {
   const role = useRole();
   const navigate = useNavigate();
 
-  const initials = role === "patient" ? "AO" : "DR";
-  const name = role === "patient" ? "Amara Okafor" : "Dr. Elena Voss";
+  // Demo names only in mock mode. A real login gives us a role, not a person's name.
+  const demo =
+    role === "patient"
+      ? { initials: "AO", name: "Amara Okafor" }
+      : { initials: "DR", name: "Dr. Elena Voss" };
+  const real = { initials: role === "patient" ? "P" : "C", name: "Signed in" };
+  const { initials, name } = USE_MOCK_API ? demo : real;
   const subtitle = role === "patient" ? "Patient" : "Clinician";
 
   return (

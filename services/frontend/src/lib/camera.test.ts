@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { attachCameraStream, captureJpeg, reportCameraCaptureFailure } from "./camera";
+import {
+  attachCameraStream,
+  captureJpeg,
+  reportCameraCaptureFailure,
+  visualFromFrameAck,
+} from "./camera";
+
+describe("visualFromFrameAck", () => {
+  it("keeps the smoothed reading when the gateway trusts it", () => {
+    expect(visualFromFrameAck({ visual_status: "ok", top2: [["happy", 0.8]] })).toEqual({
+      status: "ok",
+      top2: [["happy", 0.8]],
+    });
+  });
+
+  it("has no numbers when the gateway does not trust the reading", () => {
+    expect(visualFromFrameAck({ visual_status: "uncertain" })).toEqual({ status: "uncertain" });
+  });
+});
 
 describe("captureJpeg", () => {
   it("captures a downscaled JPEG and releases the source bitmap", async () => {

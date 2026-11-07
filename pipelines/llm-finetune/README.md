@@ -89,4 +89,7 @@ To rotate the key, add a new version (`gcloud secrets versions add wandb-api-key
 ## Not in this PR
 
 - The 30 identity probe prompts and the distress-scenario test set, run right after training (M3-09 definition of done): next PR, in `pipelines/llm-eval`.
-- Serving adapter-v2 in llm-service and the `docs/artifacts.md` row: after the first successful run.
+
+## Status (Nov 2026)
+
+adapter-v2 is stored in the bucket but **not served**: see D-006 and `docs/persona-model-comparison.md`. It was trained locally on an RTX 4070 Ti, because Vertex had no L4 capacity on two attempts and the third job stopped on a bf16 check whose cause we did not confirm. Training locally needs `gcc` and `libc6-dev` added to the image.

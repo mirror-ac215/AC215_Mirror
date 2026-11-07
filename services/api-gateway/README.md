@@ -118,7 +118,7 @@ result.latency_ms     # time spent scoring this message
 
 - **Model:** `j-hartmann/emotion-english-distilroberta-base`, chosen in M2-11 (D-003 in `docs/decisions.md`). Its 7 labels are the same as the camera model's: face and text can be compared in fusion (M3-06).
 - **CPU only.** torch comes from the CPU wheel index (as in cv-service); the image doesn't carry CUDA.
-- **Loaded during gateway startup:** the gateway warms the locally available pinned model before it accepts requests, then the first patient message does not pay the lazy-load delay. Startup never downloads model/data: pre-provision the pinned model cache (`HF_HOME`) on the host. If it is absent or cannot load, startup logs only the failure type and chat remains safely text-only.
+- **Loaded during gateway startup:** the gateway warms the locally available pinned model before it accepts requests: the first patient message does not pay the lazy-load delay. Startup never downloads model/data: the Docker build puts the pinned model in the image. If it is absent or cannot load, startup logs only the failure type and chat remains safely text-only.
 - **Model pin:** `TEXT_EMOTION_REVISION` defaults to Hugging Face commit `0e1cd914e3d46199ed785853e12b57304e04178b` (the model's latest commit, Jan 2, 2023), not `main`: a rebuild can never silently load different weights. **Deployment handoff:** the VM and docker-compose use this default; do not set `TEXT_EMOTION_REVISION=main` anywhere. To move to a newer model commit, change the default here, in `app/config.py` and in `.env.example` in one PR, and re-run the D-003 evaluation and the latency check before merging.
 - **Failure:** if the model can't load or run, `analyse()` raises `TextEmotionUnavailable`. The chat endpoint (M3-10) should then carry on without a text signal (fallback paths: M4-04).
 - **Safety:** this module only describes tone. The crisis check (M3-07) runs before it and never depends on it.
@@ -163,7 +163,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | Face uncertain, dropped or camera off | text (or none if the words are unclear, prob < 0.40) | n/a |
 | A second disagreement in the same session | as above | n/a, note ends "already checked in this session" |
 
-- **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
+- **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, therefore a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
 - **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context)` once, when the turn's reply is final.
 

@@ -3,7 +3,7 @@ info:
   title: Mirror llm-service
   version: 0.1.0
   description: >
-    Persona model server (Qwen2.5-3B-Instruct + LoRA adapter). Uses a subset of
+    Model server (Qwen2.5-3B-Instruct, no adapter for MS3, see D-006). Uses a subset of
     the OpenAI chat-completions API, so vLLM provides it out of the box.
     MOCK_MODE=1 returns canned replies with the same shape (no GPU needed).
     The api-gateway builds the messages, including the rendered context object.
@@ -50,7 +50,7 @@ components:
       properties:
         model:
           type: string
-          description: Adapter name to use
+          description: Served model name
           example: mirror-persona-v1
         messages:
           type: array
