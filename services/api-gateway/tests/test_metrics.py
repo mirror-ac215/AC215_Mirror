@@ -3,13 +3,16 @@
 from pathlib import Path
 
 import pytest
+from conftest import auth_headers
 from httpx import ASGITransport, AsyncClient
 
 from app import metrics
 from app.main import app
 from app.text_emotion import TextEmotion, TextEmotionUnavailable
 
-PATIENT = {"Authorization": "Bearer dev-patient-token"}
+PATIENT = auth_headers(
+    "00000000-0000-0000-0000-000000000201", "patient.alex@example.test", "patient"
+)
 
 
 def client() -> AsyncClient:
@@ -33,7 +36,11 @@ async def test_metrics_endpoint_speaks_prometheus() -> None:
 
 @pytest.mark.anyio
 async def test_requests_are_counted_by_route_pattern_not_by_real_path() -> None:
-    labels = {"route": "/sessions/{session_id}/frames", "method": "POST", "status": "401"}
+    labels = {
+        "route": "/sessions/{session_id}/frames",
+        "method": "POST",
+        "status": "401",
+    }
     before = value("mirror_gateway_requests_total", **labels)
     async with client() as c:
         await c.post("/sessions/some-real-session-id/frames")  # no token -> 401
@@ -65,9 +72,14 @@ async def test_request_latency_is_recorded() -> None:
 @pytest.mark.anyio
 async def test_a_crisis_hit_is_counted_by_rule_never_by_text() -> None:
     async with client() as c:
-        session = (await c.post("/sessions", json={"camera_consent": False}, headers=PATIENT)).json()
-        await c.post(f"/sessions/{session['session_id']}/messages", json={"text": "I want to kill myself"},
-                     headers=PATIENT)
+        session = (
+            await c.post("/sessions", json={"camera_consent": False}, headers=PATIENT)
+        ).json()
+        await c.post(
+            f"/sessions/{session['session_id']}/messages",
+            json={"text": "I want to kill myself"},
+            headers=PATIENT,
+        )
         body = (await c.get("/metrics")).text
     assert value("mirror_gateway_crisis_hits_total", rule="kill-self") >= 1
     assert "kill myself" not in body
@@ -119,7 +131,11 @@ def test_unknown_label_values_are_counted_as_invalid(bad) -> None:
 
 # Owen (#63): /metrics must not be reachable from the browser through Caddy.
 def test_caddy_blocks_public_metrics() -> None:
-    caddyfile = (Path(__file__).parents[3] / "infra" / "caddy" / "Caddyfile").read_text(encoding="utf-8")
+    caddyfile = (Path(__file__).parents[3] / "infra" / "caddy" / "Caddyfile").read_text(
+        encoding="utf-8"
+    )
     block = caddyfile.index("handle /api/metrics* {")
     assert "respond 404" in caddyfile[block : caddyfile.index("}", block)]
-    assert block < caddyfile.index("handle_path /api/*")  # listed before the general /api proxy
+    assert block < caddyfile.index(
+        "handle_path /api/*"
+    )  # listed before the general /api proxy

@@ -1,12 +1,15 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { Camera, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TopNav } from "@/components/mirror/TopNav";
-import { setRole } from "@/lib/role";
+import { hasRequiredRole } from "@/lib/role";
 
 export const Route = createFileRoute("/consent")({
+  beforeLoad: () => {
+    if (!hasRequiredRole("patient")) throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
       { title: "Before we begin — Mirror" },
@@ -29,8 +32,6 @@ export const Route = createFileRoute("/consent")({
 function Consent() {
   const navigate = useNavigate();
   const [camera, setCamera] = useState(true);
-
-  useEffect(() => setRole("patient"), []);
 
   return (
     <div className="min-h-screen">

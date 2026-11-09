@@ -2,23 +2,40 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { navigate, startSession, sendFrame, sendMessage, captureJpeg } = vi.hoisted(() => ({
+const {
+  navigate,
+  startSession,
+  sendFrame,
+  sendMessage,
+  refreshAccessToken,
+  accessTokenRefreshDelayMs,
+  logout,
+  captureJpeg,
+  redirect,
+} = vi.hoisted(() => ({
   navigate: vi.fn(),
+  redirect: vi.fn((options: object) => options),
   startSession: vi.fn(),
   sendFrame: vi.fn(),
   sendMessage: vi.fn(),
+  refreshAccessToken: vi.fn(),
+  accessTokenRefreshDelayMs: vi.fn<() => number | null>(() => null),
+  logout: vi.fn(),
   captureJpeg: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: object) => ({ ...options, useSearch: () => ({ camera: true }) }),
+  redirect,
   useNavigate: () => navigate,
 }));
 vi.mock("@/lib/api/client", () => ({
   startSession,
   sendFrame,
   sendMessage,
-  logout: vi.fn(),
+  logout,
+  refreshAccessToken,
+  accessTokenRefreshDelayMs,
 }));
 vi.mock("@/lib/camera", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/camera")>()),
@@ -33,13 +50,20 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-import { Session } from "./session";
+import { Route, Session } from "./session";
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  accessTokenRefreshDelayMs.mockReset();
+  accessTokenRefreshDelayMs.mockReturnValue(null);
+  refreshAccessToken.mockReset();
+  sendMessage.mockReset();
+  logout.mockReset();
+  captureJpeg.mockReset();
+  vi.useRealTimers();
 });
 
 Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
@@ -97,6 +121,19 @@ describe("Session camera lifecycle", () => {
     expect(screen.queryByText(/overwhelmed/i)).toBeNull();
   });
 
+  it("uses the 988 and 911 expiry notice when a reloaded session has no notice in its URL", () => {
+    const route = Route as unknown as {
+      beforeLoad: (options: { search: { notice?: string } }) => void;
+      validateSearch: (search: Record<string, unknown>) => { notice?: string };
+    };
+    const notice = "Your session expired. Call or text 988, or call 911 in an emergency.";
+    const search = route.validateSearch({ camera: false });
+
+    expect(search).toEqual({});
+    expect(() => route.beforeLoad({ search })).toThrow();
+    expect(redirect).toHaveBeenCalledWith({ to: "/", search: { notice } });
+  });
+
   it("redirects to login with 988 and 911 guidance when session creation returns 401", async () => {
     startSession.mockRejectedValue(new Error("/sessions failed with 401"));
 
@@ -110,6 +147,96 @@ describe("Session camera lifecycle", () => {
         },
       }),
     );
+  });
+
+  it("redirects to login with 988 and 911 guidance when messages return 401", async () => {
+    startSession.mockResolvedValue({ session_id: "s1" });
+    sendMessage.mockRejectedValue(new Error("messages failed with 401"));
+
+    render(<Session />);
+
+    const input = await screen.findByPlaceholderText("Type a message…");
+    fireEvent.change(input, { target: { value: "hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/",
+        search: {
+          notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
+        },
+      }),
+    );
+  });
+
+  it("does not recursively renew immediately at the bounded one-minute token delay", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(navigator, "mediaDevices", { value: undefined, configurable: true });
+    startSession.mockResolvedValue({ session_id: "s1" });
+    accessTokenRefreshDelayMs.mockReturnValue(1_000);
+    refreshAccessToken.mockResolvedValue({ access_token: "renewed" });
+
+    render(<Session />);
+
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs out, cleans up the camera, and shows 988 and 911 guidance when a frame upload returns 401", async () => {
+    const stop = vi.fn();
+    const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+      configurable: true,
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    startSession.mockResolvedValue({ session_id: "s1" });
+    captureJpeg.mockResolvedValue(new Blob(["frame"], { type: "image/jpeg" }));
+    sendFrame.mockRejectedValue(new Error("frames failed with 401"));
+
+    render(<Session />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Turn camera off" })).toBeTruthy(),
+    );
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText("Camera frames are not being sent; messages remain text-only."),
+        ).toBeTruthy(),
+      { timeout: 2_500 },
+    );
+    expect(screen.getByRole("button", { name: "Turn camera on" })).toBeTruthy();
+    expect(stop).toHaveBeenCalled();
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/",
+      search: { notice: "Your session expired. Call or text 988, or call 911 in an emergency." },
+    });
+  });
+
+  it("ends the session safely with crisis guidance when renewal fails without a 401", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(navigator, "mediaDevices", { value: undefined, configurable: true });
+    startSession.mockResolvedValue({ session_id: "s1" });
+    accessTokenRefreshDelayMs.mockReturnValue(1_000);
+    refreshAccessToken.mockRejectedValue(new Error("/auth/refresh failed with 503"));
+
+    render(<Session />);
+
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/",
+      search: {
+        notice:
+          "Your session ended because the service is unavailable. Call or text 988, or call 911 in an emergency.",
+      },
+    });
   });
 
   it("plays a replacement stream after camera off then on", async () => {

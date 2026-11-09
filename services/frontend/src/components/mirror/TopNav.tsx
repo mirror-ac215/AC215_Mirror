@@ -1,19 +1,19 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, LogOut, Repeat } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import * as api from "@/lib/api/client";
 import { USE_MOCK_API } from "@/lib/config";
-import { setRole, useRole } from "@/lib/role";
+import { useAuthenticatedUser } from "@/lib/role";
 
 export function TopNav() {
-  const role = useRole();
+  const user = useAuthenticatedUser();
+  const role = user?.role ?? "patient";
   const navigate = useNavigate();
 
   // Demo names only in mock mode. A real login gives us a role, not a person's name.
@@ -49,23 +49,10 @@ export function TopNav() {
               <p className="text-sm text-ink">{name}</p>
               <p className="text-xs text-muted-ink">{subtitle}</p>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs text-muted-ink"
-              onSelect={() => {
-                const next = role === "patient" ? "clinician" : "patient";
-                setRole(next);
-                navigate({ to: next === "patient" ? "/consent" : "/clinician" });
-              }}
-            >
-              <Repeat className="h-3.5 w-3.5" />
-              Switch role (demo)
-            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-sm"
               onSelect={() => {
                 api.logout();
-                setRole("patient");
                 navigate({ to: "/" });
               }}
             >

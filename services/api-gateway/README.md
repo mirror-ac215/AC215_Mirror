@@ -9,22 +9,14 @@ uv sync
 uv run uvicorn app.main:app --port 8000 --reload
 ```
 
-Interactive API docs: http://localhost:8000/docs. Click **Authorize** and enter a demo token:
-
-| User | Email | Token |
-|---|---|---|
-| Dr. Ada Chen (clinician) | `clinician.ada@example.test` | `dev-clinician-token` |
-| Alex Rivera (patient) | `patient.alex@example.test` | `dev-patient-token` |
-| Bri Santos (patient) | `patient.bri@example.test` | `dev-patient-b-token` |
-
-Or get the token from `POST /auth/login` with one of these emails and the demo password.
+Use `POST /auth/login` with a seeded email and its locally configured `MIRROR_DEMO_PASSWORD`. The gateway verifies the database bcrypt hash and returns a short-lived signed JWT; never manually enter a token.
 
 ## Endpoints (v0)
 
 | Endpoint | Returns |
 |---|---|
 | `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200, which keeps Docker from restarting the gateway when a dependency is down |
-| `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
+| `POST /auth/login` | seeded `users` record verified against its bcrypt hash; returns a short-lived HS256 JWT, server-derived role and `user_id`; 401 is identical for unknown email and wrong password; 429 follows five failed attempts for an account/client pair in five minutes |
 | `POST /sessions` | 201, in-memory session (database: MS3) |
 | `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
 | `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done`; or a single `crisis` event instead of the reply (M3-07) |
@@ -39,10 +31,10 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `LOG_LEVEL` | `INFO` |
 | `CV_SERVICE_URL` | `http://cv-service:8001` |
 | `LLM_SERVICE_URL` | `http://llm-service:8002` |
-| `DB_HOST` / `DB_PORT` | `db` / `5432` |
-| `DEPENDENCY_TIMEOUT_S` | `2.0` |
-| `MAX_FRAME_BYTES` | `1000000` |
-| `MIRROR_DEMO_PASSWORD` | `mirror-demo` (local demo only; same variable as `services/db`) |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` | `db` / `5432` / `mirror` / `mirror_app` |
+| `DB_PASSWORD` | required, supplied by ignored runtime environment |
+| `JWT_SIGNING_KEY` | required, at least 32 characters in ignored runtime environment |
+| `JWT_EXPIRES_MINUTES` | `30` (bounded 1–60) |
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
 
 | `TEXT_EMOTION_MODEL` | `j-hartmann/emotion-english-distilroberta-base` (D-003) |
