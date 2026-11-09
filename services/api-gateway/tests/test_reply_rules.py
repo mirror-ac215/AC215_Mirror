@@ -67,6 +67,8 @@ STATED = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "I
         ("How do you feel? That is a lot.", "That is a lot."),
         ("That is a lot.", "That is a lot."),
         ("How do you feel?", "How do you feel?"),  # nothing else would be left
+        ("Really?! That is hard.", "That is hard."),
+        ('That is hard. "Why me?"', "That is hard."),
     ],
 )
 def test_drop_questions(reply: str, expected: str) -> None:
@@ -108,6 +110,14 @@ def test_crisis_and_medication_win_over_a_camera_question() -> None:
     assert safety.check("can you see me? should I stop taking my meds").kind == "medication"
 
 
-@pytest.mark.parametrize("text", ["I can see my sister tomorrow", "my camera broke at work"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I can see my sister tomorrow",
+        "my camera broke at work",
+        "I downloaded an app that helps me know how I feel",
+        "my therapist said the app can tell when my mood dips",
+    ],
+)
 def test_ordinary_messages_are_not_camera_questions(text: str) -> None:
     assert safety.check(text).kind is None

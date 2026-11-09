@@ -89,7 +89,7 @@ def test_question_about_the_camera_never_gets_a_reading(visual):
 def test_rules_ask_for_reflection_length_and_honesty_about_being_a_person():
     # Real-model review of the 20 cases: replies too short (3, 6, 7, 16, 18, 20), no
     # reflection (7), assumptions or leading statements (1, 6), no "not a real person" (17).
-    assert "never just one" in BASE_RULES
+    assert "1 to 4 short sentences" in BASE_RULES
     assert "reflect back" in BASE_RULES
     assert "Do not question the patient." in BASE_RULES
     assert "Do not give advice or suggest next steps unless they ask for it." in BASE_RULES

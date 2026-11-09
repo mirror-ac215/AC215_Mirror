@@ -264,6 +264,9 @@ async def send_message(
         rule = turn.safety_rule or "unknown"
         logger.info("safety_hit kind=medication rule=%s", rule)
         metrics.record_medication_hit(rule)
+    elif turn.safety_kind == "camera":
+        logger.info("safety_hit kind=camera rule=%s", turn.safety_rule or "unknown")
+        metrics.record_camera_hit()
 
     async def events() -> AsyncIterator[str]:
         reply_parts: list[str] = []

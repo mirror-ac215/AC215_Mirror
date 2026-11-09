@@ -29,7 +29,7 @@ def main_signal(context: dict) -> str:
 def drop_questions(reply: str) -> str:
     """Removes question sentences, unless the reply is nothing but questions."""
     sentences = re.split(r"(?<=[.!?])\s+", reply.strip())
-    kept = [s for s in sentences if s and not s.endswith("?")]
+    kept = [s for s in sentences if s and not re.search(r"\?[!\"')\]]*$", s)]
     return " ".join(kept) if kept else reply
 
 

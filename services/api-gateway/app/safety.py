@@ -212,7 +212,7 @@ CAMERA_RULES: list[tuple[str, str]] = [
                          r"|\b(do|will) you (keep|store|save|record|share)( \w+)? (video|videos|camera|face|images?|recording)\b"
                          r"|\bis (the|my|this) camera (recording|saving|storing|on|off|watching)\b"
                          r"|\bwhat (does|do|did|can) (the|my|this|your) (camera|software|app) (think|see|say|show|know)\b"
-                         r"|\b(camera|software|app)\b.{0,40}\b(guess|read|tell|know)\b.{0,20}\b(feel|feeling|feelings|emotion|emotions|mood)\b"
+                         r"|\b(can|could|does|do|will) (the|my|this|your) (camera|software|app)\b.{0,40}\b(guess|read|tell|know)\b.{0,20}\b(feel|feeling|feelings|emotion|emotions|mood)\b"
                          r"|\bcan you (guess|read|tell)\b.{0,20}\b(feeling|feelings|emotion|emotions|mood)\b.{0,30}\bcamera\b")),
 ]
 CAMERA_REPLY = (
