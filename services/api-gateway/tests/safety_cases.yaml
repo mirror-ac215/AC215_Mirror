@@ -181,3 +181,6 @@
 - {text: "are you recording our chat", expect: none}
 - {text: "I downloaded an app that helps me know how I feel", expect: none}
 - {text: "my camera broke at work", expect: none}
+- {text: "do you see me as a failure?", expect: none}
+- {text: "can you see me struggling", expect: none}
+- {text: "can you see me right now?", expect: camera}

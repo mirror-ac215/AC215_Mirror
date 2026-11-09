@@ -211,7 +211,8 @@ MEDICATION_REPLY = (
 )
 
 CAMERA_RULES: list[tuple[str, str]] = [
-    ("camera-question", (r"\b(can|do|could) you (see|watch|look at) (me|my (face|camera|video))\b"
+    ("camera-question", (r"\b(can|do|could) you (see|watch|look at) (me|my (face|camera|video))"
+                         r"( right now| now| at all| through (the|my|this) (camera|webcam|screen))?$"
                          r"|\bare you (recording|watching|filming) me\b"
                          r"|\bare you (recording|filming|storing|saving|keeping) (my |the |this )?(video|videos|camera|face|images?|pictures?|photos?|footage)\b"
                          r"|\b(do|will) you (keep|store|save|record|share)( \w+)? (video|videos|camera|face|images?|recording)\b"

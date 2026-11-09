@@ -131,6 +131,9 @@ def test_crisis_and_medication_win_over_a_camera_question() -> None:
         "are you saving this conversation",
         "are you recording our chat",
         "are you watching the game tonight",
+        "do you see me as a failure?",
+        "can you see me struggling",
+        "could you look at me differently",
     ],
 )
 def test_ordinary_messages_are_not_camera_questions(text: str) -> None:
