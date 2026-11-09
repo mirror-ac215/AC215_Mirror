@@ -46,6 +46,7 @@ class ChatTurn:
     tokens: AsyncIterator[str]
     crisis: dict | None = None
     safety_rule: str | None = None
+    safety_kind: str | None = None
 
 
 class ChatOrchestrator:
@@ -117,10 +118,16 @@ class ChatOrchestrator:
             context["agreement"], context["tone_mode"], main_signal(context)
         )
         llm_messages = build_messages(context, text, conversation)
+        medication = safety_result.kind == "medication"
+
+        async def fixed_reply() -> AsyncIterator[str]:
+            yield safety.MEDICATION_REPLY
 
         async def forward_and_persist() -> AsyncIterator[str]:
             reply_parts: list[str] = []
-            async for token in self._llm.stream(llm_messages):
+            # Medication questions never reach the LLM (M3-09): same stream, fixed text.
+            source = fixed_reply() if medication else self._llm.stream(llm_messages)
+            async for token in source:
                 reply_parts.append(token)
                 yield token
             reply = "".join(reply_parts)
@@ -132,4 +139,6 @@ class ChatOrchestrator:
             message_id=patient_message_id,
             context=context,
             tokens=forward_and_persist(),
+            safety_rule=safety_result.rule_id,
+            safety_kind=safety_result.kind,
         )
