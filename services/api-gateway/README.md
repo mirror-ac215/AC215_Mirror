@@ -169,6 +169,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | `mirror_gateway_request_seconds` | `route` | time to answer (for streams: until the first byte); histogram, so p50/p95 can be computed |
 | `mirror_gateway_crisis_hits_total` | `rule` | crisis-check hits by rule id (never the message text) |
 | `mirror_gateway_medication_hits_total` | `rule` | medication questions answered with the fixed reply, by rule id |
+| `mirror_gateway_camera_hits_total` | | camera questions answered with the fixed camera reply (never the message text) |
 | `mirror_gateway_text_emotion_seconds` | | time to score one message |
 | `mirror_gateway_text_emotion_unavailable_total` | | messages that went on without a text reading (fallback) |
 | `mirror_gateway_gate_total` | `status` | gate outcome per turn (ok / uncertain / dropped / camera_off) |
@@ -191,7 +192,7 @@ uv run pytest -q
 
 Each turn the model gets:
 
-1. Fixed rules: 2 to 4 sentences (never one), reflect first, no assumptions or leading questions, at most one question, says plainly it is not a real person or a clinician, no medical advice, never mentions cameras or numbers. If asked what the camera or software sees, it reports no reading and asks how they feel; it never names a feeling the signals do not give.
+1. Fixed rules: 1 to 4 short sentences, reflect first, no assumptions or leading questions, at most one question, says plainly it is not a real person or a clinician, no medical advice, never mentions cameras or numbers, and never names a feeling the signals do not give. Questions about the camera never reach the LLM: they get the fixed `CAMERA_REPLY` from `app/safety.py`. After a turn that asked a question, `drop_questions` in `app/orchestration.py` removes the questions from the next reply; if nothing else is left, it sends "I'm here, and I'm listening." instead.
 2. The mode from fusion (M3-06): **supportive** by default, **coach** only after steady turns.
 3. This turn's signals in plain words, for example:
    - `Face: their expression may look sad. This is an estimate.`

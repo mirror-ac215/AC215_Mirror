@@ -113,7 +113,7 @@ export const recentSessions: { date: string; length: string; tones: EmotionTone[
   { date: "Sep 6, 2026", length: "20 min", tones: ["calm"] },
 ];
 
-export const openingLine = "Hi, I'm glad you're here. How has your week been feeling?";
+export const openingLine = "Hi, I'm glad you're here. Take your time.";
 
 export const seededChat: { from: "bot" | "user"; text: string }[] = [
   { from: "bot", text: openingLine },

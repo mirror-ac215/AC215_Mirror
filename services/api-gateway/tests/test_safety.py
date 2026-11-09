@@ -136,6 +136,22 @@ def test_metric_labels_match_the_medication_rule_ids() -> None:
 
 
 @pytest.mark.anyio
+async def test_camera_hit_is_logged_and_counted_without_the_text(caplog: pytest.LogCaptureFixture) -> None:
+    secret = "are you recording me right now"
+    before = metrics.REGISTRY.get_sample_value("mirror_gateway_camera_hits_total") or 0.0
+    mirror_logger = logging.getLogger("mirror")
+    mirror_logger.addHandler(caplog.handler)
+    try:
+        stream = await send(secret)
+    finally:
+        mirror_logger.removeHandler(caplog.handler)
+    assert stream[0][1]["text"] == safety.CAMERA_REPLY
+    assert metrics.REGISTRY.get_sample_value("mirror_gateway_camera_hits_total") == before + 1
+    assert any("safety_hit kind=camera rule=camera-question" in r.getMessage() for r in caplog.records)
+    assert all(secret not in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.anyio
 async def test_medication_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> None:
     secret = "can I double my dose of sertraline before my exam"
     mirror_logger = logging.getLogger("mirror")

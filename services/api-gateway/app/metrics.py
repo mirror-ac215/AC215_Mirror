@@ -43,6 +43,10 @@ MEDICATION_HITS = Counter(
     "mirror_gateway_medication_hits_total", "Medication questions answered with the fixed reply (M3-09)",
     ["rule"], registry=REGISTRY,
 )
+CAMERA_HITS = Counter(
+    "mirror_gateway_camera_hits_total", "Camera questions answered with the fixed reply (M3-24)",
+    registry=REGISTRY,
+)
 TEXT_EMOTION_SECONDS = Histogram(
     "mirror_gateway_text_emotion_seconds", "Time to score one message (M3-05)", registry=REGISTRY,
 )
@@ -102,6 +106,11 @@ def record_fusion(agreement: str, tone_mode: str, main_signal: str) -> None:
 def record_medication_hit(rule: str) -> None:
     """Count one medication question by rule id (never the message text)."""
     MEDICATION_HITS.labels(rule=_closed(rule, MEDICATION_RULE_IDS)).inc()
+
+
+def record_camera_hit() -> None:
+    """Count one camera question answered with the fixed reply (never the message text)."""
+    CAMERA_HITS.inc()
 
 
 def render() -> tuple[bytes, str]:

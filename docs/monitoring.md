@@ -6,11 +6,11 @@ Basic production monitoring for MS3. Grafana dashboards are planned for MS4 (M4-
 
 | Source | What it records | Where to find it |
 | --- | --- | --- |
-| api-gateway logs | Each request's path, status and time; errors such as `cv_prediction_failed`, `text_emotion_load_failed` and `chat_persistence_orchestration_failed`; crisis hits as `safety_hit kind=crisis rule=...` | Cloud Logging |
+| api-gateway logs | Each request's path, status and time; errors such as `cv_prediction_failed`, `text_emotion_load_failed` and `chat_persistence_orchestration_failed`; safety hits as `safety_hit kind=crisis rule=...`, `kind=medication` or `kind=camera` (the rule id only, never the message) | Cloud Logging |
 | llm-service logs | vLLM startup, errors, request status and throughput | Cloud Logging |
 | cv-service logs | Model startup failures; each request's path, status and time | Cloud Logging |
 | frontend and caddy logs | Startup and errors | Cloud Logging |
-| api-gateway metrics | Requests, response time, crisis hits, text emotion time and failures, gate and fusion outcomes | `/metrics` on the VM |
+| api-gateway metrics | Requests, response time, crisis, medication and camera hits (`mirror_gateway_camera_hits_total` counts fixed camera replies and has no labels or message text), text emotion time and failures, gate and fusion outcomes | `/metrics` on the VM |
 | llm-service metrics | Running and waiting requests, plus vLLM's own performance metrics | `/metrics` on the VM |
 | cv-service metrics | Request counts from its own `/metrics` | `/metrics` on the VM |
 
@@ -43,11 +43,11 @@ jsonPayload.container.name:"api-gateway"
 jsonPayload.message:"ERROR"
 ```
 
-Crisis hits:
+Crisis hits (use `kind=medication` or `kind=camera` for the other two):
 
 ```text
 logName="projects/mirror-ac215/logs/gcplogs-docker-driver"
-jsonPayload.message:"safety_hit"
+jsonPayload.message:"safety_hit kind=crisis"
 ```
 
 **From a terminal:**

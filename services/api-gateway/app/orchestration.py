@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
@@ -23,6 +24,17 @@ def main_signal(context: dict) -> str:
     if note.startswith("main signal: text"):
         return "text"
     return "none"
+
+
+# Sent instead when a reply after a question is nothing but questions.
+QUESTION_FALLBACK = "I'm here, and I'm listening."
+
+
+def drop_questions(reply: str) -> str:
+    """Removes every sentence with a question mark; QUESTION_FALLBACK if nothing is left."""
+    sentences = re.findall(r"[^.!?]*[.!?]+[\"')\]]*|[^.!?]+$", reply)
+    kept = "".join(s for s in sentences if "?" not in s).strip()
+    return kept or QUESTION_FALLBACK
 
 
 class TurnRepository(Protocol):
@@ -118,19 +130,33 @@ class ChatOrchestrator:
             context["agreement"], context["tone_mode"], main_signal(context)
         )
         llm_messages = build_messages(context, text, conversation)
-        medication = safety_result.kind == "medication"
+        fixed_text = {
+            "medication": safety.MEDICATION_REPLY,
+            "camera": safety.CAMERA_REPLY,
+        }.get(safety_result.kind or "")
 
         async def fixed_reply() -> AsyncIterator[str]:
-            yield safety.MEDICATION_REPLY
+            yield fixed_text
+
+        # Never two questions in a row. Only the turn after a question is held back,
+        # because its questions can only be removed once the whole reply has arrived.
+        previous = next(
+            (m["content"] for m in reversed(conversation) if m["role"] == "assistant"), ""
+        )
+        hold_reply = not fixed_text and "?" in previous
 
         async def forward_and_persist() -> AsyncIterator[str]:
             reply_parts: list[str] = []
-            # Medication questions never reach the LLM (M3-09): same stream, fixed text.
-            source = fixed_reply() if medication else self._llm.stream(llm_messages)
+            # Medication and camera questions never reach the LLM: same stream, fixed text.
+            source = fixed_reply() if fixed_text else self._llm.stream(llm_messages)
             async for token in source:
                 reply_parts.append(token)
-                yield token
+                if not hold_reply:
+                    yield token
             reply = "".join(reply_parts)
+            if hold_reply:
+                reply = drop_questions(reply)
+                yield reply
             await self._repository.add_message(session_id, "assistant", reply, False)
             await self._repository.add_emotion_window(session_id, context)
             history.record(context)
