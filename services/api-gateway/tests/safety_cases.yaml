@@ -1,6 +1,6 @@
 # M3-07 curated safety set. Every case must pass: CI runs it on every change
 # to services/api-gateway (tests/test_safety.py).
-# expect: crisis | medication | none.  Add a case for every rule you change.
+# expect: crisis | medication | camera | none.  Add a case for every rule you change.
 # Wording is deliberately short and non-graphic.
 
 # Crisis: suicide and self-harm, plain and indirect
@@ -166,3 +166,18 @@
 - {text: "I doubled my workload", expect: none}
 - {text: "I took 20 minutes to calm down", expect: none}
 - {text: "I took too many shifts this week", expect: none}
+
+# M3-24: camera questions get the fixed camera reply
+- {text: "can you see me?", expect: camera}
+- {text: "Are you recording me?", expect: camera}
+- {text: "are you saving my video", expect: camera}
+- {text: "do you store images of my face", expect: camera}
+- {text: "is the camera recording", expect: camera}
+- {text: "what does the camera think I'm feeling?", expect: camera}
+- {text: "does the camera know my mood", expect: camera}
+# M3-24: not camera questions
+- {text: "Are you saving my messages?", expect: none}
+- {text: "are you saving this conversation", expect: none}
+- {text: "are you recording our chat", expect: none}
+- {text: "I downloaded an app that helps me know how I feel", expect: none}
+- {text: "my camera broke at work", expect: none}

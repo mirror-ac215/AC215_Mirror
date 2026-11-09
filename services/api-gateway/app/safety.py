@@ -5,7 +5,7 @@ rules (regular expressions), not a model: the same message always gives the
 same answer and every rule can be reviewed line by line. The face signal is
 never an input.
 
-Two outcomes besides "no hit", checked in this order:
+Three outcomes besides "no hit", checked in this order (crisis -> medication -> camera):
 - crisis: suicide, self-harm, or harming someone else. The gateway withholds
           the persona reply, streams a `crisis` event with 988 resources and
           records a review flag for the patient's clinician.
@@ -13,6 +13,10 @@ Two outcomes besides "no hit", checked in this order:
           medication (M3-09). The LLM is skipped and the patient gets
           MEDICATION_REPLY as an ordinary streamed reply, pointing them to
           their prescriber. No new event type, no contract change.
+- camera: a question about what the camera sees or keeps (M3-24). The LLM is
+          skipped and the patient gets CAMERA_REPLY as an ordinary streamed
+          reply. Only asked when crisis and medication did not fire, so
+          "can you see me? I want to die" is still a crisis.
 
 Crisis rules lean towards firing: a false alarm shows 988 to someone who didn't
 need it; a miss leaves someone in crisis with a chatbot. Crisis always wins: "how
@@ -208,7 +212,8 @@ MEDICATION_REPLY = (
 
 CAMERA_RULES: list[tuple[str, str]] = [
     ("camera-question", (r"\b(can|do|could) you (see|watch|look at) (me|my (face|camera|video))\b"
-                         r"|\bare you (recording|watching|filming|storing|saving)( me| my \w+)?\b"
+                         r"|\bare you (recording|watching|filming) me\b"
+                         r"|\bare you (recording|filming|storing|saving|keeping) (my |the |this )?(video|videos|camera|face|images?|pictures?|photos?|footage)\b"
                          r"|\b(do|will) you (keep|store|save|record|share)( \w+)? (video|videos|camera|face|images?|recording)\b"
                          r"|\bis (the|my|this) camera (recording|saving|storing|on|off|watching)\b"
                          r"|\bwhat (does|do|did|can) (the|my|this|your) (camera|software|app) (think|see|say|show|know)\b"
@@ -271,7 +276,7 @@ def _first_rule(rules: list[tuple[str, re.Pattern]], text: str) -> str | None:
 
 
 def check(message: str) -> SafetyResult:
-    """Message in, crisis / medication / no hit out. Crisis is checked first."""
+    """Message in, crisis / medication / camera / no hit out, checked in that order."""
     text = normalise(message)
     if rule_id := _first_rule(_COMPILED_CRISIS, text):
         return SafetyResult("crisis", rule_id)

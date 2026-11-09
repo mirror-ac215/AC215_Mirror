@@ -6,7 +6,7 @@ import pytest
 
 from app import safety
 from app.fusion import TurnHistory
-from app.orchestration import ChatOrchestrator, drop_questions
+from app.orchestration import QUESTION_FALLBACK, ChatOrchestrator, drop_questions
 from app.text_emotion import TextEmotionUnavailable
 
 
@@ -66,7 +66,10 @@ STATED = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "I
         ("That is a lot. How do you feel?", "That is a lot."),
         ("How do you feel? That is a lot.", "That is a lot."),
         ("That is a lot.", "That is a lot."),
-        ("How do you feel?", "How do you feel?"),  # nothing else would be left
+        ("How do you feel?", QUESTION_FALLBACK),  # nothing else would be left
+        ("How do you feel? What happened?", QUESTION_FALLBACK),
+        ("That is a lot.How do you feel?", "That is a lot."),
+        ('She said "why me?" That hurts.', "That hurts."),
         ("Really?! That is hard.", "That is hard."),
         ('That is hard. "Why me?"', "That is hard."),
     ],
@@ -80,6 +83,13 @@ async def test_question_after_a_question_is_removed_and_saved_without_it() -> No
     tokens, repository, _ = await run_turn("tired", ["That is a lot. ", "How do you feel?"], ASKED)
     assert tokens == ["That is a lot."]
     assert ("assistant", "That is a lot.") in repository.saved
+
+
+@pytest.mark.anyio
+async def test_question_only_reply_after_a_question_becomes_the_fixed_line() -> None:
+    tokens, repository, _ = await run_turn("tired", ["How ", "do you feel?"], ASKED)
+    assert tokens == [QUESTION_FALLBACK]
+    assert ("assistant", QUESTION_FALLBACK) in repository.saved
 
 
 @pytest.mark.anyio
@@ -117,6 +127,10 @@ def test_crisis_and_medication_win_over_a_camera_question() -> None:
         "my camera broke at work",
         "I downloaded an app that helps me know how I feel",
         "my therapist said the app can tell when my mood dips",
+        "Are you saving my messages?",
+        "are you saving this conversation",
+        "are you recording our chat",
+        "are you watching the game tonight",
     ],
 )
 def test_ordinary_messages_are_not_camera_questions(text: str) -> None:

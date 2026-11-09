@@ -26,11 +26,15 @@ def main_signal(context: dict) -> str:
     return "none"
 
 
+# Sent instead when a reply after a question is nothing but questions.
+QUESTION_FALLBACK = "I'm here, and I'm listening."
+
+
 def drop_questions(reply: str) -> str:
-    """Removes question sentences, unless the reply is nothing but questions."""
-    sentences = re.split(r"(?<=[.!?])\s+", reply.strip())
-    kept = [s for s in sentences if s and not re.search(r"\?[!\"')\]]*$", s)]
-    return " ".join(kept) if kept else reply
+    """Removes every sentence with a question mark; QUESTION_FALLBACK if nothing is left."""
+    sentences = re.findall(r"[^.!?]*[.!?]+[\"')\]]*|[^.!?]+$", reply)
+    kept = "".join(s for s in sentences if "?" not in s).strip()
+    return kept or QUESTION_FALLBACK
 
 
 class TurnRepository(Protocol):
