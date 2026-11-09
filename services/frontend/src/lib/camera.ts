@@ -1,3 +1,5 @@
+import type { ContextObject, FrameAck } from "@/lib/api/types";
+
 export type CameraCaptureDependencies = {
   createImageBitmap: (source: ImageBitmapSource) => Promise<ImageBitmap>;
   createCanvas: () => HTMLCanvasElement;
@@ -55,4 +57,9 @@ export function reportCameraCaptureFailure(error: unknown): void {
 
 export function stopCamera(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track) => track.stop());
+}
+
+/** The panel's reading after a frame: the gateway's smoothed result, never a guess in the browser. */
+export function visualFromFrameAck(ack: FrameAck): ContextObject["visual"] {
+  return ack.top2 ? { status: ack.visual_status, top2: ack.top2 } : { status: ack.visual_status };
 }

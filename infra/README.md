@@ -20,6 +20,16 @@ Inside the Compose network, services reach each other by service name. The gatew
 
 `cv-service` is available behind the explicit `cv` Compose profile (`--profile cv`), because its real startup needs an approved GCS credential to download the model. The default stack and its CI smoke test do not enable that profile, so neither needs cloud credentials. Without the profile, the gateway's `/health` reports `"status": "degraded"` with only `cv-service` as `down`. That is expected; the gateway still returns HTTP 200 and stays healthy.
 
+In production (`compose.prod.yml`) `cv-service` always runs, with no credential
+file: it downloads the model at startup using the VM's configured attached
+identity. Before pulling images, `deploy-stage-b.sh` obtains a token directly
+from the VM metadata server and reads the configured
+`CV_MODEL_BUCKET`/`CV_MODEL_OBJECT` metadata with that token. This fails
+clearly unless `M3_13_SERVICE_ACCOUNT_EMAIL` has `roles/storage.objectViewer`
+on the reviewed model bucket; a local gcloud user login cannot satisfy this
+check. The helper then waits up to 600 seconds for
+Compose health, so a model that cannot be loaded also fails the deployment.
+
 To run CV locally, first export the path to an ADC credential file that is outside this repository, then explicitly enable the profile:
 
 ```bash
@@ -34,7 +44,7 @@ The profile mounts that credential read-only and never copies it into an image. 
 From the repository root:
 
 ```bash
-cp infra/.env.example infra/.env     # then fill in the four values
+cp infra/.env.example infra/.env     # then fill in the required values
 docker compose -f infra/compose.yml up --build -d
 docker compose -f infra/compose.yml ps
 ```
@@ -54,9 +64,12 @@ Compose reads `infra/.env` automatically (it sits next to `compose.yml`). It is 
 | `DB_NAME` | `db`, `api-gateway` | PostgreSQL database name. The default development identity is `mirror`. |
 | `DB_USER` | `db`, `api-gateway` | PostgreSQL application user. The default development identity is `mirror_app`. |
 | `DB_PASSWORD` | `db`, `api-gateway` | Password for the configured database user. Any local value works. Compose derives the gateway's `DATABASE_URL` from this same value. |
-| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed local demo accounts. The M3 gateway's fixed demo-token compatibility layer does not read it; M4-02 replaces that layer with database-backed login. |
+| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed local demo accounts. The gateway does not read or receive it; M4-02 authenticates against the database's bcrypt hashes. |
+| `JWT_SIGNING_KEY` | `api-gateway` | **Required**, at least 32 random characters. Signs gateway access tokens; generate and retain it outside Git. |
+| `JWT_EXPIRES_MINUTES` | `api-gateway` | Optional access-token lifetime in minutes (default `30`, allowed `1`-`60`). |
+| `TRUSTED_PROXY_IPS` | `api-gateway` | Optional JSON array of Caddy IP/CIDR values. Only configured proxies may supply a client address through `X-Forwarded-For`; leave `[]` unless the proxy network is known and controlled. |
 
-If any required value is missing, Compose refuses to start and names the missing variable.
+If a required database value, `MIRROR_DEMO_PASSWORD`, or `JWT_SIGNING_KEY` is missing, Compose refuses to start and names the missing variable.
 
 ### Migration from the pre-M3-10 `infra/.env`
 
@@ -90,6 +103,8 @@ The database lives in the named volume `db-data`. The schema and seed only run w
 
 Shell scripts that run inside containers must keep LF line endings. The repository's `.gitattributes` enforces this. If a container exits with code 127 and `can't execute 'sh'`, the script was checked out with CRLF: delete it and run `git checkout -- <file>` to restore it with LF.
 
+For GCP provisioning and VM bootstrap, use Cloud Shell or a Linux/macOS shell. Git Bash on Windows can pass CRLF-terminated `gcloud` output into the provisioning shell script and is not supported for those commands.
+
 ## M3-13 Stage A: GPU VM deployment foundation
 
 > **Scope boundary:** Stage A prepares and proves the secure GPU deployment
@@ -115,8 +130,12 @@ deploy into an unknown project or zone.
 
 Before running it, a project administrator must approve billing, a T4-capable
 zone, GPU quota, a narrow VM service account, and the team CIDRs allowed to
-reach the VM. The configured service account needs only the eventual
-artifact-read permissions; do not give the VM Owner or Editor.
+reach the VM. The configured `M3_13_SERVICE_ACCOUNT_EMAIL` needs only the
+eventual artifact-read permissions: Artifact Registry Reader for immutable
+images and `roles/storage.objectViewer` on the reviewed CV-model bucket. It also
+needs `roles/logging.logWriter`, because production containers log to Cloud
+Logging and will not start without it (see [monitoring](../docs/monitoring.md)). Do
+not give the VM Owner or Editor.
 
 ```bash
 export M3_13_PROJECT_ID='your-project-id'
@@ -143,12 +162,18 @@ team-only deployment, not a public service.
 
 ### 2. Bootstrap Docker and NVIDIA support
 
-Connect through IAP and run the bootstrap script. It installs Ubuntu 22.04's
-supported NVIDIA 535 driver, Docker Engine, the Compose plugin and NVIDIA
+Mostafa, as the paid-cloud operator, connects through IAP and runs the bootstrap script. It requests Ubuntu's
+supported NVIDIA 535 driver series, Docker Engine, the Compose plugin and NVIDIA
 Container Toolkit, then configures Docker's NVIDIA runtime. On a fresh VM the
 script exits after installing the kernel driver with a reboot instruction;
 reboot, reconnect through IAP, and rerun it. It calls `nvidia-smi` and the
 Docker GPU test only after a successful post-reboot run.
+
+The Ubuntu `nvidia-driver-535` package can resolve to a newer compatible runtime
+(the working VM reported 580). Treat the `nvidia-smi` output recorded after the
+bootstrap as the authoritative installed driver version. The script also adds the
+invoking non-root deploy operator to the Docker group whether it was invoked via
+`sudo` or as an ordinary user; log out and back in before using Docker without sudo.
 
 ```bash
 gcloud compute ssh mirror-gpu-prod \
@@ -176,11 +201,10 @@ cp infra/.env.prod.example infra/.env.prod
 chmod 600 infra/.env.prod
 ```
 
-Download the approved LoRA adapter outside the repository and set
-`LLM_ADAPTER_HOST_PATH` to that directory. The production Compose file mounts
-it read-only. Prefer the VM service account for GCS access; do not place a
-service-account key, model adapter, Hugging Face token, or database password
-in the repository, an image layer, logs, or pull request.
+Production serves the plain base model with no adapter (D-006), so nothing
+needs downloading here. Prefer the VM service account for GCS access; do not
+place a service-account key, model adapter, Hugging Face token, or database
+password in the repository, an image layer, logs, or pull request.
 
 ### 4. Start and validate Stage A
 
@@ -305,7 +329,15 @@ Check out that exact SHA on the VM and deploy with:
 bash infra/deploy-stage-b.sh
 ```
 
-The helper rejects a non-SHA tag or a mismatch between the checkout and
-`MIRROR_IMAGE_TAG`, resolves the three Compose files, pulls images, and starts
-without local builds. Record `docker compose ... images` output with the
-resolved image digests as the M3-14 VM-pull evidence.
+Before its first pull, the helper uses the VM's attached identity to configure
+Docker credential helper access for `MIRROR_IMAGE_REGISTRY` (for example
+`us-central1-docker.pkg.dev`). It then rejects a non-SHA tag or a mismatch
+between the checkout and `MIRROR_IMAGE_TAG`, resolves the three Compose files,
+pulls immutable images, and starts without local builds.
+
+Before starting vLLM, `infra/prepare-llm-model.sh` reuses the public-model snapshot in the same default Hugging Face hub cache that vLLM serves from, with `HF_HUB_DISABLE_XET=1`. It parses `config.json`, hashes every safetensors shard against the SHA-256 in its Hugging Face LFS blob filename, and re-downloads only a mismatched shard before rechecking it. This detects truncated or structurally corrupt cached shards before `/health` can incorrectly report ready. It does not retrieve the LoRA adapter, write credentials, or prove semantic model quality. `LLM_FORCE_MODEL_DOWNLOAD` defaults to `0`; set it to `1` only for an intentional full refresh. The real LLM container allows a 600-second health start period, disables the T4-incompatible FlashInfer sampler by default, and the deploy helper requires the fixed smoke reply to contain `READY` and prints that non-patient response. This is an operational smoke check, not a substitute for the reviewed LLM evaluation suite.
+
+Record `docker compose ... images` output with the resolved image digests as the
+M3-14 VM-pull evidence. Do not start, stop, or redeploy the VM from this project
+role: notify Owen when this reviewed helper is ready, and Mostafa performs the
+paid-cloud operation and confirms the VM is stopped afterwards.

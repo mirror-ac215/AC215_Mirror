@@ -12,8 +12,9 @@ const DEMO_CRISIS_WORDS = ["kill myself", "end my life", "suicide", "hurt myself
 
 let replyIndex = 0;
 
-export async function login(role: Role): Promise<LoginResponse> {
+export async function login(email: string): Promise<LoginResponse> {
   await wait(300);
+  const role: Role = email.startsWith("clinician.") ? "clinician" : "patient";
   return { access_token: "mock-token", role, user_id: role === "patient" ? "MR-1087" : "CL-01" };
 }
 
@@ -27,7 +28,13 @@ export async function startSession(cameraConsent: boolean): Promise<Session> {
 }
 
 export async function sendFrame(): Promise<FrameAck> {
-  return { visual_status: "ok" };
+  return {
+    visual_status: "ok",
+    top2: [
+      ["neutral", 0.62],
+      ["happy", 0.21],
+    ],
+  };
 }
 
 export async function sendMessage(

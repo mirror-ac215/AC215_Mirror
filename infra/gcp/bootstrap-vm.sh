@@ -8,12 +8,15 @@ if [[ "$(id -u)" -eq 0 ]]; then
 else
   SUDO="sudo"
 fi
+DEPLOY_USER="${SUDO_USER:-$(id -un)}"
 
 $SUDO apt-get update
 $SUDO apt-get install -y ca-certificates curl gnupg lsb-release ubuntu-drivers-common
 
 # A fresh Ubuntu 22.04 GPU image does not have a usable NVIDIA kernel module.
-# Install Ubuntu's supported 535 series and deliberately stop for its reboot.
+# Request Ubuntu's supported 535 driver series and deliberately stop for its
+# reboot. Ubuntu's package resolver can install a newer compatible driver
+# (for example 580); nvidia-smi below is the record of the actual driver version.
 REBOOT_REQUIRED=0
 if ! nvidia-smi >/dev/null 2>&1; then
   $SUDO apt-get install -y nvidia-driver-535
@@ -41,8 +44,8 @@ $SUDO nvidia-ctk runtime configure --runtime=docker
 $SUDO systemctl enable --now docker
 $SUDO systemctl restart docker
 
-if [[ -n "${SUDO_USER:-}" ]]; then
-  $SUDO usermod -aG docker "$SUDO_USER"
+if [[ "$DEPLOY_USER" != "root" ]]; then
+  $SUDO usermod -aG docker "$DEPLOY_USER"
 fi
 
 if [[ "$REBOOT_REQUIRED" -eq 1 ]] || ! nvidia-smi >/dev/null 2>&1; then
@@ -51,6 +54,7 @@ if [[ "$REBOOT_REQUIRED" -eq 1 ]] || ! nvidia-smi >/dev/null 2>&1; then
 fi
 
 nvidia-smi
+printf 'Installed NVIDIA driver version is recorded above by nvidia-smi.\n'
 docker version --format '{{.Server.Version}}'
 docker compose version
 docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi

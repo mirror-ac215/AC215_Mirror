@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CrisisDialog } from "@/components/mirror/CrisisDialog";
 import { ExpressionPanel } from "@/components/mirror/ExpressionPanel";
 import { TopNav } from "@/components/mirror/TopNav";
-import { seededChat } from "@/lib/mirror-data";
+import { USE_MOCK_API } from "@/lib/config";
+import { openingLine, seededChat } from "@/lib/mirror-data";
 import * as api from "@/lib/api/client";
 import type { ContextObject, CrisisPayload } from "@/lib/api/types";
 import { fillEmptyReply, type ChatMessage } from "@/lib/chat";
@@ -17,14 +18,32 @@ import {
   captureJpeg,
   reportCameraCaptureFailure,
   stopCamera,
+  visualFromFrameAck,
 } from "@/lib/camera";
-import { setRole } from "@/lib/role";
+import { hasRequiredRole } from "@/lib/role";
+
+const EXPIRED_SESSION_NOTICE =
+  "Your session expired. Call or text 988, or call 911 in an emergency.";
+const UNAVAILABLE_SESSION_NOTICE =
+  "Your session ended because the service is unavailable. Call or text 988, or call 911 in an emergency.";
 
 export const Route = createFileRoute("/session")({
+  beforeLoad: ({ search }) => {
+    if (!hasRequiredRole("patient")) {
+      throw redirect({
+        to: "/",
+        search: {
+          notice: typeof search.notice === "string" ? search.notice : EXPIRED_SESSION_NOTICE,
+        },
+      });
+    }
+  },
   // The camera choice from /consent arrives as ?camera=true. Anything else, including
   // opening /session directly, means no camera: consent is never assumed.
-  validateSearch: (search: Record<string, unknown>): { camera?: boolean } =>
-    search["camera"] === true ? { camera: true } : {},
+  validateSearch: (search: Record<string, unknown>): { camera?: boolean; notice?: string } => ({
+    ...(search["camera"] === true ? { camera: true } : {}),
+    ...(typeof search["notice"] === "string" ? { notice: search["notice"] } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Your session — Mirror" },
@@ -45,7 +64,10 @@ export const Route = createFileRoute("/session")({
 });
 
 export function Session() {
-  const [messages, setMessages] = useState<ChatMessage[]>(seededChat);
+  // Demo messages only in mock mode: a real session starts with the greeting alone.
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    USE_MOCK_API ? seededChat : [{ from: "bot", text: openingLine }],
+  );
   const [draft, setDraft] = useState("");
   const [crisis, setCrisis] = useState<CrisisPayload | null>(null);
   const [visual, setVisual] = useState<ContextObject["visual"] | null>(null);
@@ -59,10 +81,27 @@ export function Session() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Each camera run gets a number, so a late reply can't show a reading from an earlier run.
+  const cameraRunRef = useRef(0);
+  const runWithReadingRef = useRef<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const terminateSession = useCallback(
+    (notice: string) => {
+      if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+      stopCamera(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      setCameraActive(false);
+      setCameraRequested(false);
+      setVisual(null);
+      setSessionId(null);
+      api.logout();
+      navigate({ to: "/", search: { notice } });
+    },
+    [navigate],
+  );
 
-  useEffect(() => setRole("patient"), []);
   // Start a session with the gateway (or the mock) when the screen opens.
   const cameraConsent = Route.useSearch().camera === true;
   useEffect(() => {
@@ -73,22 +112,49 @@ export function Session() {
       .catch((error) => {
         setSessionId(null);
         if (error instanceof Error && error.message.includes("401")) {
-          api.logout();
-          navigate({
-            to: "/",
-            search: {
-              notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
-            },
-          });
+          terminateSession(EXPIRED_SESSION_NOTICE);
           return;
         }
         setSessionFailed(true);
       });
-  }, [cameraConsent, attempt, navigate]);
+  }, [cameraConsent, attempt, terminateSession]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRenewal = () => {
+      const delay = api.accessTokenRefreshDelayMs();
+      if (delay === null) return;
+      timer = setTimeout(() => {
+        void api
+          .refreshAccessToken()
+          .then(() => {
+            if (!disposed) scheduleRenewal();
+          })
+          .catch((error) => {
+            if (!disposed) {
+              terminateSession(
+                error instanceof Error && error.message.includes("401")
+                  ? EXPIRED_SESSION_NOTICE
+                  : UNAVAILABLE_SESSION_NOTICE,
+              );
+            }
+          });
+      }, delay);
+    };
+    scheduleRenewal();
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [sessionId, terminateSession]);
 
   useEffect(() => {
     if (!cameraConsent || !sessionId || !cameraRequested) return;
+    const run = ++cameraRunRef.current;
     setCameraIssue(null);
+    setVisual(null); // a new camera run starts with no reading, whatever came before it
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraActive(false);
       setVisual(null);
@@ -99,6 +165,7 @@ export function Session() {
     const stopWithIssue = (error: unknown) => {
       reportCameraCaptureFailure(error);
       if (!disposed) {
+        cameraRunRef.current += 1;
         setCameraActive(false);
         setVisual(null);
         setCameraIssue("Camera frames are not being sent; messages remain text-only.");
@@ -128,22 +195,31 @@ export function Session() {
           if (!videoRef.current || !cameraStreamRef.current) return;
           try {
             const jpeg = await captureJpeg(videoRef.current);
-            await api.sendFrame(sessionId, jpeg);
+            const ack = await api.sendFrame(sessionId, jpeg);
+            // Camera turned off while this frame was on its way: keep the panel clear.
+            if (!disposed && cameraStreamRef.current) {
+              runWithReadingRef.current = run;
+              setVisual(visualFromFrameAck(ack));
+            }
           } catch (error) {
             stopWithIssue(error);
+            if (error instanceof Error && error.message.includes("401")) {
+              terminateSession(EXPIRED_SESSION_NOTICE);
+            }
           }
         }, 1500);
       })
       .catch(stopWithIssue);
     return () => {
       disposed = true;
+      cameraRunRef.current += 1;
       if (captureIntervalRef.current) clearInterval(captureIntervalRef.current);
       captureIntervalRef.current = null;
       stopCamera(cameraStreamRef.current);
       cameraStreamRef.current = null;
       setCameraActive(false);
     };
-  }, [cameraConsent, sessionId, cameraRequested]);
+  }, [cameraConsent, sessionId, cameraRequested, terminateSession]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -154,6 +230,9 @@ export function Session() {
     if (!text || !sessionId || sending) return;
     setDraft("");
     setSending(true);
+    // Until this run has its own reading, the gateway's answer may still reflect an earlier run.
+    const readingRun =
+      runWithReadingRef.current === cameraRunRef.current ? cameraRunRef.current : null;
     // Show the patient's message, plus an empty bot bubble that fills up as tokens arrive.
     setMessages((m) => [...m, { from: "user", text }, { from: "bot", text: "" }]);
     try {
@@ -163,7 +242,7 @@ export function Session() {
           setCrisis(event.data);
         } else if (event.type === "done") {
           // The readout follows the gateway's reading for this turn, never a guess in the browser.
-          setVisual(event.data.context.visual);
+          if (readingRun === cameraRunRef.current) setVisual(event.data.context.visual);
         } else if (event.type === "token") {
           setMessages((m) => {
             const last = m[m.length - 1];
@@ -175,13 +254,7 @@ export function Session() {
       setMessages(fillEmptyReply);
     } catch (error) {
       if (error instanceof Error && error.message.includes("401")) {
-        api.logout();
-        navigate({
-          to: "/",
-          search: {
-            notice: "Your session expired. Call or text 988, or call 911 in an emergency.",
-          },
-        });
+        terminateSession(EXPIRED_SESSION_NOTICE);
         return;
       }
       setMessages((m) => [
@@ -281,7 +354,6 @@ export function Session() {
 
           {/* side panel */}
           <div className="space-y-2">
-            <video ref={videoRef} autoPlay muted playsInline className="hidden" />
             {cameraConsent && (
               <button
                 type="button"
@@ -298,7 +370,11 @@ export function Session() {
               </button>
             )}
             {cameraIssue && <p className="text-xs text-safety">{cameraIssue}</p>}
-            <ExpressionPanel cameraConsent={cameraConsent && cameraActive} visual={visual} />
+            <ExpressionPanel
+              cameraConsent={cameraConsent && cameraActive}
+              visual={visual}
+              videoRef={videoRef}
+            />
           </div>
         </div>
 

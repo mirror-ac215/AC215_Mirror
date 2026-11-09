@@ -1,6 +1,28 @@
+"""Safe test configuration and substitutes for gateway unit tests."""
+
+import os
+from collections.abc import Generator
 from datetime import datetime
 
+import bcrypt
 import pytest
+
+os.environ.setdefault("DATABASE_URL", "postgresql://unit:unit@localhost:5432/unit")
+os.environ.setdefault(
+    "JWT_SIGNING_KEY", "unit-test-jwt-signing-key-with-adequate-length"
+)
+
+from app.auth import (
+    AuthenticatedUser,
+    StoredUser,
+    clear_login_attempts,
+    get_user_lookup,
+    issue_access_token,
+)
+from app.chat import session_owners, sessions
+from app.config import get_settings
+from app.main import app
+from app.schemas import Role
 
 
 class TestRepository:
@@ -46,11 +68,54 @@ class TestCV:
         return {"face_found": False, "probs": {}}
 
 
+class FakeUsers:
+    """Deterministic seeded-user lookup that mirrors the Postgres users table."""
+
+    def __init__(self) -> None:
+        password_hash = bcrypt.hashpw(b"test-password", bcrypt.gensalt()).decode()
+        self.users = {
+            "clinician.ada@example.test": StoredUser(
+                user_id="00000000-0000-0000-0000-000000000101",
+                email="clinician.ada@example.test",
+                role="clinician",
+                password_hash=password_hash,
+            ),
+            "patient.alex@example.test": StoredUser(
+                user_id="00000000-0000-0000-0000-000000000201",
+                email="patient.alex@example.test",
+                role="patient",
+                password_hash=password_hash,
+            ),
+            "patient.bri@example.test": StoredUser(
+                user_id="00000000-0000-0000-0000-000000000202",
+                email="patient.bri@example.test",
+                role="patient",
+                password_hash=password_hash,
+            ),
+        }
+
+    async def by_email(self, email: str) -> StoredUser | None:
+        return self.users.get(email)
+
+
+def auth_headers(user_id: str, email: str, role: Role) -> dict[str, str]:
+    """Create a real signed test JWT; no fixed bearer tokens remain."""
+    token = issue_access_token(
+        AuthenticatedUser(user_id=user_id, email=email, role=role),
+        signing_key=get_settings().jwt_signing_key,
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture(autouse=True)
-def fake_gateway_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+def fake_gateway_dependencies(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     from app import chat
     from app.text_emotion import TextEmotion
 
+    sessions.clear()
+    session_owners.clear()
+    clear_login_attempts()
+    app.dependency_overrides[get_user_lookup] = lambda: FakeUsers()
     chat.repository = TestRepository()
     chat.llm_client = TestLLM()
     chat.cv_client = TestCV()
@@ -60,3 +125,8 @@ def fake_gateway_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
         "get_text_emotion",
         lambda: TextEmotion(classifier=lambda _text: {"neutral": 1.0}),
     )
+    yield
+    app.dependency_overrides.clear()
+    sessions.clear()
+    session_owners.clear()
+    clear_login_attempts()

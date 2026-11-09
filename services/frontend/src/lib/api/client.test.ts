@@ -10,6 +10,7 @@ function jsonResponse(body: unknown) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   api.logout();
 });
@@ -30,7 +31,7 @@ describe("api client (real mode)", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.login("patient.alex@example.test", "pw", "patient");
+    await api.login("patient.alex@example.test", "pw");
     await api.startSession(false);
 
     const [loginUrl, loginInit] = fetchMock.mock.calls[0]!;
@@ -46,9 +47,59 @@ describe("api client (real mode)", () => {
     expect(JSON.parse(sessionInit.body)).toEqual({ camera_consent: false });
   });
 
+  it("refreshes the in-memory token with the still-authenticated bearer token", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: "tok-alex", role: "patient", user_id: "u-201" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: "tok-renewed", role: "patient", user_id: "u-201" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          session_id: "s-renewed",
+          started_at: "2026-10-12T00:00:00Z",
+          camera_consent: false,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.login("patient.alex@example.test", "pw");
+    await api.refreshAccessToken();
+    await api.startSession(false);
+
+    expect(fetchMock.mock.calls[1]![0]).toBe("http://gateway.test/auth/refresh");
+    expect(fetchMock.mock.calls[1]![1].headers.Authorization).toBe("Bearer tok-alex");
+    expect(fetchMock.mock.calls[2]![1].headers.Authorization).toBe("Bearer tok-renewed");
+  });
+
+  it("schedules a real one-minute JWT renewal after a positive bounded delay", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-12T00:00:00Z"));
+    const accessToken = `${btoa(JSON.stringify({ alg: "none" }))}.${btoa(
+      JSON.stringify({
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 60,
+      }),
+    )}.signature`;
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ access_token: accessToken, role: "patient", user_id: "u-201" }),
+        ),
+    );
+
+    await api.login("patient.alex@example.test", "pw");
+
+    expect(api.accessTokenRefreshDelayMs()).toBe(30_000);
+  });
+
   it("throws on a failed login so the page can show an error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 401 })));
-    await expect(api.login("x@example.test", "wrong", "patient")).rejects.toThrow("401");
+    await expect(api.login("x@example.test", "wrong")).rejects.toThrow("401");
   });
   it("logout clears the token, so later requests carry no Authorization header", async () => {
     const fetchMock = vi
@@ -65,7 +116,7 @@ describe("api client (real mode)", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.login("patient.alex@example.test", "pw", "patient");
+    await api.login("patient.alex@example.test", "pw");
     api.logout();
     await api.startSession(false);
 
@@ -88,8 +139,8 @@ describe("api client (real mode)", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.login("patient.alex@example.test", "pw", "patient");
-    await expect(api.login("patient.bri@example.test", "wrong", "patient")).rejects.toThrow();
+    await api.login("patient.alex@example.test", "pw");
+    await expect(api.login("patient.bri@example.test", "wrong")).rejects.toThrow();
     await api.startSession(false);
 
     expect(fetchMock.mock.calls[2]![1].headers.Authorization).toBeUndefined();

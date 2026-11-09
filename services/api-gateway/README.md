@@ -9,22 +9,14 @@ uv sync
 uv run uvicorn app.main:app --port 8000 --reload
 ```
 
-Interactive API docs: http://localhost:8000/docs. Click **Authorize** and enter a demo token:
-
-| User | Email | Token |
-|---|---|---|
-| Dr. Ada Chen (clinician) | `clinician.ada@example.test` | `dev-clinician-token` |
-| Alex Rivera (patient) | `patient.alex@example.test` | `dev-patient-token` |
-| Bri Santos (patient) | `patient.bri@example.test` | `dev-patient-b-token` |
-
-Or get the token from `POST /auth/login` with one of these emails and the demo password.
+Use `POST /auth/login` with a seeded email and its locally configured `MIRROR_DEMO_PASSWORD`. The gateway verifies the database bcrypt hash and returns a short-lived signed JWT; never manually enter a token.
 
 ## Endpoints (v0)
 
 | Endpoint | Returns |
 |---|---|
 | `GET /health` | `ok` / `degraded` + each dependency (`cv-service`, `llm-service`, `db`); always 200, which keeps Docker from restarting the gateway when a dependency is down |
-| `POST /auth/login` | demo users from `services/db/seed.sh` with password `MIRROR_DEMO_PASSWORD`; returns their token, role and `user_id`; 401 if the email or password is wrong (real auth: M4-02) |
+| `POST /auth/login` | seeded `users` record verified against its bcrypt hash; returns a short-lived HS256 JWT, server-derived role and `user_id`; 401 is identical for unknown email and wrong password; 429 follows five failed attempts for an account/client pair in five minutes |
 | `POST /sessions` | 201, in-memory session (database: MS3) |
 | `POST /sessions/{id}/frames` | 202; frame read and discarded, never stored; 409 without camera consent; 415 if not JPEG; 413 if larger than MAX_FRAME_BYTES |
 | `POST /sessions/{id}/messages` | Server-Sent Events: `token` events (`{"text": ...}`) then `done`; or a single `crisis` event instead of the reply (M3-07) |
@@ -39,10 +31,10 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `LOG_LEVEL` | `INFO` |
 | `CV_SERVICE_URL` | `http://cv-service:8001` |
 | `LLM_SERVICE_URL` | `http://llm-service:8002` |
-| `DB_HOST` / `DB_PORT` | `db` / `5432` |
-| `DEPENDENCY_TIMEOUT_S` | `2.0` |
-| `MAX_FRAME_BYTES` | `1000000` |
-| `MIRROR_DEMO_PASSWORD` | `mirror-demo` (local demo only; same variable as `services/db`) |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` | `db` / `5432` / `mirror` / `mirror_app` |
+| `DB_PASSWORD` | required, supplied by ignored runtime environment |
+| `JWT_SIGNING_KEY` | required, at least 32 characters in ignored runtime environment |
+| `JWT_EXPIRES_MINUTES` | `30` (bounded 1–60) |
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` |
 
 | `TEXT_EMOTION_MODEL` | `j-hartmann/emotion-english-distilroberta-base` (D-003) |
@@ -58,7 +50,7 @@ Before Mirror replies, `app/safety.py` reads the patient's message:
 | The patient writes... | Mirror does | Clinician flag |
 |---|---|---|
 | something about suicide, self-harm or hurting someone ("I want to die") | **Crisis:** shows 988 and 911 and does not reply | urgent |
-| a medication decision ("should I stop my meds?", "how many mg is safe?") | **Medication (M3-09):** sends a fixed reply pointing to their prescriber or a pharmacist; the LLM is not called | none |
+| a medication decision or recommendation ("should I stop my meds?", "how many mg is safe?", "I skipped my meds", "what medication should I take?") | **Medication (M3-09):** sends a fixed reply pointing to their prescriber or a pharmacist; the LLM is not called | none |
 | anything else | replies as usual | none |
 
 ```mermaid
@@ -84,7 +76,7 @@ flowchart LR
 | Harmless look-alikes ("this commute is killing me") | `CRISIS_EXCEPTIONS`, `MEDICATION_EXCEPTIONS` in `app/safety.py` |
 | The medication reply | `MEDICATION_REPLY` in `app/safety.py`; sent as normal `token` + `done` events, no contract change |
 | Where the check runs | `send_message` in `app/chat.py` |
-| Test messages | `tests/safety_cases.yaml` (116 messages) |
+| Test messages | `tests/safety_cases.yaml` (147 messages) |
 | Event shape | `docs/contracts/api-gateway.openapi.yaml` (`CrisisPayload`) |
 
 ### Changing a rule
@@ -100,7 +92,7 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 - Logs and flags never contain the message text, only which rule fired.
 - Crisis replies always provide 988/911 guidance. If PostgreSQL is unreachable, the gateway cannot create a durable review flag and must not claim that a clinician has been notified; the patient still receives the crisis guidance.
 - English only.
-- Crisis is checked first: "how many pills to overdose" is a crisis, not a dosing question.
+- Crisis is checked first: "how many pills to overdose", "what dose of xanax is lethal" and reports such as "I took 20 xanax" are a crisis, not a dosing question.
 - The medication rules catch a request for a decision, not every mention: "my sertraline makes me tired" gets a normal reply, and the prompt still tells the LLM never to talk about doses.
 - Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
@@ -118,7 +110,7 @@ result.latency_ms     # time spent scoring this message
 
 - **Model:** `j-hartmann/emotion-english-distilroberta-base`, chosen in M2-11 (D-003 in `docs/decisions.md`). Its 7 labels are the same as the camera model's: face and text can be compared in fusion (M3-06).
 - **CPU only.** torch comes from the CPU wheel index (as in cv-service); the image doesn't carry CUDA.
-- **Loaded during gateway startup:** the gateway warms the locally available pinned model before it accepts requests, so the first patient message does not pay the lazy-load delay. Startup never downloads model/data: pre-provision the pinned model cache (`HF_HOME`) on the host. If it is absent or cannot load, startup logs only the failure type and chat remains safely text-only.
+- **Loaded during gateway startup:** the gateway warms the locally available pinned model before it accepts requests: the first patient message does not pay the lazy-load delay. Startup never downloads model/data: the Docker build puts the pinned model in the image. If it is absent or cannot load, startup logs only the failure type and chat remains safely text-only.
 - **Model pin:** `TEXT_EMOTION_REVISION` defaults to Hugging Face commit `0e1cd914e3d46199ed785853e12b57304e04178b` (the model's latest commit, Jan 2, 2023), not `main`: a rebuild can never silently load different weights. **Deployment handoff:** the VM and docker-compose use this default; do not set `TEXT_EMOTION_REVISION=main` anywhere. To move to a newer model commit, change the default here, in `app/config.py` and in `.env.example` in one PR, and re-run the D-003 evaluation and the latency check before merging.
 - **Failure:** if the model can't load or run, `analyse()` raises `TextEmotionUnavailable`. The chat endpoint (M3-10) should then carry on without a text signal (fallback paths: M4-04).
 - **Safety:** this module only describes tone. The crisis check (M3-07) runs before it and never depends on it.
@@ -145,9 +137,9 @@ RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s
 | **0.45 / 0.05 / 0.50 (chosen)** | **31 %** | **64 %** |
 | 0.50 / 0.05 / 0.50 (strict) | 14 % | 69 % |
 
-A single frame without the gate is right 50 % of the time. We chose fewer but more reliable face signals: a wrong hint is worse than none, because Mirror then relies on the text. When the gate says "ok" it reports almost only neutral, happy or surprise; it is almost never "ok" for angry, sad, fear or disgust, so fusion (M3-06) should not let the face lead on those.
+A single frame without the gate is right 50 % of the time. We chose fewer but more reliable face signals: a wrong hint is worse than none, because Mirror then relies on the text. When the gate says "ok" it reports almost only neutral, happy or surprise; it is almost never "ok" for angry, sad, fear or disgust, meaning fusion (M3-06) should not let the face lead on those.
 
-**Safety:** out-of-range settings (a probability outside 0-1, a non-positive window or frame count, `GATE_MAX_FRAMES` below `GATE_MIN_FRAMES`) stop the gateway at startup. A cv-service reading without exactly the 7 labels, each a number between 0 and 1, is treated as a frame without a face, so a broken reply ends in `dropped`, never a crash.
+**Safety:** out-of-range settings (a probability outside 0-1, a non-positive window or frame count, `GATE_MAX_FRAMES` below `GATE_MIN_FRAMES`) stop the gateway at startup. A cv-service reading without exactly the 7 labels, each a number between 0 and 1, is treated as a frame without a face, thus a broken reply ends in `dropped`, never a crash.
 
 Re-run after a model change: export the frame scores with the new checkpoint, then `uv run --with wandb python -m scripts.gate_sweep <frames.csv> --wandb-project mirror`.
 
@@ -163,9 +155,9 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | Face uncertain, dropped or camera off | text (or none if the words are unclear, prob < 0.40) | n/a |
 | A second disagreement in the same session | as above | n/a, note ends "already checked in this session" |
 
-- **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, so a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
+- **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, therefore a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
-- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, so a retry is safe. Call `history.record(context)` once, when the turn's reply is final.
+- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context)` once, when the turn's reply is final.
 
 ## Metrics (M3-15)
 
@@ -182,7 +174,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | `mirror_gateway_gate_total` | `status` | gate outcome per turn (ok / uncertain / dropped / camera_off) |
 | `mirror_gateway_fusion_total` | `agreement`, `tone_mode`, `main_signal` | fusion outcome per turn |
 
-Errors are the requests with a 5xx `status`. The gate and fusion counters fill once the chat endpoint (M3-10) calls `metrics.record_gate(status)` and `metrics.record_fusion(agreement, tone_mode, main_signal)`, one line each, where it calls `gate()` and `fuse()`. Label values come from fixed lists (`app/metrics.py`); anything else is counted as `invalid`, so no free text ever becomes a label.
+Errors are the requests with a 5xx `status`. The gate and fusion counters fill once the chat endpoint (M3-10) calls `metrics.record_gate(status)` and `metrics.record_fusion(agreement, tone_mode, main_signal)`, one line each, where it calls `gate()` and `fuse()`. Label values come from fixed lists (`app/metrics.py`); anything else is counted as `invalid`, meaning no free text ever becomes a label.
 
 `/metrics` is not public: Caddy answers `/api/metrics` with 404 (`infra/caddy/Caddyfile`, checked by `tests/test_metrics.py`). A Prometheus server will scrape the gateway directly on the private network (M4-08). Every log line already carries the request's `request_id` (JSON logs).
 

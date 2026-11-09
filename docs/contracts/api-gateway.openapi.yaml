@@ -50,14 +50,20 @@ paths:
           description: Logged in
           content:
             application/json:
-              schema:
-                type: object
-                required: [access_token, role, user_id]
-                properties:
-                  access_token: { type: string, description: "JWT; send as Authorization: Bearer <token>" }
-                  role: { type: string, enum: [patient, clinician] }
-                  user_id: { type: string }
+              schema: { $ref: "#/components/schemas/LoginResponse" }
         "401": { description: Wrong email or password }
+        "429": { description: Too many login attempts from this account/client pair }
+
+  /auth/refresh:
+    post:
+      summary: Replace a still-valid authenticated token with a fresh token
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401": { description: Not logged in or token is invalid or expired }
 
   /sessions:
     post:
@@ -104,6 +110,12 @@ paths:
                 required: [visual_status]
                 properties:
                   visual_status: { type: string, enum: [ok, uncertain, dropped, camera_off] }
+                  top2:
+                    type: array
+                    minItems: 2
+                    maxItems: 2
+                    items: { $ref: "#/components/schemas/LabelProb" }
+                    description: Top two labels smoothed over the gate window, never one frame. Only present when visual_status is ok.
         "401": { description: Not logged in or token is invalid }
         "403": { description: Not the patient who owns this session }
         "404": { description: Unknown session }
@@ -223,6 +235,22 @@ components:
       schema: { type: string }
 
   schemas:
+    LabelProb:
+      type: array
+      description: One label and its probability, as [label, probability].
+      prefixItems:
+        - { type: string }
+        - { type: number, minimum: 0, maximum: 1 }
+      minItems: 2
+      maxItems: 2
+      items: false
+    LoginResponse:
+      type: object
+      required: [access_token, role, user_id]
+      properties:
+        access_token: { type: string, description: "JWT; send as an Authorization Bearer token" }
+        role: { type: string, enum: [patient, clinician] }
+        user_id: { type: string }
     Session:
       type: object
       required: [session_id, started_at, camera_consent]

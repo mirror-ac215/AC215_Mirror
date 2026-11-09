@@ -1,22 +1,28 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, LogOut, Repeat } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import * as api from "@/lib/api/client";
-import { setRole, useRole } from "@/lib/role";
+import { USE_MOCK_API } from "@/lib/config";
+import { useAuthenticatedUser } from "@/lib/role";
 
 export function TopNav() {
-  const role = useRole();
+  const user = useAuthenticatedUser();
+  const role = user?.role ?? "patient";
   const navigate = useNavigate();
 
-  const initials = role === "patient" ? "AO" : "DR";
-  const name = role === "patient" ? "Amara Okafor" : "Dr. Elena Voss";
+  // Demo names only in mock mode. A real login gives us a role, not a person's name.
+  const demo =
+    role === "patient"
+      ? { initials: "AO", name: "Amara Okafor" }
+      : { initials: "DR", name: "Dr. Elena Voss" };
+  const real = { initials: role === "patient" ? "P" : "C", name: "Signed in" };
+  const { initials, name } = USE_MOCK_API ? demo : real;
   const subtitle = role === "patient" ? "Patient" : "Clinician";
 
   return (
@@ -43,23 +49,10 @@ export function TopNav() {
               <p className="text-sm text-ink">{name}</p>
               <p className="text-xs text-muted-ink">{subtitle}</p>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs text-muted-ink"
-              onSelect={() => {
-                const next = role === "patient" ? "clinician" : "patient";
-                setRole(next);
-                navigate({ to: next === "patient" ? "/consent" : "/clinician" });
-              }}
-            >
-              <Repeat className="h-3.5 w-3.5" />
-              Switch role (demo)
-            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-sm"
               onSelect={() => {
                 api.logout();
-                setRole("patient");
                 navigate({ to: "/" });
               }}
             >

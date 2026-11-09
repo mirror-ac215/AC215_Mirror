@@ -1,5 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeft, Bell, Leaf } from "lucide-react";
 import {
   CartesianGrid,
@@ -13,9 +12,12 @@ import {
 } from "recharts";
 import { TopNav } from "@/components/mirror/TopNav";
 import { moodTrend, patients, recentSessions, toneClass, toneLabel } from "@/lib/mirror-data";
-import { setRole } from "@/lib/role";
+import { hasRequiredRole } from "@/lib/role";
 
 export const Route = createFileRoute("/clinician/$patientId")({
+  beforeLoad: () => {
+    if (!hasRequiredRole("clinician")) throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
       { title: "Patient dashboard — Mirror" },
@@ -37,7 +39,6 @@ export const Route = createFileRoute("/clinician/$patientId")({
 
 function PatientDashboard() {
   const { patientId } = Route.useParams();
-  useEffect(() => setRole("clinician"), []);
 
   const patient = patients.find((p) => p.id === patientId) ?? patients[1]!;
 

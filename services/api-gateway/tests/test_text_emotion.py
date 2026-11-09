@@ -129,10 +129,16 @@ def test_loader_uses_only_preprovisioned_local_model_files(monkeypatch: pytest.M
             "revision": "revision",
             "top_k": None,
             "device": -1,
-            "model_kwargs": {"local_files_only": True},
-            "tokenizer_kwargs": {"local_files_only": True},
+            "local_files_only": True,
         }
     ]
+
+
+def test_real_transformers_accepts_the_loader_arguments() -> None:
+    # Runs the real library, not a fake. A wrong argument raises TypeError, which
+    # analyse() would hide as "no text signal"; a missing model raises OSError.
+    with pytest.raises(OSError):
+        text_emotion.load_hf_classifier("mirror-tests/no-such-model", "main", 256)
 
 
 def test_model_is_loaded_once(monkeypatch: pytest.MonkeyPatch) -> None:

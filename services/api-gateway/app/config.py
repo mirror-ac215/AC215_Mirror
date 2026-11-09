@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from functools import lru_cache
+from ipaddress import ip_network
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,12 +23,20 @@ class Settings(BaseSettings):
     db_port: int = 5432
     # Compose must supply the real database identity. An empty default prevents
     # accidental fallback to a shared/default credential outside Compose.
-    database_url: str = ""
+    database_url: str = Field(min_length=1)
     dependency_timeout_s: float = 2.0
     # The mock service echoes this identity; production can configure its model
     # independently from the HTTP deadline.
     llm_model: str = "mirror-persona-v1"
     llm_timeout_s: float = 30.0
+
+    # JWT signing material is runtime-only and required outside test configuration.
+    jwt_signing_key: str = Field(min_length=32)
+    jwt_expires_minutes: int = Field(default=30, ge=1, le=60)
+
+    # Production pins Caddy to this address in its dedicated proxy network.
+    # The /32 trusts only that proxy, never arbitrary direct-client XFF headers.
+    trusted_proxy_ips: list[str] = ["172.30.0.2/32"]
 
     # Biggest camera frame we accept. The frontend sends small downscaled JPEGs
     # (tens of KB), so 1 MB is generous; anything larger is rejected with 413.
@@ -34,9 +45,6 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the gateway (frontend dev server and container).
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
-    # Demo login password for all seeded users (same env var as services/db/seed.sh).
-    # Local development only; M4-02 replaces this with real password hashes.
-    mirror_demo_password: str = "mirror-demo"
 
     # Text-emotion module (M3-05). Model chosen in M2-11 (D-003 in docs/decisions.md).
     # Pinned to an immutable Hugging Face commit: a rebuild always loads the same weights.
@@ -67,4 +75,15 @@ class Settings(BaseSettings):
         # A window smaller than the minimum would report "dropped" forever.
         if self.gate_max_frames < self.gate_min_frames:
             raise ValueError("gate_max_frames must be at least gate_min_frames")
+        for proxy in self.trusted_proxy_ips:
+            try:
+                ip_network(proxy, strict=False)
+            except ValueError as error:
+                raise ValueError("trusted_proxy_ips must contain IP networks") from error
         return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Build one immutable runtime configuration object from environment variables."""
+    return Settings()

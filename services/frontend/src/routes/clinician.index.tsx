@@ -1,10 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { TopNav } from "@/components/mirror/TopNav";
 import { patients, toneClass, toneLabel } from "@/lib/mirror-data";
-import { setRole } from "@/lib/role";
+import { hasRequiredRole } from "@/lib/role";
 
 export const Route = createFileRoute("/clinician/")({
+  beforeLoad: () => {
+    if (!hasRequiredRole("clinician")) throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
       { title: "Your patients — Mirror" },
@@ -25,8 +27,6 @@ export const Route = createFileRoute("/clinician/")({
 });
 
 function PatientList() {
-  useEffect(() => setRole("clinician"), []);
-
   return (
     <div className="min-h-screen">
       <TopNav />

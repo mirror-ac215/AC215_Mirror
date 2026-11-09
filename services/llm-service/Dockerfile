@@ -8,13 +8,12 @@ RUN chmod +x /app/docker-entrypoint.sh
 ENV MOCK_MODE=0 \
     MODEL_NAME=Qwen/Qwen2.5-3B-Instruct \
     SERVED_MODEL_NAME=mirror-persona-v1 \
-    LORA_ADAPTER_PATH=/models/adapter-v1 \
     MAX_MODEL_LEN=2048 \
     MAX_NUM_SEQS=1 \
     PORT=8002
 
 EXPOSE 8002
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 

@@ -4,7 +4,15 @@
 set -euo pipefail
 
 compose=(docker compose -f infra/compose.yml)
-auth=(-H 'Authorization: Bearer dev-patient-token')
+
+# Real login: the gateway no longer accepts any fixed dev/demo bearer
+# token, so obtain a short-lived JWT the same way the frontend does.
+: "${MIRROR_DEMO_PASSWORD:?MIRROR_DEMO_PASSWORD must be set to log in the seeded demo patient}"
+login_payload=$(curl -fsS -H 'Content-Type: application/json' \
+  -d "{\"email\":\"patient.alex@example.test\",\"password\":\"${MIRROR_DEMO_PASSWORD}\"}" \
+  http://localhost:8000/auth/login)
+access_token=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])' <<<"$login_payload")
+auth=(-H "Authorization: Bearer ${access_token}")
 
 new_session() {
   local payload
