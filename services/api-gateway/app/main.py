@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import metrics as gateway_metrics
 from app.chat import router as chat_router
+from app.clinician import router as clinician_router
 from app.config import Settings
 from app.health import check_dependencies
 from app.logging_config import configure_logging, request_id_context
@@ -37,6 +38,8 @@ app.add_middleware(
 )
 
 app.include_router(chat_router)
+app.include_router(clinician_router)
+
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):

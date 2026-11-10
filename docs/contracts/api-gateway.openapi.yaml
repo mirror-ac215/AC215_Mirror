@@ -171,6 +171,7 @@ paths:
   /clinician/patients:
     get:
       summary: (MS4) List the clinician's own patients
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: Patient list
@@ -179,11 +180,13 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PatientSummary" }
+        "401": { description: Not logged in or token is invalid }
         "403": { description: Not a clinician }
 
   /clinician/patients/{patient_id}/trend:
     get:
       summary: (MS4) Aggregated emotion trend for one patient
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: patient_id
           in: path
@@ -197,11 +200,13 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/TrendPoint" }
+        "401": { description: Not logged in or token is invalid }
         "403": { description: Not this clinician's patient }
 
   /clinician/review-flags/{flag_id}:
     patch:
       summary: (MS4) Mark a needs-review flag as reviewed
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: flag_id
           in: path
@@ -217,8 +222,18 @@ paths:
               properties:
                 reviewed: { type: boolean, const: true }
       responses:
-        "200": { description: Flag marked as reviewed }
+        "200":
+          description: Flag marked as reviewed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewFlagAcknowledgement" }
+        "401": { description: Not logged in or token is invalid }
         "403": { description: Not this clinician's patient }
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HTTPValidationError" }
 
 components:
   securitySchemes:
@@ -235,11 +250,39 @@ components:
       schema: { type: string }
 
   schemas:
+    HTTPValidationError:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: array
+          items: { $ref: "#/components/schemas/ValidationError" }
+    ValidationError:
+      type: object
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf: [{ type: string }, { type: integer }]
+        msg: { type: string }
+        type: { type: string }
+        ctx: { type: object }
+        input: {}
     LabelProb:
       type: array
       description: One label and its probability, as [label, probability].
       prefixItems:
-        - { type: string }
+        - { type: string, enum: [angry, disgust, fear, happy, neutral, sad, surprise] }
+        - { type: number, minimum: 0, maximum: 1 }
+      minItems: 2
+      maxItems: 2
+      items: false
+    TrendLabelProb:
+      type: array
+      description: One stored visual/text label and probability, as [label, probability].
+      prefixItems:
+        - { type: string, enum: [anger, angry, disgust, fear, happy, joy, neutral, sad, sadness, surprise] }
         - { type: number, minimum: 0, maximum: 1 }
       minItems: 2
       maxItems: 2
@@ -308,6 +351,18 @@ components:
       properties:
         ts: { type: string, format: date-time }
         visual_status: { type: string, enum: [ok, uncertain, dropped, camera_off] }
-        visual_top2: { type: array }
-        text_top2: { type: array }
+        visual_top2:
+          type: [array, "null"]
+          maxItems: 2
+          items: { $ref: "#/components/schemas/TrendLabelProb" }
+        text_top2:
+          type: [array, "null"]
+          maxItems: 2
+          items: { $ref: "#/components/schemas/TrendLabelProb" }
         tone_mode: { type: string, enum: [coach, supportive] }
+
+    ReviewFlagAcknowledgement:
+      type: object
+      required: [reviewed]
+      properties:
+        reviewed: { type: boolean, const: true }
