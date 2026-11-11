@@ -201,6 +201,17 @@ def test_documentation_names_required_configuration_and_vm_evidence() -> None:
     )
 
 
+def test_published_frontend_image_calls_the_gateway_through_caddy() -> None:
+    # Without these build args the image bakes in the Dockerfile default (http://localhost:8000),
+    # so a browser on the deployed site can never reach the gateway.
+    workflow = WORKFLOW.read_text()
+    assert "build-args: ${{ matrix.build_args }}" in workflow
+    start = workflow.index("- name: frontend")
+    frontend = workflow[start:workflow.index("steps:", start)]
+    assert "VITE_API_BASE_URL=/api" in frontend
+    assert "VITE_USE_MOCK_API=false" in frontend
+
+
 if __name__ == "__main__":
     """Run the dependency-free M3-14 regression checks in GitHub Actions."""
     tests = [
@@ -211,6 +222,7 @@ if __name__ == "__main__":
         test_cleanup_policy_keeps_recent_images_and_expires_old_versions,
         test_registry_override_resolves_with_nonsecret_values,
         test_documentation_names_required_configuration_and_vm_evidence,
+        test_published_frontend_image_calls_the_gateway_through_caddy,
     ]
     for test in tests:
         test()

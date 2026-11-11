@@ -1,3 +1,18 @@
+# MS3 evidence: the deployed system
+
+Recorded on **Nov 11, 2026** on the GPU VM in GCP (`asia-southeast1-c`, one NVIDIA L4) running commit `0a7bb81`. Camera previews and personal browser details are blurred.
+
+| File | What it proves |
+|---|---|
+| `ms3_01_api_health.png` | **The deployed service answers a request:** `curl https://<VM>.nip.io/api/health` returns ok for the gateway, cv-service, llm-service and the database |
+| `ms3_02_live_chat.png` | The live site: a patient logged in, a streamed reply from Qwen, and the camera's expression reading in the side panel |
+| `ms3_03_crisis_screen.png` | The crisis path on the live site: 988 and 911 resources, the clinician flagged, no model reply |
+| `ms3_04_cloud_logging.png` | **Monitoring:** that crisis hit in Cloud Logging as `safety_hit kind=crisis rule=end-life`, with the rule name and never the message text (see [monitoring](../monitoring.md)) |
+| `ms3_05_vm_services.png` | All six services healthy on the VM, running images tagged with the commit SHA. The frontend was rebuilt on the VM from the same commit, because the published image lacked its build settings; this PR fixes the workflow |
+| `ms3_06_vm_gpu.png` | vLLM serving Qwen on the L4 GPU |
+
+W&B experiment tracking: see `07_wandb_eval_run.png` below and the 8 v4 runs listed in [`pipelines/cv-train/README.md`](../../pipelines/cv-train/README.md).
+
 # MS2 evidence: it runs, end to end
 
 Recorded on **Oct 16, 2026** on a Windows 11 laptop from `main` plus this PR's changes (Docker Desktop, the full stack including the opt-in `cv` profile). Each file shows one claim from the MS2 deliverables.

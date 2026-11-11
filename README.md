@@ -7,6 +7,93 @@ A patient chats with a supportive persona. With consent, their webcam gives a fa
 
 Team: Mostafa Galal, Owen Chong, Julie Lander.
 
+## Milestone 3: what changed since MS2
+
+| Area | What we added | Where |
+|---|---|---|
+| Face model | v4, retrained on Aff-Wild2 video frames plus FER+ crowd labels. Test macro-F1: video 0.260 → 0.337, FER+ 0.609 → 0.720. A release check blocks any model below 0.609 on FER+ (D-005). | `pipelines/cv-train`, `pipelines/cv-eval`, [model card](docs/model_cards/cv-vit-b16-v4.md) |
+| Face signal in the chat | A gate that passes a face reading only when it is steady over 10 seconds (thresholds from a W&B sweep on held-out video), and fusion of face and text into one context note per message | `services/api-gateway/app/gating.py`, `app/fusion.py` |
+| Text and safety | Text-emotion model (D-003). Crisis, medication and camera rules run before the LLM; 162 test messages run in CI | `app/text_emotion.py`, `app/safety.py`, `tests/safety_cases.yaml` |
+| Language model | Plain Qwen 2.5-3B-Instruct on vLLM (D-006), prompt v7 with a question filter, and a LoRA fine-tuning job for Vertex AI | `services/llm-service`, `app/prompt.py`, `pipelines/llm-finetune` |
+| The app | Chat end to end with streamed replies, webcam capture with consent, login with roles from the database (an MS4 task, done early) | `services/frontend`, `app/chat.py`, `app/auth.py` |
+| Data | IEMOCAP as a DVC stage; FairFace fairness audit of v4 | `pipelines/iemocap-data`, `pipelines/fairness-audit` |
+| Deployment | Every merge to `main` publishes images tagged with the commit to Artifact Registry; a GPU VM runs them behind Caddy (HTTPS) | `.github/workflows/publish-artifact-registry-images.yml`, `infra/` |
+| Monitoring | Container logs in Cloud Logging; private Prometheus metrics | [`docs/monitoring.md`](docs/monitoring.md) |
+
+Screenshots of the running system: [`docs/evidence/`](docs/evidence/README.md) (MS3 section).
+
+### Reproduce a training run
+
+**Face model, tracked in W&B** (log in once with `wandb login`; runs go to the `mirror` project). The v4 recipe, from `pipelines/cv-train`, after building the data with `mirror-prepare-affwild2` and `mirror-prepare-ferplus`:
+
+```bash
+uv run --no-sync mirror-cv-train --params params_m3-01.yaml --data-root ../../data/processed \
+  --init-checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/vit_b16_v4.pth \
+  --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true \
+  --set scheduler.name=cosine --set training.epochs=8 --set training.ema_decay=0.999 --wandb-project mirror
+```
+
+Then check it with `mirror-cv-release-check` in `pipelines/cv-eval`. All 8 runs and their settings are in the [cv-train README](pipelines/cv-train/README.md).
+
+**Language model on Vertex AI** (serverless, one L4 GPU, W&B key from Secret Manager), from `pipelines/llm-finetune`:
+
+```bash
+uv run --extra vertex mirror-llm-finetune submit \
+  --data-uri gs://mirror-ac215-data/data/processed/persona/v1 --dry-run   # prints the job spec
+uv run --extra vertex mirror-llm-finetune submit \
+  --data-uri gs://mirror-ac215-data/data/processed/persona/v1
+```
+
+The job is set up and its dry run works, but **no Vertex run has completed yet**: there was no GPU capacity when we submitted. Full setup in the [llm-finetune README](pipelines/llm-finetune/README.md).
+
+### Run the ML pipeline
+
+We use DVC rather than Vertex AI Pipelines. `dvc.yaml` rebuilds the data stages (`fer2013_preprocess`, `persona_clean`, `iemocap_build`), each reproducible by hash; training and evaluation then run as the tracked jobs above.
+
+```bash
+dvc pull
+dvc repro        # rebuilds only the stages whose code, parameters or inputs changed
+dvc status       # "Data and pipelines are up to date."
+```
+
+### Deploy
+
+1. Merge to `main`: GitHub Actions publishes every image tagged with the commit SHA.
+2. On the GPU VM: check out that commit, set `MIRROR_IMAGE_TAG` to it in `infra/.env.prod`, and run `bash infra/deploy-stage-b.sh`. It checks that the VM can read the model and write logs, pulls the images by tag and starts them with health checks.
+3. Stop the VM after use: it costs about $0.70 an hour while running.
+
+First-time VM setup, recovery and what to do when a GPU zone has no capacity: [`infra/README.md`](infra/README.md).
+
+### Use the API
+
+All endpoints are described in [`docs/contracts/api-gateway.openapi.yaml`](docs/contracts/api-gateway.openapi.yaml); a running gateway also serves them at `/docs`.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /auth/login` | Email and password in, a short-lived token with the user's role out |
+| `POST /sessions` | Starts a chat session (`camera_consent`: true or false) |
+| `POST /sessions/{id}/frames` | One webcam JPEG (only with camera consent); returns 202 |
+| `POST /sessions/{id}/messages` | One message in; the reply streams back as `token` events, then a `done` event with the context, or one `crisis` event |
+| `GET /health` | The gateway and its dependencies |
+
+```bash
+API=http://localhost:8000            # deployed: https://<CADDY_DOMAIN>/api
+TOKEN=$(curl -s $API/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"patient.alex@example.test","password":"<MIRROR_DEMO_PASSWORD>"}' | jq -r .access_token)
+SID=$(curl -s $API/sessions -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"camera_consent":false}' | jq -r .session_id)
+curl -sN $API/sessions/$SID/messages -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"text":"It has been a long week."}'
+```
+
+Tests: every service has its own unit tests, and CI runs them plus contract validation, a database test and a smoke test of the whole stack on every pull request.
+
+### Known gaps at MS3
+
+- **Vertex AI training:** the job is ready but has not completed a run (no GPU capacity).
+- **Serverless deployment:** not used. The language model needs a GPU, and a VM keeps the model loaded between requests.
+- **The VM runs on demand:** it is stopped between demos to save cost, so the site is not always up.
+
 ## Repository layout
 
 | Folder | What lives there |
@@ -29,15 +116,7 @@ Start with [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). It covers:
 The local stack (frontend, api-gateway, llm-service in mock mode, db) runs with Docker Compose. Details,
 configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
 
-The repository also contains the **M3-13 Stage A** production-deployment
-foundation: a T4 GPU VM provisioning script, Docker/NVIDIA bootstrap script,
-production Compose override and Caddy HTTPS configuration. It is a manually
-operated platform setup, not continuous deployment. **M3-14** is merged:
-GitHub Actions publishes immutable Git-SHA-tagged images to Artifact
-Registry via OIDC after every merge to `main`. The full integrated public
-release still depends on the MS3 integration work (M3-03 through M3-12) and
-a Stage-B VM deployment pulling those published images. See
-[`infra/README.md`](infra/README.md).
+For the production deployment on a GPU VM, see [Deploy](#deploy) below.
 
 ```bash
 git clone https://github.com/mirror-ac215/AC215_Mirror.git

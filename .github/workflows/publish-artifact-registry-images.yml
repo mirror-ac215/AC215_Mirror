@@ -65,6 +65,10 @@ jobs:
             context: services/cv-service
           - name: frontend
             context: services/frontend
+            # Same values as infra/compose.prod.yml: the browser calls the gateway through Caddy.
+            build_args: |
+              VITE_API_BASE_URL=/api
+              VITE_USE_MOCK_API=false
     steps:
       - name: Check out merged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -89,6 +93,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v6.19.0
         with:
           context: ${{ matrix.context }}
+          build-args: ${{ matrix.build_args }}
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/mirror-${{ matrix.name }}:${{ github.sha }}
