@@ -1,0 +1,10 @@
+# Scrapes the api-gateway's /metrics (M3-15) on the private compose network.
+# Caddy never exposes /metrics to the browser (infra/caddy/Caddyfile).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: mirror-api-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api-gateway:8000"]
