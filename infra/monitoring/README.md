@@ -11,6 +11,8 @@ Prometheus scrapes the api-gateway's `/metrics` (M3-15). Grafana reads Prometheu
   The denominator is scored messages plus fallbacks, since the gateway counts them separately.
 - **Crisis hits by rule:** count per hour, from `mirror_gateway_crisis_hits_total`.
 - **Fusion outcomes by agreement:** `agree`, `disagree` or `n/a` per hour.
+- **Gate outcomes per hour (stacked):** `ok`, `uncertain`, `dropped` and `camera_off` in one stacked view, so the mix and the volume both show.
+- **Fixed safety replies per hour (stacked):** crisis, medication and camera-question replies from `mirror_gateway_*_hits_total`. This shows how often the fixed replies fire.
 
 ## Not yet done
 - Wiring Prometheus and Grafana into `infra/compose.yml` (Owen helps with the Prometheus container).
