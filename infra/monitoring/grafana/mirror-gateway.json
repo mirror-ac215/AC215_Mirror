@@ -33,7 +33,7 @@
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -60,7 +60,7 @@
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -87,7 +87,7 @@
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -114,7 +114,7 @@
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -141,7 +141,7 @@
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -168,7 +168,7 @@
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -199,13 +199,13 @@
           "legendFormat": "{{status}}",
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "mirror-prometheus"
           }
         }
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     },
     {
@@ -236,7 +236,7 @@
           "legendFormat": "crisis",
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "mirror-prometheus"
           }
         },
         {
@@ -245,7 +245,7 @@
           "legendFormat": "medication",
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "mirror-prometheus"
           }
         },
         {
@@ -254,23 +254,17 @@
           "legendFormat": "camera question",
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "mirror-prometheus"
           }
         }
       ],
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "mirror-prometheus"
       }
     }
   ],
   "templating": {
-    "list": [
-      {
-        "name": "DS_PROMETHEUS",
-        "type": "datasource",
-        "query": "prometheus"
-      }
-    ]
+    "list": []
   }
 }

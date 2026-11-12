@@ -14,6 +14,32 @@ Prometheus scrapes the api-gateway's `/metrics` (M3-15). Grafana reads Prometheu
 - **Gate outcomes per hour (stacked):** `ok`, `uncertain`, `dropped` and `camera_off` in one stacked view, so the mix and the volume both show.
 - **Fixed safety replies per hour (stacked):** crisis, medication and camera-question replies from `mirror_gateway_*_hits_total`. This shows how often the fixed replies fire.
 
-## Not yet done
-- Wiring Prometheus and Grafana into `infra/compose.yml` (Owen helps with the Prometheus container).
-- The screenshot for the M4-08 definition of done, once the stack runs.
+## Run it locally
+
+Prometheus and Grafana are opt-in (`monitoring` profile in `infra/compose.yml`) and not public:
+Prometheus has no host port and scrapes `api-gateway:8000/metrics` on the compose network;
+Grafana listens on `127.0.0.1:3001` only, with login disabled and a read-only anonymous view.
+Grafana provisions the Prometheus datasource (uid `mirror-prometheus`) and this dashboard from
+`grafana/provisioning/`, therefore nothing is imported by hand.
+
+From the repository root:
+
+```bash
+docker compose -f infra/compose.yml --profile monitoring up --build -d
+```
+
+Then open http://localhost:3001. Send a few chat messages first, or the panels stay empty.
+Stop with `docker compose -f infra/compose.yml --profile monitoring down`.
+
+## Tests
+
+- `infra/tests/test_monitoring_assets.py` (CI, fail-closed): parses every asset, checks the scrape
+  target, the datasource uid on every panel, that the dashboard queries only metrics declared in
+  `services/api-gateway/app/metrics.py`, and that both services stay opt-in and non-public.
+- `infra/tests/test_compose_monitoring.sh` (CI compose smoke): the gateway target is `up`, every
+  dashboard query evaluates in Prometheus, and Grafana serves the dashboard and reads the datasource.
+
+## Evidence
+
+`docs/evidence/m4_08_grafana_dashboard.png`: the dashboard on the local stack after a few chat
+turns (no patient content, no public endpoint, no cloud metadata).
