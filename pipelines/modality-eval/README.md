@@ -1,5 +1,10 @@
 # modality-eval (M4-09)
 
+> **Experimental.** Evaluation infrastructure only: no result is reported as accepted until the
+> gates in [`../llm-eval/pairwise/EVALUATION_GATES.md`](../llm-eval/pairwise/EVALUATION_GATES.md)
+> are met. It compares signals; it does not select a CV model, dataset or training protocol
+> (Mostafa's decisions). Raw frames and per-utterance outputs stay out of Git.
+
 Compares what the face reading, the text reading and both together each add, on the
 IEMOCAP evaluation table (`pipelines/iemocap-data`).
 

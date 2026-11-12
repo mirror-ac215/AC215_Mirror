@@ -1,0 +1,9 @@
+# Run outputs stay out of Git (EVALUATION_GATES.md, gate 4).
+*.jsonl
+key.json
+*.csv
+runs/
+frames/
+*.jpg
+*.jpeg
+*.png
