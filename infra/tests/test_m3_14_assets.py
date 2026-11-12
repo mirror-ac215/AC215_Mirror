@@ -150,6 +150,7 @@ def test_registry_override_resolves_with_nonsecret_values() -> None:
         "DB_USER": "mirror_app",
         "DB_PASSWORD": "ci-only-password",
         "MIRROR_DEMO_PASSWORD": "ci-only-demo-password",
+        "JWT_SIGNING_KEY": "test-only-jwt-signing-key-0123456789abcdef",
         "CADDY_DOMAIN": "mirror.example.test",
         "MIRROR_IMAGE_REGISTRY": "us-central1-docker.pkg.dev",
         "MIRROR_IMAGE_REPOSITORY": "mirror-project/mirror-images",

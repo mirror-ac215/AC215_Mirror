@@ -11,35 +11,36 @@ Team: Mostafa Galal, Owen Chong, Julie Lander.
 
 | Area | What we added | Where |
 |---|---|---|
-| Face model | v4, retrained on Aff-Wild2 video frames plus FER+ crowd labels. Test macro-F1: video 0.260 → 0.337, FER+ 0.609 → 0.720. A release check blocks any model below 0.609 on FER+ (D-005). | `pipelines/cv-train`, `pipelines/cv-eval`, [model card](docs/model_cards/cv-vit-b16-v4.md) |
+| Face model | v4, retrained on Aff-Wild2 video frames plus FER+ crowd labels. Test macro-F1: video 0.260 -> 0.337, FER+ 0.609 -> 0.720. A release check blocks any model below 0.609 on FER+ (D-005). | `pipelines/cv-train`, `pipelines/cv-eval`, [model card](docs/model_cards/cv-vit-b16-v4.md) |
 | Face signal in the chat | A gate that passes a face reading only when it is steady over 10 seconds (thresholds from a W&B sweep on held-out video), and fusion of face and text into one context note per message | `services/api-gateway/app/gating.py`, `app/fusion.py` |
 | Text and safety | Text-emotion model (D-003). Crisis, medication and camera rules run before the LLM; 162 test messages run in CI | `app/text_emotion.py`, `app/safety.py`, `tests/safety_cases.yaml` |
 | Language model | Plain Qwen 2.5-3B-Instruct on vLLM (D-006), prompt v7 with a question filter, and a LoRA fine-tuning job for Vertex AI | `services/llm-service`, `app/prompt.py`, `pipelines/llm-finetune` |
 | The app | Chat end to end with streamed replies, webcam capture with consent, login with roles from the database (an MS4 task, done early) | `services/frontend`, `app/chat.py`, `app/auth.py` |
 | Data | IEMOCAP as a DVC stage; FairFace fairness audit of v4 | `pipelines/iemocap-data`, `pipelines/fairness-audit` |
-| Deployment | Every merge to `main` publishes images tagged with the commit to Artifact Registry; a GPU VM runs them behind Caddy (HTTPS) | `.github/workflows/publish-artifact-registry-images.yml`, `infra/` |
+| Deployment | A merge to `main` publishes images tagged with the commit to Artifact Registry when the repository's Artifact Registry variables are configured (otherwise the workflow skips publishing); a GPU VM runs them behind Caddy (HTTPS) | `.github/workflows/publish-artifact-registry-images.yml`, `infra/` |
 | Monitoring | Container logs in Cloud Logging; private Prometheus metrics | [`docs/monitoring.md`](docs/monitoring.md) |
 
 Screenshots of the running system: [`docs/evidence/`](docs/evidence/README.md) (MS3 section).
 
 ### Reproduce a training run
 
-**Face model, tracked in W&B** (log in once with `wandb login`; runs go to the `mirror` project). The v4 recipe, from `pipelines/cv-train`, after building the data with `mirror-prepare-affwild2` and `mirror-prepare-ferplus`:
+**Face model, tracked in W&B** (log in once with `wandb login`; runs go to the `mirror` project). A smoke run:
 
 ```bash
-uv run --no-sync mirror-cv-train --params params_m3-01.yaml --data-root ../../data/processed \
-  --init-checkpoint /secure/path/vit_b16_v3_best.pth --output /secure/path/vit_b16_v4.pth \
-  --set data.sources.fer2013.dir=ferplus/v2 --set data.sources.fer2013.soft_labels=true \
-  --set scheduler.name=cosine --set training.epochs=8 --set training.ema_decay=0.999 --wandb-project mirror
+cd pipelines/cv-train
+uv sync
+uv run mirror-cv-train --params params.yaml --data-dir ../../data/processed/fer2013/v1 --output outputs/smoke.pth --epochs 1 --max-batches 2 --no-pretrained
 ```
 
-Then check it with `mirror-cv-release-check` in `pipelines/cv-eval`. All 8 runs and their settings are in the [cv-train README](pipelines/cv-train/README.md).
+This smoke run uses FER-2013 only (restored by `dvc pull`). The full v4 recipe needs locally built Aff-Wild2 frames (licensed) and the v3 checkpoint; see the [cv-train README](pipelines/cv-train/README.md). Check a trained model with `mirror-cv-release-check` in `pipelines/cv-eval`. All 8 v4 runs and their settings are in the cv-train README.
 
 **Language model on Vertex AI** (serverless, one L4 GPU, W&B key from Secret Manager), from `pipelines/llm-finetune`:
 
+The first command only prints the job spec; the second submits it.
+
 ```bash
 uv run --extra vertex mirror-llm-finetune submit \
-  --data-uri gs://mirror-ac215-data/data/processed/persona/v1 --dry-run   # prints the job spec
+  --data-uri gs://mirror-ac215-data/data/processed/persona/v1 --dry-run
 uv run --extra vertex mirror-llm-finetune submit \
   --data-uri gs://mirror-ac215-data/data/processed/persona/v1
 ```
@@ -50,15 +51,17 @@ The job is set up and its dry run works, but **no Vertex run has completed yet**
 
 We use DVC rather than Vertex AI Pipelines. `dvc.yaml` rebuilds the data stages (`fer2013_preprocess`, `persona_clean`, `iemocap_build`), each reproducible by hash; training and evaluation then run as the tracked jobs above.
 
+`dvc repro` rebuilds only the stages whose code, parameters or inputs changed; `dvc status` should then print "Data and pipelines are up to date."
+
 ```bash
 dvc pull
-dvc repro        # rebuilds only the stages whose code, parameters or inputs changed
-dvc status       # "Data and pipelines are up to date."
+dvc repro
+dvc status
 ```
 
 ### Deploy
 
-1. Merge to `main`: GitHub Actions publishes every image tagged with the commit SHA.
+1. Merge to `main`: GitHub Actions publishes every image tagged with the commit SHA, if the Artifact Registry variables are configured (otherwise it skips publishing).
 2. On the GPU VM: check out that commit, set `MIRROR_IMAGE_TAG` to it in `infra/.env.prod`, and run `bash infra/deploy-stage-b.sh`. It checks that the VM can read the model and write logs, pulls the images by tag and starts them with health checks.
 3. Stop the VM after use: it costs about $0.70 an hour while running.
 
@@ -76,8 +79,10 @@ All endpoints are described in [`docs/contracts/api-gateway.openapi.yaml`](docs/
 | `POST /sessions/{id}/messages` | One message in; the reply streams back as `token` events, then a `done` event with the context, or one `crisis` event |
 | `GET /health` | The gateway and its dependencies |
 
+Locally the API is `http://localhost:8000`; on the deployed site use `https://<CADDY_DOMAIN>/api`.
+
 ```bash
-API=http://localhost:8000            # deployed: https://<CADDY_DOMAIN>/api
+API=http://localhost:8000
 TOKEN=$(curl -s $API/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"patient.alex@example.test","password":"<MIRROR_DEMO_PASSWORD>"}' | jq -r .access_token)
 SID=$(curl -s $API/sessions -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -116,16 +121,16 @@ Start with [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). It covers:
 The local stack (frontend, api-gateway, llm-service in mock mode, db) runs with Docker Compose. Details,
 configuration and troubleshooting are in [`infra/README.md`](infra/README.md).
 
-For the production deployment on a GPU VM, see [Deploy](#deploy) below.
+For the production deployment on a GPU VM, see [Deploy](#deploy) above.
 
 ```bash
 git clone https://github.com/mirror-ac215/AC215_Mirror.git
 cd AC215_Mirror
-cp infra/.env.example infra/.env   # fill in the two values
+cp infra/.env.example infra/.env
 docker compose -f infra/compose.yml up --build -d
 ```
 
-Then open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API).
+Fill in the two values in `infra/.env` before starting. Then open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API).
 `cv-service` is opt-in (`--profile cv`) because it downloads the model from GCS; see `infra/README.md`.
 
 ## Data setup with DVC
@@ -140,7 +145,7 @@ gcloud auth application-default login
 dvc pull
 ```
 
-`dvc pull` restores these raw inputs, plus the processed outputs of both pipeline stages (`data/processed/fer2013/v1`, `data/processed/persona/v1`):
+`dvc pull` restores these raw inputs, plus the processed outputs of all three pipeline stages (`data/processed/fer2013/v1`, `data/processed/persona/v1`, `data/processed/iemocap/v1`):
 
 ```text
 data/raw/fer2013/archive.zip
@@ -148,16 +153,17 @@ data/raw/persona/jbp_clean_full.csv
 data/raw/persona/jbp_train.csv
 data/raw/persona/jbp_val.csv
 data/raw/persona/jbp_test.csv
+data/raw/iemocap/IEMOCAP_full_release.tar.gz
 ```
 
 To check that code, parameters and data are in sync, and to rebuild a stage from the raw data:
 
 ```bash
-dvc status                      # "Data and pipelines are up to date."
-dvc repro persona_clean         # or fer2013_preprocess; `dvc repro` runs both
+dvc status
+dvc repro persona_clean
 ```
 
-The stages are defined in `dvc.yaml` (`fer2013_preprocess`: FER-2013 split and resize; `persona_clean`: persona filter, dedupe and split). Rebuilding gives byte-identical outputs on Linux, macOS and Windows, so `dvc.lock` does not change.
+The stages are defined in `dvc.yaml` (`fer2013_preprocess`: FER-2013 split and resize; `persona_clean`: persona filter, dedupe and split; `iemocap_build`: IEMOCAP evaluation table). Rebuilding gives byte-identical outputs on Linux, macOS and Windows, so `dvc.lock` does not change.
 
 The DVC remote is `mirror_gcs` at `gs://mirror-ac215-data/dvc`. Do not run `git add data/`; commit only the DVC configuration and `.dvc` metadata files.
 

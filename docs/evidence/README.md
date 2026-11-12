@@ -1,6 +1,6 @@
 # MS3 evidence: the deployed system
 
-Recorded on **Nov 11, 2026** on the GPU VM in GCP (`asia-southeast1-c`, one NVIDIA L4) running commit `0a7bb81`. Camera previews and personal browser details are blurred.
+Recorded on **Nov 11, 2026** on a GPU VM in GCP (one NVIDIA L4) running commit `0a7bb81`. Camera previews are blurred. The site address, the VM's name and user folder, its location, and log and request IDs are redacted.
 
 | File | What it proves |
 |---|---|

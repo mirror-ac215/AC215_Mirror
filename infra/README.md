@@ -245,6 +245,9 @@ Do not send sensitive or patient-like content for this smoke test.
 
 ### When the GPU zone has no capacity
 
+These steps create paid cloud resources, so only the project's cloud operator (Mostafa) runs them.
+Anyone else who finds the zone out of capacity should tell Mostafa rather than create resources.
+
 T4 GPUs are often out of stock. On Nov 11 we moved the deployment without rebuilding the VM:
 snapshot the stopped VM's boot disk, then create a VM from that snapshot in any zone of a region
 where the custom VPC has a subnet (us-east1, us-central1, europe-west1, asia-southeast1), trying a
