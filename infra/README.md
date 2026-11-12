@@ -243,6 +243,21 @@ Also record `nvidia-smi`, the Docker GPU test, the real LLM `/health` result,
 one safe non-streaming completion, and one completed streaming completion.
 Do not send sensitive or patient-like content for this smoke test.
 
+### When the GPU zone has no capacity
+
+These steps create paid cloud resources, so only the project's cloud operator (Mostafa) runs them.
+Anyone else who finds the zone out of capacity should tell Mostafa rather than create resources.
+
+T4 GPUs are often out of stock. On Nov 11 we moved the deployment without rebuilding the VM:
+snapshot the stopped VM's boot disk, then create a VM from that snapshot in any zone of a region
+where the custom VPC has a subnet (us-east1, us-central1, europe-west1, asia-southeast1), trying a
+T4 (`n1-standard-4` + `nvidia-tesla-t4`) first and an L4 (`g2-standard-4`, `pd-balanced` disk) next.
+The disk already holds the NVIDIA driver, Docker, the repository and the model cache. The new VM
+gets a new external IP, so update `CADDY_DOMAIN` in `infra/.env.prod` before deploying.
+
+`deploy-stage-b.sh` loads `infra/.env.prod` with bash `source`, so put single quotes around any
+value containing `"`, `$` or spaces (for example `TRUSTED_PROXY_IPS='["172.30.0.2/32"]'`).
+
 ### Recovery and cost control
 
 - Inspect: `docker compose --env-file infra/.env.prod -f infra/compose.yml -f infra/compose.prod.yml ps`

@@ -295,9 +295,15 @@ class StageAAssetTests(unittest.TestCase):
         example = (INFRA / ".env.prod.example").read_text()
         for variable in ("DB_NAME=", "DB_USER=", "DB_PASSWORD=", "MIRROR_DEMO_PASSWORD=", "CADDY_DOMAIN="):
             self.assertIn(variable, example)
-        self.assertIn('TRUSTED_PROXY_IPS=["172.30.0.2/32"]', example)
+        self.assertIn("TRUSTED_PROXY_IPS='[\"172.30.0.2/32\"]'", example)
         self.assertNotIn("replace-me", example.lower())
         self.assertNotIn("password123", example.lower())
+
+    def test_production_example_keeps_json_when_sourced_by_bash(self) -> None:
+        # deploy-stage-b.sh runs `source infra/.env.prod`; unquoted JSON loses its quotes.
+        result = run("bash", "-c", 'set -a; source infra/.env.prod.example; printf %s "$TRUSTED_PROXY_IPS"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), ["172.30.0.2/32"])
 
     def test_ci_executes_stage_a_asset_tests(self) -> None:
         workflow = (REPO / ".github" / "workflows" / "ci.yml").read_text()
