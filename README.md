@@ -126,11 +126,10 @@ For the production deployment on a GPU VM, see [Deploy](#deploy) above.
 ```bash
 git clone https://github.com/mirror-ac215/AC215_Mirror.git
 cd AC215_Mirror
-cp infra/.env.example infra/.env
 docker compose -f infra/compose.yml up --build -d
 ```
 
-Fill in the two values in `infra/.env` before starting. Then open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API).
+No setup is needed: the local stack uses built-in, local-only defaults. Open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API), and log in as `patient.alex@example.test` or `clinician.ada@example.test` with the password `local-demo-password`. To use your own passwords, see [`infra/README.md`](infra/README.md).
 `cv-service` is opt-in (`--profile cv`) because it downloads the model from GCS; see `infra/README.md`.
 
 ## Data setup with DVC

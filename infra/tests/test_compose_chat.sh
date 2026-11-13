@@ -7,7 +7,8 @@ compose=(docker compose -f infra/compose.yml)
 
 # Real login: the gateway no longer accepts any fixed dev/demo bearer
 # token, so obtain a short-lived JWT the same way the frontend does.
-: "${MIRROR_DEMO_PASSWORD:?MIRROR_DEMO_PASSWORD must be set to log in the seeded demo patient}"
+# Same default as infra/compose.yml, so a run with no infra/.env logs in too.
+MIRROR_DEMO_PASSWORD="${MIRROR_DEMO_PASSWORD:-local-demo-password}"
 login_payload=$(curl -fsS -H 'Content-Type: application/json' \
   -d "{\"email\":\"patient.alex@example.test\",\"password\":\"${MIRROR_DEMO_PASSWORD}\"}" \
   http://localhost:8000/auth/login)

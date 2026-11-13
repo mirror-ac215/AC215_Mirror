@@ -1,5 +1,11 @@
-# Runs the Mirror stack locally; docker compose -f infra/compose.yml up --build
+# Runs the Mirror stack locally with one command, no setup needed:
+#   docker compose -f infra/compose.yml up --build
 # Paths below are relative to this file (infra/), so services live in ../services.
+#
+# The DB_*, MIRROR_DEMO_PASSWORD and JWT_SIGNING_KEY defaults below are for local
+# runs and CI only. They are public, so never use them on a reachable server.
+# Set your own in infra/.env to override them. Production (compose.prod.yml)
+# ignores these defaults and refuses to start unless infra/.env.prod sets every value.
 name: mirror
 
 services:
@@ -8,10 +14,10 @@ services:
     environment:
       # DB_* is the M4 database contract; map it explicitly to the official
       # Postgres image variables so gateway and database share one identity.
-      POSTGRES_DB: ${DB_NAME:?set DB_NAME in infra/.env}
-      POSTGRES_USER: ${DB_USER:?set DB_USER in infra/.env}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in infra/.env}
-      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD:?set MIRROR_DEMO_PASSWORD in infra/.env}
+      POSTGRES_DB: ${DB_NAME:-mirror}
+      POSTGRES_USER: ${DB_USER:-mirror_app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local-only-db-password}
+      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD:-local-demo-password}
     volumes:
       - db-data:/var/lib/postgresql/data
 
@@ -20,8 +26,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://${DB_USER:?set DB_USER in infra/.env}:${DB_PASSWORD:?set DB_PASSWORD in infra/.env}@db:5432/${DB_NAME:?set DB_NAME in infra/.env}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY in infra/.env}
+      DATABASE_URL: postgresql://${DB_USER:-mirror_app}:${DB_PASSWORD:-local-only-db-password}@db:5432/${DB_NAME:-mirror}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-only-jwt-signing-key-not-for-production}
       JWT_EXPIRES_MINUTES: ${JWT_EXPIRES_MINUTES:-30}
       TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-[]}
       LLM_MODEL: mirror-persona-v1
