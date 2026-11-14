@@ -94,6 +94,10 @@ Remove `POSTGRES_PASSWORD`; Compose no longer reads it. **Do not reset `db-data`
 environment-variable migration** when those database identity values are unchanged. A reset is
 required only when changing `init.sql`, `seed.sh`, or `MIRROR_DEMO_PASSWORD`, as described below.
 
+An existing `db-data` volume keeps its old rows: to get the clinician dashboard's demo history
+(`services/db/demo-history.sql`) on a stack created before M4-01, run
+`docker compose -f infra/compose.yml down -v` once.
+
 Demo users (from `services/db/seed.sh`): `clinician.ada@example.test`, `patient.alex@example.test`, `patient.bri@example.test`, all with `MIRROR_DEMO_PASSWORD` (`local-demo-password` unless you set your own).
 
 ## Everyday commands

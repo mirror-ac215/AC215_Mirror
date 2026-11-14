@@ -22,6 +22,7 @@ PostgreSQL 16 container for Mirror's demo users, patient assignments, chat sessi
 |---|---|
 | `init.sql` | Executable schema: tables, foreign keys, constraints, and indexes. |
 | `seed.sh` | Creates two clinicians, five demo patients, and patient assignments using the caller-provided local demo password. |
+| `demo-history.sql` | Two weeks of demo sessions, emotion windows and review flags for Bri and Casey, so the clinician dashboard (M4-01) has data on a fresh stack. Alex stays empty (the dashboard's empty state, and the Compose chat test's own rows). Messages are placeholders. |
 | `entrypoint-wrapper.sh` | Refuses an empty-volume initialization before PostgreSQL can create partial data unless the required local secrets are present. |
 | `Dockerfile` | PostgreSQL 16 image with first-start initialization scripts and a health check. |
 | `.env.example` | Safe local environment-variable names and sample values. |
