@@ -22,6 +22,8 @@ Mirror is a prototype, not a clinical product. A patient chats with a supportive
 
 The screens started as the MS1 clickable prototype and are now the working app in `services/frontend`.
 
+**Status labels.** This document describes the MS4 design. Where a part is not on `main` yet, it says so: *in review* means an open pull request, *planned* means a board task that has not started.
+
 | Screen | Route | What it does |
 |---|---|---|
 | ![Sign in](mockup/01_sign_in.png) **Sign in** | `/` | One login for both roles. The gateway returns the role, and the app opens the patient or the clinician side. |
@@ -31,9 +33,9 @@ The screens started as the MS1 clickable prototype and are now the working app i
 | ![Patients](mockup/05_clinician_patients.png) **Clinician: patients** | `/clinician` | The clinician's own patients, the last session and a "needs review" marker. |
 | ![Patient detail](mockup/06_clinician_patient_detail.png) **Clinician: one patient** | `/clinician/{patient_id}` | Review queue with "Mark as reviewed", a day-by-day chart of how messages read, and the camera estimate per day. |
 
-**Changed after MS1 feedback:** the clinician mock-ups above show labels such as "anxious" and "low mood". The real dashboard (M4-01) shows **expression and wording estimates with a confidence level** instead, for example "tense-looking · low confidence · an estimate, not a feeling". The models estimate expressions and wording; they cannot measure feelings.
+**Changed after MS1 feedback:** the clinician mock-ups above show labels such as "anxious" and "low mood". The real-data dashboard (M4-01, *in review*; `main` still shows the prototype with fixed sample data) shows **expression and wording estimates with a confidence level** instead, for example "tense-looking · low confidence · an estimate, not a feeling". The models estimate expressions and wording; they cannot measure feelings.
 
-Every screen has a loading state, a visible error state (with "log in again" for an expired login) and an empty state.
+Loading, error and empty states: the clinician screens have all three (M4-01, *in review*), including "log in again" for an expired login. The other screens get them in M4-24 (*planned*).
 
 ### Primary user flows
 
@@ -97,10 +99,11 @@ flowchart LR
 | llm-service | Owen | vLLM serving plain Qwen 2.5-3B-Instruct (decision D-006), OpenAI-compatible API |
 | db | Owen | Postgres. Never stores camera frames |
 | Prometheus and Grafana | Julie | Gateway metrics dashboard, opt-in Compose profile, not public |
+| GCP operations (VM, Artifact Registry, deploys) | Mostafa (runs), Owen (prepares) | Mostafa alone runs anything billable: creating and starting the VM, pushing images, deploying, checking it runs, and confirming it is stopped afterwards. Owen prepares the deployment files and serving set-up in the repository but does not run paid cloud commands. |
 
-**Where it runs.** Locally, one command starts the stack with no setup (`docker compose -f infra/compose.yml up --build`; the LLM runs as a mock without a GPU). For the deployed demo, the same Compose file plus `compose.prod.yml` runs on one GCP VM with an NVIDIA L4, using images from Artifact Registry tagged by commit. MS5 moves this to Kubernetes (GKE).
+**Where it runs.** Locally, one command starts the stack with no setup (`docker compose -f infra/compose.yml up --build`; the LLM runs as a mock without a GPU). For the deployed demo, the same Compose file plus `compose.prod.yml` runs on one GCP VM with one GPU, using images from Artifact Registry tagged by commit. The setup guide (`infra/README.md`) targets a T4 and falls back to an L4 when T4s are out of stock; the MS3 evidence run on Nov 11 used an L4 (`docs/evidence/README.md`). This is the reviewed deployment set-up, not a claim that a VM is running now: it is stopped between demos to save cost. MS5 moves this to Kubernetes (GKE).
 
-**Jobs that run on demand** (not always-on services): data preprocessing (DVC stages), cv-train, cv-eval with the release guard, the fairness audit, llm-finetune on Vertex AI, and the evaluation harnesses. They are tracked in Weights & Biases.
+**Jobs that run on demand** (not always-on services): data preprocessing (DVC stages), cv-train, cv-eval with the release guard, the fairness audit, llm-finetune (Vertex AI job ready; the adapters so far were trained locally, D-006), and the evaluation harnesses. They are tracked in Weights & Biases.
 
 ---
 
