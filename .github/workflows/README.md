@@ -85,3 +85,7 @@ Third-party GitHub Actions are pinned to full commit SHAs so a mutable version t
 ## Branch protection
 
 After a successful PR run establishes the exact check name, protect `main` with the required `CI summary` status check. Do not configure that requirement before observing a real successful GitHub Actions run, because a wrong check name can prevent every PR from merging.
+
+## Backend coverage gate (M4-20)
+
+`api-gateway`, `cv-service`, and `llm-service` call the reusable workflow with `coverage: true`. Those jobs run `pytest --cov`, print the per-file table in the job log, and publish it to the GitHub job summary. Each service's `pyproject.toml` sets `[tool.coverage.report] fail_under = 70` over `source = ["app"]`, so tests and scripts are excluded and a drop below 70% fails the job and therefore `CI summary`. Path gating is unchanged: only changed components are measured. Run locally from a service directory with `uv run pytest --cov`.
