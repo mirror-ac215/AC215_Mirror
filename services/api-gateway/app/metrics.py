@@ -82,7 +82,8 @@ FUSION = Counter(
 FALLBACK = Counter(
     "mirror_gateway_fallback_total",
     "Turns or frames that went on without a dependency, by reason (M4-04)",
-    ["reason"], registry=REGISTRY,
+    ["reason"],
+    registry=REGISTRY,
 )
 
 

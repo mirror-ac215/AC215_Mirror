@@ -191,12 +191,8 @@ async def receive_frame(
     except Exception as exc:
         logger.warning("cv_prediction_failed", extra={"error": str(exc)})
         metrics.record_fallback("cv_unavailable")
-        raise HTTPException(
-            status_code=503, detail="Camera analysis is unavailable"
-        ) from exc
-    frame_windows[session_id].add(
-        FrameReading.from_cv_payload(prediction, time.monotonic())
-    )
+        raise HTTPException(status_code=503, detail="Camera analysis is unavailable") from exc
+    frame_windows[session_id].add(FrameReading.from_cv_payload(prediction, time.monotonic()))
     # Return the current gate result, not an optimistic usable-reading claim.
     visual = visual_context(session_id, session)
     trusted = visual["status"] == "ok"
