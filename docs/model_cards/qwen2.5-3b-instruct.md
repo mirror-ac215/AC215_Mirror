@@ -1,6 +1,6 @@
 # Model card: Mirror's language model (served as `mirror-persona-v1`)
 
-The model that writes Mirror's chat replies. **Owner:** Julie (M4-11). **Last updated:** Nov 14, 2026. **Status:** draft; the evaluation section waits on M4-09.
+The model that writes Mirror's chat replies. **Owner:** Julie (M4-11). **Last updated:** Nov 14, 2026. **Status:** draft; the evaluation results wait on the first M4-09 run.
 
 **In one sentence:** plain `Qwen/Qwen2.5-3B-Instruct` with Mirror's system prompt and no fine-tuning, behind deterministic safety rules that answer crisis, medication and camera questions before the model is ever called.
 
@@ -78,11 +78,11 @@ The face reading is never an input to any safety rule. Message text is never log
 | Says it can see something it cannot | 1 | 2 |
 | One-sentence replies (prompt `m3-08-v4` asked for 2-4) | 0 | 60 |
 
-**Pending M4-09** (`pipelines/llm-eval/pairwise`, `pipelines/modality-eval`; PR #100):
+**Planned (M4-09):** the harnesses merged in #100 (`pipelines/llm-eval/pairwise`, `pipelines/modality-eval`). Agreed on #100, Nov 14: the first run compares plain Qwen **without vs with the camera note** in the prompt; raters Owen and Julie, blind to the model; Mostafa holds the sealed key; harm labels must reach Cohen's kappa ≥ 0.6 on a 20-reply sample before the full set is scored (`pipelines/llm-eval/pairwise/EVALUATION_GATES.md`).
 
-- [PENDING M4-09] Blind pairwise preference, with Wilson 95% intervals, against the 60% target.
-- [PENDING M4-09] Harmful-completion rate, with Cohen's kappa between two raters (bar agreed at the gates sign-off).
-- [PENDING M4-09] Modality comparison: face only vs text only vs both, on IEMOCAP.
+- [PENDING M4-09] Blind pairwise preference, plain Qwen without vs with the camera note, with Wilson 95% intervals, against the 60% target.
+- [PENDING M4-09] Harmful-completion rate for both, once the kappa sample passes 0.6.
+- [PENDING M3-21] Modality comparison (face only vs text only vs both, on IEMOCAP): unscored until the face readings per utterance exist.
 
 ## Limits
 
@@ -124,7 +124,7 @@ uv run mirror-persona-checks --llm-url http://localhost:8002
 
 ## Next steps
 
-- Fill the evaluation section from M4-09.
+- Fill the evaluation section from the first M4-09 run.
 - Re-run the 70 questions on prompt `m3-08-v7` and on the T4 VM.
 - Pin the model revision in `llm-service`.
 - Measure latency under load (M4-07).
