@@ -42,7 +42,7 @@ HISTOGRAM_SUFFIXES = ("_bucket", "_count", "_sum")
 PROMQL_WORDS = {
     "sum", "rate", "increase", "by", "without", "histogram_quantile", "clamp_min",
     "clamp_max", "avg", "max", "min", "count", "le", "on", "ignoring", "and", "or",
-    "unless", "offset", "irate", "topk", "bottomk",
+    "unless", "offset", "irate", "topk", "bottomk", "vector",
 }
 
 
