@@ -41,7 +41,11 @@ const TEXT_WORDS: Record<string, string> = {
   disgust: "frustrated wording",
 };
 
-/** Text labels that count as "heavier" on the day-by-day chart. */
+/**
+ * Text labels for the day-by-day chart. Only explicitly lighter or heavier labels count as such;
+ * everything else (neutral, surprise, unknown) is shown as its own "neutral or unclear" share.
+ */
+const LIGHTER_TEXT = new Set(["joy"]);
 const HEAVIER_TEXT = new Set(["sadness", "sad", "fear", "anger", "angry", "disgust"]);
 
 export function faceWords(label: string): string {
@@ -75,9 +79,10 @@ export interface DayReading {
   label: string;
   /** Messages with a text reading that day. */
   textReadings: number;
-  /** Share of those messages whose wording read as heavier (0-1). */
-  heavierShare: number;
+  /** Shares of those messages (0-1) read as lighter, heavier, or neither. They add up to 1. */
   lighterShare: number;
+  heavierShare: number;
+  neutralShare: number;
   textConfidence: Confidence;
   /** Windows where the gate passed a steady face reading, out of all windows that day. */
   steadyFaceReadings: number;
@@ -115,7 +120,9 @@ export function dailyReadings(points: TrendPoint[]): DayReading[] {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, dayPoints]) => {
       const text = dayPoints.map((p) => top(p.text_top2)).filter((r): r is LabelProb => !!r);
+      const lighter = text.filter(([label]) => LIGHTER_TEXT.has(label)).length;
       const heavier = text.filter(([label]) => HEAVIER_TEXT.has(label)).length;
+      const share = (n: number) => (text.length ? n / text.length : 0);
 
       const steady = dayPoints
         .filter((p) => p.visual_status === "ok")
@@ -134,8 +141,9 @@ export function dailyReadings(points: TrendPoint[]): DayReading[] {
         day,
         label: shortLabel(day),
         textReadings: text.length,
-        heavierShare: text.length ? heavier / text.length : 0,
-        lighterShare: text.length ? (text.length - heavier) / text.length : 0,
+        lighterShare: share(lighter),
+        heavierShare: share(heavier),
+        neutralShare: share(text.length - lighter - heavier),
         textConfidence: confidence(average(text.map(([, p]) => p)), text.length),
         steadyFaceReadings: steady.length,
         windows: dayPoints.length,

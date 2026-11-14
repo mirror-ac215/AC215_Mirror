@@ -56,7 +56,7 @@ describe("confidence", () => {
 });
 
 describe("dailyReadings", () => {
-  it("groups by day, oldest first, and splits wording into lighter and heavier", () => {
+  it("groups by day, oldest first, and splits wording into lighter, neutral and heavier", () => {
     const days = dailyReadings([
       point("2026-11-10T15:00:00", { text_top2: [["sadness", 0.8]] }),
       point("2026-11-09T15:00:00", { text_top2: [["joy", 0.7]] }),
@@ -66,9 +66,21 @@ describe("dailyReadings", () => {
     expect(days.map((d) => d.day)).toEqual(["2026-11-09", "2026-11-10"]);
     expect(days[1]!.textReadings).toBe(3);
     expect(days[1]!.heavierShare).toBeCloseTo(2 / 3);
-    expect(days[1]!.lighterShare).toBeCloseTo(1 / 3);
+    expect(days[1]!.neutralShare).toBeCloseTo(1 / 3);
+    expect(days[1]!.lighterShare).toBe(0);
+    expect(days[0]!.lighterShare).toBe(1);
     expect(days[1]!.textConfidence).toBe("higher confidence");
     expect(days[0]!.textConfidence).toBe("low confidence");
+  });
+
+  it("never counts neutral or unclear wording as lighter", () => {
+    const [day] = dailyReadings([
+      point("2026-11-10T15:00:00", { text_top2: [["neutral", 0.9]] }),
+      point("2026-11-10T15:05:00", { text_top2: [["surprise", 0.9]] }),
+    ]);
+    expect(day!.lighterShare).toBe(0);
+    expect(day!.heavierShare).toBe(0);
+    expect(day!.neutralShare).toBe(1);
   });
 
   it("uses only steady (gate ok) face readings, and says when the camera was off", () => {

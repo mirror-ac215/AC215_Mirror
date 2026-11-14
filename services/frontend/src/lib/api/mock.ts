@@ -129,10 +129,18 @@ const mockPatients: PatientSummary[] = [
 
 const mockFlags: Record<string, ReviewFlagSummary[]> = {
   "00000000-0000-0000-0000-000000000202": [
-    { flag_id: "mock-flag-bri", created_at: daysAgo(3, 2), reviewed_at: null },
+    {
+      flag_id: "00000000-0000-4000-8000-0000000000b1",
+      created_at: daysAgo(3, 2),
+      reviewed_at: null,
+    },
   ],
   "00000000-0000-0000-0000-000000000203": [
-    { flag_id: "mock-flag-casey", created_at: daysAgo(8, 5), reviewed_at: daysAgo(7, 5) },
+    {
+      flag_id: "00000000-0000-4000-8000-0000000000c1",
+      created_at: daysAgo(8, 5),
+      reviewed_at: daysAgo(7, 5),
+    },
   ],
 };
 

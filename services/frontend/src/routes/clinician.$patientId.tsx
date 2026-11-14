@@ -223,6 +223,7 @@ function WordingChart({ days }: { days: DayReading[] }) {
   const data = days.map((d) => ({
     label: d.label,
     lighter: Math.round(d.lighterShare * 100),
+    neutral: Math.round(d.neutralShare * 100),
     heavier: Math.round(d.heavierShare * 100),
     detail: `${d.textReadings} ${d.textReadings === 1 ? "message" : "messages"}, ${d.textConfidence}`,
   }));
@@ -231,8 +232,9 @@ function WordingChart({ days }: { days: DayReading[] }) {
     <section className="mt-5 rounded-2xl border border-border bg-card p-6 shadow-soft">
       <h2 className="text-base font-medium">How their messages read, day by day</h2>
       <p className="mt-1 text-xs text-muted-ink">
-        Share of each day's messages whose wording the text model read as lighter or heavier.{" "}
-        {ESTIMATE_NOTE} Days with fewer than 3 messages are low confidence.
+        Share of each day's messages whose wording the text model read as lighter, heavier, or
+        neither (neutral or unclear). {ESTIMATE_NOTE} Days with fewer than 3 messages are low
+        confidence.
       </p>
       <div className="mt-6 h-64" aria-label="Day-by-day wording estimate">
         <ResponsiveContainer width="100%" height="100%">
@@ -252,7 +254,10 @@ function WordingChart({ days }: { days: DayReading[] }) {
               tick={{ fill: "#8B97A6", fontSize: 12 }}
             />
             <RTooltip<number, string>
-              formatter={(value, name) => [`${value}%`, `${name} wording`]}
+              formatter={(value, name) => [
+                `${value}%`,
+                name === "neutral" ? "neutral or unclear wording" : `${name} wording`,
+              ]}
               labelFormatter={(label, payload) =>
                 `${String(label)}: ${(payload[0]?.payload as { detail?: string } | undefined)?.detail ?? ""}`
               }
@@ -264,6 +269,7 @@ function WordingChart({ days }: { days: DayReading[] }) {
               }}
             />
             <Bar dataKey="lighter" stackId="share" fill="#6DA588" radius={[0, 0, 4, 4]} />
+            <Bar dataKey="neutral" stackId="share" fill="#C9D1DB" />
             <Bar dataKey="heavier" stackId="share" fill="#CC8375" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
