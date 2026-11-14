@@ -7,12 +7,20 @@ x-cloud-logging: &cloud-logging
 services:
   db:
     restart: unless-stopped
+    # compose.yml has public local defaults; production must never fall back to them.
+    environment:
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in infra/.env.prod}
+      POSTGRES_USER: ${DB_USER:?set DB_USER in infra/.env.prod}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in infra/.env.prod}
+      MIRROR_DEMO_PASSWORD: ${MIRROR_DEMO_PASSWORD:?set MIRROR_DEMO_PASSWORD in infra/.env.prod}
 
   api-gateway:
     ports: !reset []
     restart: unless-stopped
     logging: *cloud-logging
     environment:
+      DATABASE_URL: postgresql://${DB_USER:?set DB_USER in infra/.env.prod}:${DB_PASSWORD:?set DB_PASSWORD in infra/.env.prod}@db:5432/${DB_NAME:?set DB_NAME in infra/.env.prod}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY in infra/.env.prod}
       # Only the Caddy address fixed below can supply X-Forwarded-For.
       TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-["172.30.0.2/32"]}
     networks:

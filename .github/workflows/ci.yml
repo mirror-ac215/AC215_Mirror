@@ -289,14 +289,8 @@ jobs:
     needs: changes
     if : needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
-    env:
-      # Throwaway values for CI only. Compose reads these instead of infra/.env.
-      DB_NAME: mirror
-      DB_USER: mirror_app
-      DB_PASSWORD: ci-only-password
-      MIRROR_DEMO_PASSWORD: ci-only-demo-password
-      # Non-secret throwaway key satisfying the gateway's runtime validation.
-      JWT_SIGNING_KEY: ci-only-signing-key-with-at-least-thirty-two-characters
+    # No configuration on purpose (M4-21): a fresh clone has no infra/.env, so this job
+    # starts the stack on compose.yml's local-only defaults, exactly as a new user would.
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -321,6 +315,9 @@ jobs:
           docker run --rm --entrypoint promtool \
             -v "$PWD/infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
             prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+
+      - name: Validate M4-21 one-command start and production guards
+        run: python3 infra/tests/test_m4_21_one_command.py
 
       - name: Build and start the stack, wait for every health check
         run: docker compose -f infra/compose.yml --profile monitoring up --build --wait --wait-timeout 300

@@ -44,10 +44,12 @@ The profile mounts that credential read-only and never copies it into an image. 
 From the repository root:
 
 ```bash
-cp infra/.env.example infra/.env     # then fill in the required values
 docker compose -f infra/compose.yml up --build -d
 docker compose -f infra/compose.yml ps
 ```
+
+No setup is needed: `compose.yml` has local-only defaults for the database identity, the demo
+password and the JWT signing key. To use your own values, see the configuration section below.
 
 All four default services (`db`, `llm-service`, `api-gateway`, and `frontend`)
 should show `(healthy)` after about a minute. Then:
@@ -55,21 +57,26 @@ should show `(healthy)` after about a minute. Then:
 - App: http://localhost:3000
 - Gateway API docs: http://localhost:8000/docs
 
-## Configuration (`infra/.env`)
+## Configuration (`infra/.env`, optional)
 
-Compose reads `infra/.env` automatically (it sits next to `compose.yml`). It is gitignored; never commit it.
+Compose reads `infra/.env` automatically if it exists (it sits next to `compose.yml`). It is gitignored; never commit it.
+Without it, the stack uses the defaults in the last column. **The defaults are public, so they are for a
+laptop or CI only.** Production uses `infra/.env.prod`, and `compose.prod.yml` refuses to start unless
+that file sets every value, so a server never falls back to these defaults.
 
-| Variable | Used by | Purpose |
-|---|---|---|
-| `DB_NAME` | `db`, `api-gateway` | PostgreSQL database name. The default development identity is `mirror`. |
-| `DB_USER` | `db`, `api-gateway` | PostgreSQL application user. The default development identity is `mirror_app`. |
-| `DB_PASSWORD` | `db`, `api-gateway` | Password for the configured database user. Any local value works. Compose derives the gateway's `DATABASE_URL` from this same value. |
-| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed local demo accounts. The gateway does not read or receive it; M4-02 authenticates against the database's bcrypt hashes. |
-| `JWT_SIGNING_KEY` | `api-gateway` | **Required**, at least 32 random characters. Signs gateway access tokens; generate and retain it outside Git. |
-| `JWT_EXPIRES_MINUTES` | `api-gateway` | Optional access-token lifetime in minutes (default `30`, allowed `1`-`60`). |
-| `TRUSTED_PROXY_IPS` | `api-gateway` | Optional JSON array of Caddy IP/CIDR values. Only configured proxies may supply a client address through `X-Forwarded-For`; leave `[]` unless the proxy network is known and controlled. |
+| Variable | Used by | Purpose | Local default |
+|---|---|---|---|
+| `DB_NAME` | `db`, `api-gateway` | PostgreSQL database name. | `mirror` |
+| `DB_USER` | `db`, `api-gateway` | PostgreSQL application user. | `mirror_app` |
+| `DB_PASSWORD` | `db`, `api-gateway` | Password for the database user. Compose derives the gateway's `DATABASE_URL` from this same value. | `local-only-db-password` |
+| `MIRROR_DEMO_PASSWORD` | `db` | Password used only to seed the demo accounts. The gateway does not read or receive it; M4-02 authenticates against the database's bcrypt hashes. | `local-demo-password` |
+| `JWT_SIGNING_KEY` | `api-gateway` | Signs gateway access tokens; at least 32 characters. | `local-only-jwt-signing-key-not-for-production` |
+| `JWT_EXPIRES_MINUTES` | `api-gateway` | Access-token lifetime in minutes (allowed `1`-`60`). | `30` |
+| `TRUSTED_PROXY_IPS` | `api-gateway` | JSON array of Caddy IP/CIDR values. Only configured proxies may supply a client address through `X-Forwarded-For`; leave `[]` unless the proxy network is known and controlled. | `[]` |
 
-If a required database value, `MIRROR_DEMO_PASSWORD`, or `JWT_SIGNING_KEY` is missing, Compose refuses to start and names the missing variable.
+The demo password is applied only when the database volume is first created. If you change it later,
+reset the volume (`docker compose -f infra/compose.yml down -v`). `infra/tests/test_m4_21_one_command.py`
+checks both rules: the local stack resolves with no configuration, and production fails without its values.
 
 ### Migration from the pre-M3-10 `infra/.env`
 
@@ -87,7 +94,7 @@ Remove `POSTGRES_PASSWORD`; Compose no longer reads it. **Do not reset `db-data`
 environment-variable migration** when those database identity values are unchanged. A reset is
 required only when changing `init.sql`, `seed.sh`, or `MIRROR_DEMO_PASSWORD`, as described below.
 
-Demo users (from `services/db/seed.sh`): `clinician.ada@example.test`, `patient.alex@example.test`, `patient.bri@example.test`, all with `MIRROR_DEMO_PASSWORD`.
+Demo users (from `services/db/seed.sh`): `clinician.ada@example.test`, `patient.alex@example.test`, `patient.bri@example.test`, all with `MIRROR_DEMO_PASSWORD` (`local-demo-password` unless you set your own).
 
 ## Everyday commands
 
