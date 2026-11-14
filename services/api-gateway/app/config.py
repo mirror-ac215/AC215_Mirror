@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     # revision to the commit it prints and set the threshold and margin from its output.
     # Until the model is in the image's cache, this layer is off and the rules run alone.
     crisis_meaning_enabled: bool = True
-    crisis_meaning_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # all-MiniLM-L6-v2 was tried first: it could not separate crisis from everyday
+    # sentences (calibration, Nov 14). all-mpnet-base-v2 is larger (~420 MB) and stronger.
+    crisis_meaning_model: str = "sentence-transformers/all-mpnet-base-v2"
     crisis_meaning_revision: str = "main"
     crisis_meaning_threshold: float = Field(default=0.60, ge=-1, le=1)
     crisis_meaning_margin: float = Field(default=0.05, ge=0, le=2)

@@ -63,6 +63,9 @@ CRISIS_EXAMPLES: tuple[tuple[str, str], ...] = (
     ("self-harm-urge", "I really want to cut myself right now"),
     ("hopeless", "nothing will ever get better so there's no point in going on"),
     ("harm-other", "I'm going to hurt someone, I can't control it anymore"),
+    ("crash", "I think about crashing my car on purpose"),
+    ("final-letter", "I've written a letter for when I'm gone"),
+    ("not-around", "I won't be around much longer"),
 )
 
 # Everyday sentences that share words with crisis examples but are not a crisis.
@@ -81,6 +84,14 @@ SAFE_EXAMPLES: tuple[tuple[str, str], ...] = (
     ("hurt-sport", "I hurt my knee playing football"),
     ("no-point-meeting", "there's no point in going to that meeting"),
     ("future-job", "I don't see a future in this job"),
+    ("wish-era", "I wish I'd grown up in a different decade"),
+    ("injury", "I injured my shoulder at the gym"),
+    ("routine-meds", "I took my medication on time this morning"),
+    ("busy-life", "I want my schedule to calm down"),
+    ("diet", "I'm cutting sugar out of my diet"),
+    ("sleep-tired", "I'm so tired I could sleep through the weekend"),
+    ("letter-friend", "I wrote a card for my friend's birthday"),
+    ("drive-trip", "I keep thinking about driving to the mountains"),
 )
 
 
@@ -138,7 +149,7 @@ class CrisisMeaning:
         self,
         threshold: float,
         margin: float,
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: str = "sentence-transformers/all-mpnet-base-v2",
         revision: str = "main",
         max_chars: int = 2000,
         max_tokens: int = 128,

@@ -39,11 +39,14 @@ def meaning():
     )
 
 
-@pytest.mark.parametrize("text", MEANING["must_fire"])
+@pytest.mark.parametrize("text", MEANING["dev"]["must_fire"] + MEANING["holdout"]["must_fire"])
 def test_missed_phrasing_fires(meaning, text: str) -> None:
     assert meaning.check(text) is not None, meaning.score(text)
 
 
-@pytest.mark.parametrize("text", MEANING["must_not_fire"] + EVERYDAY)
+@pytest.mark.parametrize(
+    "text",
+    MEANING["dev"]["must_not_fire"] + MEANING["holdout"]["must_not_fire"] + EVERYDAY,
+)
 def test_everyday_sentence_stays_quiet(meaning, text: str) -> None:
     assert meaning.check(text) is None, meaning.score(text)
