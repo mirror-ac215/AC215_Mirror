@@ -1,0 +1,11 @@
+# Loads the dashboards mounted at /var/lib/grafana/dashboards (infra/compose.yml).
+apiVersion: 1
+
+providers:
+  - name: mirror
+    folder: Mirror
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

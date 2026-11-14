@@ -1,0 +1,12 @@
+# Grafana datasource (M4-08). The uid is fixed: every panel in
+# ../../mirror-gateway.json refers to it.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: mirror-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

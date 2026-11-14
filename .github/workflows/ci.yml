@@ -302,7 +302,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate compose file
-        run: docker compose -f infra/compose.yml config --quiet
+        run: |
+          docker compose -f infra/compose.yml config --quiet
+          docker compose -f infra/compose.yml --profile monitoring config --quiet
 
       - name: Validate M3-13 Stage A deployment assets
         run: python3 infra/tests/test_stage_a_assets.py
@@ -310,8 +312,18 @@ jobs:
       - name: Validate M3-14 immutable image delivery assets
         run: python3 infra/tests/test_m3_14_assets.py
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Validate M4-08 monitoring assets
+        run: |
+          uv run --no-project --with pyyaml==6.0.2 python infra/tests/test_monitoring_assets.py
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+            prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+
       - name: Build and start the stack, wait for every health check
-        run: docker compose -f infra/compose.yml up --build --wait --wait-timeout 300
+        run: docker compose -f infra/compose.yml --profile monitoring up --build --wait --wait-timeout 300
 
       - name: Smoke-test the running services
         run: |
@@ -321,13 +333,16 @@ jobs:
       - name: Exercise durable ordinary and crisis chat turns
         run: bash infra/tests/test_compose_chat.sh
 
+      - name: Check that Prometheus scrapes the gateway and Grafana shows the dashboard
+        run: bash infra/tests/test_compose_monitoring.sh
+
       - name: Show logs if anything failed
         if: failure()
-        run: docker compose -f infra/compose.yml logs
+        run: docker compose -f infra/compose.yml --profile monitoring logs
 
       - name: Stop and remove stack
         if: always()
-        run: docker compose -f infra/compose.yml down -v
+        run: docker compose -f infra/compose.yml --profile monitoring down -v
 
   ci_summary:
     name: CI summary

@@ -1,0 +1,274 @@
+{
+  "title": "Mirror api-gateway",
+  "uid": "mirror-gateway",
+  "schemaVersion": 39,
+  "version": 2,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Requests per second by status",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(mirror_gateway_requests_total[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Latency p95 by route (seconds)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(mirror_gateway_request_seconds_bucket[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Gate pass-rate (ok share of turns)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(mirror_gateway_gate_total{status=\"ok\"}[15m])) or vector(0)) / clamp_min(sum(rate(mirror_gateway_gate_total[15m])), 1e-9)",
+          "legendFormat": "ok share"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Text-emotion fallback rate",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mirror_gateway_text_emotion_unavailable_total[15m])) / clamp_min(sum(rate(mirror_gateway_text_emotion_seconds_count[15m])) + sum(rate(mirror_gateway_text_emotion_unavailable_total[15m])), 1e-9)",
+          "legendFormat": "fallback share"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Crisis hits by rule (per hour)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (rule) (increase(mirror_gateway_crisis_hits_total[1h]))",
+          "legendFormat": "{{rule}}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Fusion outcomes by agreement",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (agreement) (increase(mirror_gateway_fusion_total[1h]))",
+          "legendFormat": "{{agreement}}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Gate outcomes per hour (stacked)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (increase(mirror_gateway_gate_total[1h]))",
+          "legendFormat": "{{status}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mirror-prometheus"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Fixed safety replies per hour (stacked)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(mirror_gateway_crisis_hits_total[1h]))",
+          "legendFormat": "crisis",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mirror-prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(increase(mirror_gateway_medication_hits_total[1h]))",
+          "legendFormat": "medication",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mirror-prometheus"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "sum(increase(mirror_gateway_camera_hits_total[1h]))",
+          "legendFormat": "camera question",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mirror-prometheus"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mirror-prometheus"
+      }
+    }
+  ],
+  "templating": {
+    "list": []
+  }
+}
