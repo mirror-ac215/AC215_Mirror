@@ -29,12 +29,19 @@ camera adds to a turn (frame uploads competing for the gateway, the gate and fus
 
 ## Run it locally
 
-Start the stack with cv-service (the `cv` profile), from the repository root:
+cv-service downloads the face model from the team bucket, therefore it needs your Google login.
+Without it, `/health` on port 8001 stays "unready" and every frame upload fails with 503. From the
+repository root:
 
 ```bash
+gcloud auth application-default login
+export CV_GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/application_default_credentials.json"
 docker compose -f infra/compose.yml --profile cv up --build -d
+curl -s http://localhost:8001/health   # wait for "status":"ok" (the model is 343 MB)
 cd tests/load
 uv sync
+# use the same demo password as the stack, if infra/.env sets one
+export MIRROR_DEMO_PASSWORD="$(grep '^MIRROR_DEMO_PASSWORD=' ../../infra/.env | cut -d= -f2-)"
 MIRROR_CAMERA=on  uv run locust -f locustfile.py --headless -u 5 -r 5 -t 3m --csv runs/camera-on
 MIRROR_CAMERA=off uv run locust -f locustfile.py --headless -u 5 -r 5 -t 3m --csv runs/camera-off
 uv run python -m mirror_load.report runs/camera-on_stats.csv runs/camera-off_stats.csv
@@ -56,7 +63,7 @@ time, therefore 5 patients queue.
 | Variable | Default | What it does |
 |---|---|---|
 | `MIRROR_CAMERA` | `on` | `off` for the comparison run |
-| `MIRROR_DEMO_PASSWORD` | `local-demo-password` | the demo patients' password (`infra/compose.yml`) |
+| `MIRROR_DEMO_PASSWORD` | `local-demo-password` | the demo patients' password; must match `infra/.env` if it sets one, or every login fails with 401 |
 | `MIRROR_LOAD_FRAME` | unset | path to a JPEG to send; unset sends a plain grey frame |
 
 The grey frame has no face: cv-service runs face detection, finds none, and the gate answers
