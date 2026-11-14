@@ -191,7 +191,7 @@ paths:
         - name: patient_id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: One point per stored emotion window
@@ -202,6 +202,40 @@ paths:
                 items: { $ref: "#/components/schemas/TrendPoint" }
         "401": { description: Not logged in or token is invalid }
         "403": { description: Not this clinician's patient }
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HTTPValidationError" }
+
+  /clinician/patients/{patient_id}/review-flags:
+    get:
+      tags: [clinician]
+      summary: List Patient Review Flags
+      description: Return flag IDs and timestamps, never messages, for one assigned patient.
+      operationId: list_patient_review_flags_clinician_patients__patient_id__review_flags_get
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid, title: Patient Id }
+      responses:
+        "200":
+          description: Clinician-owned review flag metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReviewFlagSummary" }
+                title: Response List Patient Review Flags Clinician Patients  Patient Id  Review Flags Get
+        "401": { description: Not logged in or token is invalid }
+        "403": { description: Not this clinician's patient }
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HTTPValidationError" }
 
   /clinician/review-flags/{flag_id}:
     patch:
@@ -211,7 +245,7 @@ paths:
         - name: flag_id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -366,3 +400,17 @@ components:
       required: [reviewed]
       properties:
         reviewed: { type: boolean, const: true }
+
+    ReviewFlagSummary:
+      type: object
+      title: ReviewFlagSummary
+      description: Clinician-visible flag metadata, deliberately excluding message content.
+      required: [flag_id, created_at, reviewed_at]
+      properties:
+        flag_id: { type: string, format: uuid, title: Flag Id }
+        created_at: { type: string, format: date-time, title: Created At }
+        reviewed_at:
+          title: Reviewed At
+          anyOf:
+            - { type: string, format: date-time }
+            - { type: "null" }

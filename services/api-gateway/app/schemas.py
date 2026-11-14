@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -80,6 +81,14 @@ class ReviewFlagUpdate(BaseModel):
     """The API permits only marking an unresolved review flag complete."""
 
     reviewed: Literal[True]
+
+
+class ReviewFlagSummary(BaseModel):
+    """Clinician-visible flag metadata, deliberately excluding message content."""
+
+    flag_id: UUID
+    created_at: datetime
+    reviewed_at: datetime | None
 
 
 class ReviewFlagAcknowledgement(BaseModel):

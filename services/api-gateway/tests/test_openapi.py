@@ -34,7 +34,13 @@ EXPECTED_CODES = {
     },
     ("post", "/sessions/{session_id}/messages"): {"200", "401", "403", "404"},
     ("get", "/clinician/patients"): {"200", "401", "403"},
-    ("get", "/clinician/patients/{patient_id}/trend"): {"200", "401", "403"},
+    ("get", "/clinician/patients/{patient_id}/trend"): {"200", "401", "403", "422"},
+    ("get", "/clinician/patients/{patient_id}/review-flags"): {
+        "200",
+        "401",
+        "403",
+        "422",
+    },
     ("patch", "/clinician/review-flags/{flag_id}"): {"200", "401", "403", "422"},
 }
 
@@ -76,12 +82,38 @@ def test_response_codes_are_exactly_as_expected():
         assert in_docs == expected, f"{path}: /docs has {in_docs}"
 
 
-def test_review_flag_validation_error_matches_contract():
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("get", "/clinician/patients/{patient_id}/trend"),
+        ("get", "/clinician/patients/{patient_id}/review-flags"),
+        ("patch", "/clinician/review-flags/{flag_id}"),
+    ],
+)
+def test_clinician_validation_errors_match_contract(method: str, path: str) -> None:
     contract = load_contract()
     generated = app.openapi()
-    expected = contract["paths"]["/clinician/review-flags/{flag_id}"]["patch"]["responses"]["422"]
-    actual = generated["paths"]["/clinician/review-flags/{flag_id}"]["patch"]["responses"]["422"]
+    expected = contract["paths"][path][method]["responses"]["422"]
+    actual = generated["paths"][path][method]["responses"]["422"]
     assert expected == actual
+
+
+def test_review_flag_summary_schema_matches_contract() -> None:
+    contract = load_contract()
+    generated = app.openapi()
+    assert (
+        contract["components"]["schemas"]["ReviewFlagSummary"]
+        == generated["components"]["schemas"]["ReviewFlagSummary"]
+    )
+
+
+def test_list_review_flags_operation_matches_contract() -> None:
+    contract = load_contract()
+    generated = app.openapi()
+    assert (
+        contract["paths"]["/clinician/patients/{patient_id}/review-flags"]["get"]
+        == generated["paths"]["/clinician/patients/{patient_id}/review-flags"]["get"]
+    )
 
 
 def frame_ack_validator() -> Draft202012Validator:

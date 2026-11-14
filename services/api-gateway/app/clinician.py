@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from typing import Annotated, Any, Protocol, Self
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -13,6 +14,7 @@ from app.config import Settings, get_settings
 from app.schemas import (
     PatientSummary,
     ReviewFlagAcknowledgement,
+    ReviewFlagSummary,
     ReviewFlagUpdate,
     TrendPoint,
 )
@@ -52,6 +54,10 @@ class ClinicianRepository(Protocol):
     async def patient_trend(
         self, clinician_id: str, patient_id: str
     ) -> list[TrendPoint] | None: ...
+
+    async def review_flags(
+        self, clinician_id: str, patient_id: str
+    ) -> list[ReviewFlagSummary] | None: ...
 
     async def mark_reviewed(self, clinician_id: str, flag_id: str) -> bool: ...
 
@@ -123,6 +129,27 @@ class PostgresClinicianRepository:
             )
             for ts, visual_status, visual_top2, text_top2, tone_mode in rows
             if ts is not None
+        ]
+
+    async def review_flags(
+        self, clinician_id: str, patient_id: str
+    ) -> list[ReviewFlagSummary] | None:
+        """Return flag metadata only when assignment matches in this SQL query."""
+        rows = await asyncio.to_thread(
+            self._fetchall,
+            """SELECT rf.id::text, rf.created_at, rf.reviewed_at
+                 FROM patients p
+                 LEFT JOIN review_flags rf ON rf.patient_id = p.user_id
+                 WHERE p.clinician_id = %s AND p.user_id = %s
+                 ORDER BY rf.created_at DESC NULLS LAST""",
+            (clinician_id, patient_id),
+        )
+        if not rows:
+            return None
+        return [
+            ReviewFlagSummary(flag_id=flag_id, created_at=created_at, reviewed_at=reviewed_at)
+            for flag_id, created_at, reviewed_at in rows
+            if flag_id is not None
         ]
 
     async def mark_reviewed(self, clinician_id: str, flag_id: str) -> bool:
@@ -206,15 +233,36 @@ async def list_patients(
     },
 )
 async def patient_trend(
-    patient_id: str,
+    patient_id: UUID,
     user: Annotated[AuthenticatedUser, Depends(require_clinician)],
     repository: Annotated[ClinicianRepository, Depends(get_clinician_repository)],
 ) -> list[TrendPoint]:
     """Return aggregate trend windows only after clinician ownership is confirmed."""
-    trend = await repository.patient_trend(user.user_id, patient_id)
+    trend = await repository.patient_trend(user.user_id, str(patient_id))
     if trend is None:
         raise HTTPException(status_code=403, detail="Not this clinician's patient")
     return trend
+
+
+@router.get(
+    "/patients/{patient_id}/review-flags",
+    response_model=list[ReviewFlagSummary],
+    responses={
+        200: {"description": "Clinician-owned review flag metadata"},
+        401: {"description": "Not logged in or token is invalid"},
+        403: {"description": "Not this clinician's patient"},
+    },
+)
+async def list_patient_review_flags(
+    patient_id: UUID,
+    user: Annotated[AuthenticatedUser, Depends(require_clinician)],
+    repository: Annotated[ClinicianRepository, Depends(get_clinician_repository)],
+) -> list[ReviewFlagSummary]:
+    """Return flag IDs and timestamps, never messages, for one assigned patient."""
+    flags = await repository.review_flags(user.user_id, str(patient_id))
+    if flags is None:
+        raise HTTPException(status_code=403, detail="Not this clinician's patient")
+    return flags
 
 
 @router.patch(
@@ -227,13 +275,13 @@ async def patient_trend(
     },
 )
 async def mark_review_flag_reviewed(
-    flag_id: str,
+    flag_id: UUID,
     _: ReviewFlagUpdate,
     user: Annotated[AuthenticatedUser, Depends(require_clinician)],
     repository: Annotated[ClinicianRepository, Depends(get_clinician_repository)],
 ) -> ReviewFlagAcknowledgement:
     """Mark one assigned patient's unresolved review flag as reviewed."""
-    if not await repository.mark_reviewed(user.user_id, flag_id):
+    if not await repository.mark_reviewed(user.user_id, str(flag_id)):
         raise HTTPException(
             status_code=403, detail="Not this clinician's unresolved review flag"
         )
