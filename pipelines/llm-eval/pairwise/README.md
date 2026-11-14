@@ -21,7 +21,8 @@ moment; use `"not given"` when there is none.
 2. **Generate replies** for each prompt from the three models. This needs the GPU stack
    and is not in this code.
 3. **Blind** (`pairwise.write_blinded`): every pair in random A/B order. The rater sees
-   `comparisons.jsonl` only. `key.json` stays sealed until the ratings are in.
+   `comparisons.jsonl` only, with opaque IDs (`c0001`, ...). The prompt and the pair are in
+   `key.json` only, which stays sealed until the ratings are in.
 4. **Rate**: each comparison gets `A`, `B` or `tie` in `ratings.jsonl`.
 5. **Tally** (`pairwise.tally`): win share per pair with 95% Wilson intervals, ties
    counted apart, and the share of A picks as a check for position bias.

@@ -95,10 +95,30 @@ def beyond_noise(a: dict, b: dict) -> bool:
     return a["low"] > b["high"] or b["low"] > a["high"]
 
 
+def score_overlap(rows: Iterable[Row]) -> dict:
+    """Face and text on the same rows: only those where both give a reading.
+
+    score_mode scores each mode on its own subset, which differ; this is the like-for-like view.
+    """
+    both = [r for r in rows
+            if r.label in SCORED and r.face_reading() is not None and r.text_reading() is not None]
+    result = {"rows": len(both)}
+    for mode in ("face", "text"):
+        reader = MODES[mode]
+        hits = sum(1 for r in both if reader(r) == r.label)
+        low, high = wilson(hits, len(both))
+        result[mode] = {"accuracy": hits / len(both) if both else 0.0, "low": low, "high": high}
+    result["agree_share"] = (sum(1 for r in both if r.face_reading() == r.text_reading()) / len(both)
+                             if both else 0.0)
+    result["face_vs_text_beyond_noise"] = beyond_noise(result["face"], result["text"])
+    return result
+
+
 def compare(rows: list[Row]) -> dict:
-    """Face, text and combined scores for the four labels, plus the face vs text gap."""
+    """Face, text and combined scores for the four labels, the face vs text gap, and the overlap."""
     result = {mode: score_mode(rows, mode) for mode in MODES}
     result["face_vs_text_beyond_noise"] = beyond_noise(result["face"], result["text"])
+    result["overlap"] = score_overlap(rows)
     return result
 
 

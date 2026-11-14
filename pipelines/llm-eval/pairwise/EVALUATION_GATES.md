@@ -30,7 +30,8 @@ before the first scored run.
 - Raters: **[TEAM TO AGREE: who rates; a rater does not generate or select the replies they rate]**.
 - Rater instructions: [`RATERS.md`](RATERS.md).
 - Blinding: `pairwise.write_blinded` writes `comparisons.jsonl` (what raters see, in random A/B
-  order) and `key.json` (which model is A or B).
+  order) and `key.json` (which model is A or B). Comparison IDs are opaque (`c0001`, ...), with
+  the prompt and the pair kept only in `key.json`; a test checks that no visible field names a model.
 - Key holder: **[TEAM TO AGREE: one person, not a rater]**. The key is opened only after all
   ratings are in `ratings.jsonl`.
 - Position bias: the tally reports the share of A picks; a share far from 50% is noted in the report.

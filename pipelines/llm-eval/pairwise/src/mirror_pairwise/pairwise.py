@@ -7,7 +7,9 @@ Input (jsonl, one prompt per line):
 
 Output files:
   comparisons.jsonl  prompt, camera, reply_a, reply_b, comparison_id (what the rater sees)
-  key.json           comparison_id -> which model is A and which is B (sealed)
+  key.json           comparison_id -> prompt_id, pair, and which model is A and which is B (sealed)
+comparison_id is opaque (c0001, c0002, ...), numbered after the shuffle: it carries no prompt,
+pair or model name, and its order does not follow the pairs.
 Ratings (ratings.jsonl): {"comparison_id": "...", "choice": "A" | "B" | "tie"}
 """
 
@@ -38,21 +40,24 @@ def wilson(successes: int, n: int) -> tuple[float, float]:
 def build(prompts: list[dict], seed: int) -> tuple[list[dict], dict]:
     """Every pair for every prompt, with a random A/B order; returns (visible, key)."""
     rng = random.Random(seed)
-    visible, key = [], {}
+    rows = []
     for item in prompts:
         for left, right in PAIRS:
             flip = rng.random() < 0.5
             a, b = (right, left) if flip else (left, right)
-            cid = f"{item['prompt_id']}|{left}-{right}"
-            visible.append({
-                "comparison_id": cid,
-                "prompt": item["prompt"],
-                "camera": item.get("camera", "not given"),
-                "reply_a": item["replies"][a],
-                "reply_b": item["replies"][b],
-            })
-            key[cid] = {"A": a, "B": b, "pair": f"{left}-{right}"}
-    rng.shuffle(visible)  # the rater should not see the pairs in blocks
+            rows.append((item, a, b, f"{left}-{right}"))
+    rng.shuffle(rows)  # the rater should not see the pairs in blocks
+    visible, key = [], {}
+    for n, (item, a, b, pair) in enumerate(rows, start=1):
+        cid = f"c{n:04d}"  # opaque, like the style check's s0001: the pair stays in the key only
+        visible.append({
+            "comparison_id": cid,
+            "prompt": item["prompt"],
+            "camera": item.get("camera", "not given"),
+            "reply_a": item["replies"][a],
+            "reply_b": item["replies"][b],
+        })
+        key[cid] = {"prompt_id": item["prompt_id"], "A": a, "B": b, "pair": pair}
     return visible, key
 
 

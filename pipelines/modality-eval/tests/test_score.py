@@ -7,6 +7,7 @@ from mirror_modality_eval.score import (
     compare,
     frustration_reads,
     score_mode,
+    score_overlap,
     wilson,
 )
 
@@ -73,7 +74,28 @@ def test_beyond_noise():
 def test_compare_reports_all_modes():
     rows = [row(), row(label="anger", text="anger", face="angry")]
     result = compare(rows)
-    assert set(result) >= {"face", "text", "both", "face_vs_text_beyond_noise"}
+    assert set(result) >= {"face", "text", "both", "face_vs_text_beyond_noise", "overlap"}
+
+
+def test_overlap_uses_only_rows_where_both_read():
+    rows = [
+        row(label="joy", text="joy", tp=0.9, face="happy"),  # both read, both right
+        row(label="anger", text="anger", tp=0.9, face="sad"),  # both read, face wrong
+        row(label="sadness", text="sadness", tp=0.1, face="sad"),  # text below the bar
+        row(label="joy", text="joy", tp=0.9, status="uncertain"),  # face did not pass the gate
+        row(label="fear", text="fear", tp=0.9, face="fear"),  # not a scored label
+    ]
+    o = score_overlap(rows)
+    assert o["rows"] == 2
+    assert o["text"]["accuracy"] == pytest.approx(1.0)
+    assert o["face"]["accuracy"] == pytest.approx(0.5)
+    assert o["agree_share"] == pytest.approx(0.5)
+
+
+def test_overlap_empty():
+    o = score_overlap([row(tp=0.1)])
+    assert o["rows"] == 0
+    assert o["face"]["accuracy"] == 0.0
 
 
 def test_frustration_is_reported_not_scored():

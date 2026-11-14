@@ -15,6 +15,8 @@ IEMOCAP evaluation table (`pipelines/iemocap-data`).
 - Face counts only when the gate said "ok" (same rule as `fusion.py`).
 - "both" is a plain rule: text when it counts, otherwise face. It is not the gateway's
   fusion, which leans towards negative signals; the difference is stated in the report.
+- Each mode is scored on the rows where it gives a reading, and those subsets differ.
+  The report also scores face and text on the overlap: only the rows where both give a reading.
 - Intervals are Wilson 95%. A gap is "beyond noise" only when the intervals do not overlap.
 
 ## Input

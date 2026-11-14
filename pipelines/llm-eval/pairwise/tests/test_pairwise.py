@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from mirror_pairwise import PAIRS
@@ -20,8 +22,7 @@ def test_key_maps_back_to_the_right_replies():
     visible, key = build(PROMPTS, seed=2)
     by_id = {row["comparison_id"]: row for row in visible}
     for cid, info in key.items():
-        pid = cid.split("|")[0]
-        expected = PROMPTS[int(pid[1:])]["replies"]
+        expected = PROMPTS[int(info["prompt_id"][1:])]["replies"]
         assert by_id[cid]["reply_a"] == expected[info["A"]]
         assert by_id[cid]["reply_b"] == expected[info["B"]]
 
@@ -31,6 +32,22 @@ def test_visible_rows_hide_model_names():
     for row in visible:
         assert set(row) == {"comparison_id", "prompt", "camera", "reply_a", "reply_b"}
         assert "pair" not in row and "A" not in row
+
+
+def test_no_visible_field_contains_a_model_name():
+    names = {name for pair in PAIRS for name in pair}
+    visible, _ = build(PROMPTS, seed=9)
+    for row in visible:
+        for field, value in row.items():
+            assert not any(name in str(value) for name in names), (field, value)
+
+
+def test_comparison_ids_are_opaque_and_unique():
+    visible, key = build(PROMPTS, seed=10)
+    ids = [row["comparison_id"] for row in visible]
+    assert len(set(ids)) == len(ids) == len(key)
+    for cid in ids:
+        assert re.fullmatch(r"c\d{4}", cid)  # no prompt ID, pair or model name in it
 
 
 def test_orientation_is_mixed():
