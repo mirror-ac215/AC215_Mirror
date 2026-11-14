@@ -96,6 +96,37 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 - The medication rules catch a request for a decision, not every mention: "my sertraline makes me tired" gets a normal reply, and the prompt still tells the LLM never to talk about doses.
 - Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
+## Second safety layer (M4-15)
+
+The rules above match the wording they list. `app/crisis_meaning.py` adds a check by meaning:
+a sentence-embedding model (`sentence-transformers/all-mpnet-base-v2`, pinned, CPU, shipped in
+the image) compares each message with 23 reviewed crisis examples and 22 everyday look-alikes.
+It fires when the closest crisis example scores at least the threshold and beats the closest
+everyday one by the margin. The rules run first; either one firing is a crisis. If the model
+cannot load, the rules run alone. Only the example id is logged (`meaning-<id>`), never the text.
+
+**Calibration (Nov 14, `uv run python -m scripts.calibrate_crisis_meaning`).** Threshold and
+margin are chosen on the dev set, then applied unchanged to a holdout set never used for tuning
+(`tests/safety_meaning_cases.yaml`):
+
+| Set | Crisis phrasings caught | Everyday sentences flagged |
+|---|---|---|
+| dev (tuning) | 12 of 12 | 0 of 68 |
+| holdout | 4 of 8 (5 of 8 with the rules) | 0 of 10 |
+
+`all-MiniLM-L6-v2` was tried first and dropped: its best setting caught 11 of 12 dev phrasings
+but flagged 4 everyday sentences ("I hurt myself at the gym yesterday").
+
+**Read with care.** Dev is perfect because the examples were written after seeing it; holdout
+is the honest number: about half of new wording is caught. Still missed: "I've written a note
+for my mum", "I can't see any way out except dying", "I've decided tonight is the night". This
+layer adds catches without new false alarms in our tests; it does not make crisis detection
+complete. Both test sets were written by the same person, so a reviewer's own sentences are the
+next check.
+
+Real-model test: `RUN_MODEL_TESTS=1 uv run pytest tests/test_crisis_meaning_model.py` (known
+misses are strict xfails).
+
 ## Text-emotion module (M3-05)
 
 `app/text_emotion.py` turns one chat message into the two most likely emotions, in the shape the context object uses for `text.top2` (`docs/contracts/context_object.schema.json`):

@@ -54,16 +54,17 @@ class Settings(BaseSettings):
     text_emotion_max_chars: int = 2000
 
     # Second safety layer (M4-15): crisis by meaning (app/crisis_meaning.py).
-    # PROVISIONAL until calibrated: run scripts/calibrate_crisis_meaning.py, then pin the
-    # revision to the commit it prints and set the threshold and margin from its output.
-    # Until the model is in the image's cache, this layer is off and the rules run alone.
+    # Pinned and calibrated Nov 14 with scripts/calibrate_crisis_meaning.py (README,
+    # "Second safety layer"): threshold and margin chosen on the dev set; holdout caught
+    # 4 of 8 new crisis phrasings with 0 false alarms. Re-run it after changing the model
+    # or the examples, and pin the revision it prints, never "main".
     crisis_meaning_enabled: bool = True
     # all-MiniLM-L6-v2 was tried first: it could not separate crisis from everyday
     # sentences (calibration, Nov 14). all-mpnet-base-v2 is larger (~420 MB) and stronger.
     crisis_meaning_model: str = "sentence-transformers/all-mpnet-base-v2"
-    crisis_meaning_revision: str = "main"
-    crisis_meaning_threshold: float = Field(default=0.60, ge=-1, le=1)
-    crisis_meaning_margin: float = Field(default=0.05, ge=0, le=2)
+    crisis_meaning_revision: str = "e8c3b32edf5434bc2275fc9bab85f82640a19130"
+    crisis_meaning_threshold: float = Field(default=0.56, ge=-1, le=1)
+    crisis_meaning_margin: float = Field(default=0.00, ge=0, le=2)
 
     # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
     # result is noisy, so the gateway averages the recent ones and decides
