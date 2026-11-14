@@ -11,7 +11,7 @@ before the first scored run.
 ## Gate 1: harmful-completion rubric
 
 - The labelling rule is [`HARM_LABELLING.md`](HARM_LABELLING.md) (refuse / complete / unclear).
-- Agreed by: **[TEAM TO AGREE: names, date]**.
+- Agreed by: Mostafa (proposed on #100, Nov 13), Owen (approval on #100, Nov 14), Julie (Nov 14).
 - Any change to the rule after agreement restarts Gate 2.
 
 ## Gate 2: rater agreement (Cohen's kappa)
@@ -20,19 +20,20 @@ before the first scored run.
 - Kappa is computed with `cohen_kappa` in `src/mirror_pairwise/harm.py`.
 - Interpretation: Landis and Koch bands (0.41–0.60 moderate, 0.61–0.80 substantial,
   0.81–1.00 almost perfect).
-- Pass threshold: **[TEAM TO AGREE: minimum kappa]**.
+- Pass threshold: **kappa ≥ 0.6** (agreed on #100, Nov 14).
 - Below the threshold: tighten the rule (`HARM_LABELLING.md`, rules 1–2), label a new sample of
   20 and compute kappa again. The full set is not scored until a sample passes.
 - Recorded result: **[kappa, number of unclear labels, date]**.
 
 ## Gate 3: raters and blinding
 
-- Raters: **[TEAM TO AGREE: who rates; a rater does not generate or select the replies they rate]**.
+- Raters: **Owen and Julie** (agreed on #100, Nov 14). Kappa needs exactly two raters. A rater
+  does not generate or select the replies they rate.
 - Rater instructions: [`RATERS.md`](RATERS.md).
 - Blinding: `pairwise.write_blinded` writes `comparisons.jsonl` (what raters see, in random A/B
   order) and `key.json` (which model is A or B). Comparison IDs are opaque (`c0001`, ...), with
   the prompt and the pair kept only in `key.json`; a test checks that no visible field names a model.
-- Key holder: **[TEAM TO AGREE: one person, not a rater]**. The key is opened only after all
+- Key holder: **Mostafa**, not a rater (agreed on #100, Nov 14). The key is opened only after all
   ratings are in `ratings.jsonl`.
 - Position bias: the tally reports the share of A picks; a share far from 50% is noted in the report.
 
@@ -41,7 +42,7 @@ before the first scored run.
 | Input | Source | Where it lives |
 |---|---|---|
 | Held-out prompts | Persona test split, never seen in training (`split.held_out`, fixed seed) | DVC (`data/processed/persona/v1`) |
-| Model replies | Generated on the GPU stack from base, LoRA and LoRA with visual context | GCS run folder, not Git |
+| Model replies | First run: plain Qwen without and with the camera note, generated on the GPU stack | GCS run folder, not Git |
 | Ratings and labels | Raters, per Gate 3 | GCS run folder, not Git |
 | IEMOCAP table (modality-eval) | `pipelines/iemocap-data` stage `iemocap_build`, licensed dataset | DVC (`data/processed/iemocap/v1`) |
 | Face readings per utterance (modality-eval) | Second PR of M3-21: **not built yet** | Not available; modality-eval stays unscored until it exists |
@@ -54,7 +55,7 @@ outputs, and the repository `.gitignore` already excludes `data/` and model weig
 
 | Gate | Met on | By |
 |---|---|---|
-| 1 Rubric | | |
-| 2 Kappa | | |
-| 3 Raters and blinding | | |
-| 4 Inputs | | |
+| 1 Rubric | Nov 14, 2026 | Mostafa, Owen, Julie (#100) |
+| 2 Kappa | Not yet: threshold agreed (≥ 0.6); needs the 20-reply sample | |
+| 3 Raters and blinding | Nov 14, 2026 | Mostafa, Owen, Julie (#100) |
+| 4 Inputs | Not yet: replies not generated; face readings per utterance not built (modality-eval stays unscored) | |

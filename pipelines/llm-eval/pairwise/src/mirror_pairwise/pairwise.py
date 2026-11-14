@@ -2,7 +2,9 @@
 
 Input (jsonl, one prompt per line):
   {"prompt_id": "...", "prompt": "...", "camera": "ok: happy" | "uncertain" | "dropped" | "camera_off",
-   "replies": {"base": "...", "lora": "...", "lora_visual": "..."}}
+   "replies": {"plain": "...", "plain_camera": "..."}}
+"replies" holds one reply per model named in PAIRS (first run: plain Qwen without and with the
+camera note).
 "camera" is the gate's reading for that moment, shown to the rater. Missing means "not given".
 
 Output files:
@@ -37,12 +39,14 @@ def wilson(successes: int, n: int) -> tuple[float, float]:
     return max(0.0, centre - half), min(1.0, centre + half)
 
 
-def build(prompts: list[dict], seed: int) -> tuple[list[dict], dict]:
+def build(
+    prompts: list[dict], seed: int, pairs: tuple[tuple[str, str], ...] = PAIRS
+) -> tuple[list[dict], dict]:
     """Every pair for every prompt, with a random A/B order; returns (visible, key)."""
     rng = random.Random(seed)
     rows = []
     for item in prompts:
-        for left, right in PAIRS:
+        for left, right in pairs:
             flip = rng.random() < 0.5
             a, b = (right, left) if flip else (left, right)
             rows.append((item, a, b, f"{left}-{right}"))
@@ -100,12 +104,14 @@ def tally(key: dict, ratings: list[dict]) -> dict:
     return result
 
 
-def write_blinded(prompts: list[dict], seed: int, out_dir: str) -> None:
+def write_blinded(
+    prompts: list[dict], seed: int, out_dir: str, pairs: tuple[tuple[str, str], ...] = PAIRS
+) -> None:
     from pathlib import Path
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    visible, key = build(prompts, seed)
+    visible, key = build(prompts, seed, pairs)
     with open(out / "comparisons.jsonl", "w") as f:
         f.writelines(json.dumps(row) + "\n" for row in visible)
     (out / "key.json").write_text(json.dumps(key, indent=2))
