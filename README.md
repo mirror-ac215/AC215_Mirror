@@ -110,6 +110,8 @@ Tests: every service has its own unit tests, and CI runs them plus contract vali
 | `docs/` | Architecture and project context, API contracts, model cards, decisions |
 | `secrets/` | Keys and credentials. **Never committed**; see `secrets/README.md` |
 
+For the application design (screens and user flows, architecture, data flow, a sequence diagram, the API table and the code layout), see [`docs/design.md`](docs/design.md).
+
 Start with [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). It covers:
 - the architecture;
 - what happens on one chat turn;
