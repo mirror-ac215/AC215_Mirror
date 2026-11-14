@@ -21,9 +21,7 @@ async def test_predict_returns_normal_no_face_response() -> None:
 
     app = create_app(model_loader=object, face_detector=lambda image: None)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/predict",
             files={"image": ("scene.jpg", jpeg_bytes(), "image/jpeg")},
@@ -59,9 +57,7 @@ async def test_predict_returns_top_two_probabilities_for_a_detected_face() -> No
         classifier=lambda face: probabilities,
     )
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/predict",
             files={"image": ("face.jpg", jpeg_bytes(), "image/jpeg")},
@@ -85,9 +81,7 @@ async def test_predict_rejects_unreadable_jpeg_sample() -> None:
 
     app = create_app(model_loader=object, face_detector=lambda image: None)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/predict",
             files={"image": ("broken.jpg", b"not a JPEG", "image/jpeg")},

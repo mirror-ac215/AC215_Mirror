@@ -21,7 +21,9 @@ SCHEMA = json.loads(
     )
 )
 # Just the `visual` part of the contract (it reuses the shared top2 definition).
-VISUAL_VALIDATOR = Draft202012Validator({"$defs": SCHEMA["$defs"], **SCHEMA["properties"]["visual"]})
+VISUAL_VALIDATOR = Draft202012Validator(
+    {"$defs": SCHEMA["$defs"], **SCHEMA["properties"]["visual"]}
+)
 
 LABELS = ("angry", "disgust", "fear", "happy", "neutral", "sad", "surprise")
 
@@ -87,7 +89,9 @@ def test_uncertain_when_reading_is_weak(settings: Settings) -> None:
 def test_uncertain_when_most_frames_disagree_with_the_average(settings: Settings) -> None:
     # 2 frames clearly sad, 3 frames narrowly happy (happy 0.50, sad 0.45). Averaged, sad leads
     # comfortably (0.63 vs 0.31), but it is the top emotion in only 2 of 5 frames: stability 0.40 < 0.50.
-    readings = [face(t, sad=0.9) for t in range(2)] + [face(t, happy=0.50, sad=0.45) for t in range(2, 5)]
+    readings = [face(t, sad=0.9) for t in range(2)] + [
+        face(t, happy=0.50, sad=0.45) for t in range(2, 5)
+    ]
     result = check(gate(readings, settings, camera_on=True))
     assert result["status"] == "uncertain"
     assert result["top2"][0][0] == "sad"
@@ -123,6 +127,7 @@ def test_thresholds_come_from_config(monkeypatch) -> None:
     readings = [face(t, sad=0.6, neutral=0.25) for t in range(5)]
     monkeypatch.setenv("GATE_MIN_TOP_PROB", "0.7")
     assert gate(readings, Settings(), camera_on=True)["status"] == "uncertain"
+
 
 # Owen (#52): a bad threshold or frame setting must stop the gateway at startup.
 @pytest.mark.parametrize(
@@ -162,10 +167,22 @@ def test_invalid_gate_settings_are_rejected(monkeypatch, variable: str, value: s
         {label: 0.1 for label in LABELS},  # adds up to 0.7
         {label: 0.0 for label in LABELS},
     ],
-    ids=["one label", "missing label", "extra label", "NaN", "above 1", "text", "bool",
-         "sum too high", "sum too low", "all zero"],
+    ids=[
+        "one label",
+        "missing label",
+        "extra label",
+        "NaN",
+        "above 1",
+        "text",
+        "bool",
+        "sum too high",
+        "sum too low",
+        "all zero",
+    ],
 )
-def test_malformed_probabilities_are_dropped_not_crashed(settings: Settings, bad_probs: dict) -> None:
+def test_malformed_probabilities_are_dropped_not_crashed(
+    settings: Settings, bad_probs: dict
+) -> None:
     readings = [FrameReading(ts=t, face_found=True, probs=bad_probs) for t in range(5)]
     assert check(gate(readings, settings, camera_on=True))["status"] == "dropped"
 

@@ -18,9 +18,7 @@ async def test_predict_batch_returns_a_no_face_result_for_each_input() -> None:
 
     app = create_app(model_loader=object, face_detector=lambda image: None)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/predict_batch",
             files=[
@@ -58,14 +56,11 @@ async def test_predict_batch_rejects_more_than_eight_images() -> None:
 
     app = create_app(model_loader=object, face_detector=lambda image: None)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/predict_batch",
             files=[
-                ("images", (f"scene-{index}.jpg", jpeg_bytes(), "image/jpeg"))
-                for index in range(9)
+                ("images", (f"scene-{index}.jpg", jpeg_bytes(), "image/jpeg")) for index in range(9)
             ],
         )
 

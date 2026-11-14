@@ -14,8 +14,9 @@ class FocalLoss(nn.Module):
     (disgust, fear, sad on FER-2013) get more of the gradient.
     """
 
-    def __init__(self, gamma: float = 2.0, alpha: torch.Tensor | None = None,
-                 label_smoothing: float = 0.0) -> None:
+    def __init__(
+        self, gamma: float = 2.0, alpha: torch.Tensor | None = None, label_smoothing: float = 0.0
+    ) -> None:
         super().__init__()
         self.gamma = gamma
         self.label_smoothing = label_smoothing

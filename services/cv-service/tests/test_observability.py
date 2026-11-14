@@ -8,9 +8,7 @@ async def test_metrics_tracks_requests_and_request_ids_are_returned() -> None:
 
     app = create_app(model_loader=object)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         health = await client.get("/health", headers={"X-Request-ID": "cv-test-123"})
         metrics = await client.get("/metrics")
 

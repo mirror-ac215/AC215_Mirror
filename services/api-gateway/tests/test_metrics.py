@@ -136,6 +136,4 @@ def test_caddy_blocks_public_metrics() -> None:
     )
     block = caddyfile.index("handle /api/metrics* {")
     assert "respond 404" in caddyfile[block : caddyfile.index("}", block)]
-    assert block < caddyfile.index(
-        "handle_path /api/*"
-    )  # listed before the general /api proxy
+    assert block < caddyfile.index("handle_path /api/*")  # listed before the general /api proxy

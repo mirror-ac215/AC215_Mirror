@@ -369,11 +369,26 @@ jobs:
         if: always()
         run: docker compose -f infra/compose.yml --profile monitoring down -v
 
+  python_lint:
+    name: Python lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Check Python lint and formatting
+        run: |
+          uvx --from ruff==0.16.9 ruff check --config ruff.toml services pipelines
+          uvx --from ruff==0.16.9 ruff format --config ruff.toml --check services pipelines
+
   ci_summary:
     name: CI summary
     # Preserve both independently added path-gated jobs: removing either from
     # `needs` would let its failed result bypass this fail-closed summary.
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, compose, python_lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -416,9 +431,15 @@ jobs:
           CONTRACT_VALIDATION_RESULT: ${{ needs.contract_validation.result }}
           COMPOSE_CHANGED: ${{ needs.changes.outputs.compose }}
           COMPOSE_RESULT: ${{ needs.compose.result }}
+          PYTHON_LINT_RESULT: ${{ needs.python_lint.result }}
         run: |
           if [ "$CHANGES_RESULT" != "success" ]; then
             echo "Changed-component detection did not pass: $CHANGES_RESULT"
+            exit 1
+          fi
+
+          if [ "$PYTHON_LINT_RESULT" != "success" ]; then
+            echo "Python lint and format checks did not pass: $PYTHON_LINT_RESULT"
             exit 1
           fi
 

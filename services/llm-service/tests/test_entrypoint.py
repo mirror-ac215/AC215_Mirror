@@ -41,9 +41,16 @@ def test_real_mode_passes_tunable_vllm_settings(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     arguments = captured.read_text().splitlines()
     assert "--enable-lora" in arguments
-    assert ["--max-lora-rank", "32"] == arguments[arguments.index("--max-lora-rank") : arguments.index("--max-lora-rank") + 2]
-    assert ["--gpu-memory-utilization", "0.7"] == arguments[arguments.index("--gpu-memory-utilization") : arguments.index("--gpu-memory-utilization") + 2]
-    assert ["--dtype", "half"] == arguments[arguments.index("--dtype") : arguments.index("--dtype") + 2]
+    assert ["--max-lora-rank", "32"] == arguments[
+        arguments.index("--max-lora-rank") : arguments.index("--max-lora-rank") + 2
+    ]
+    assert ["--gpu-memory-utilization", "0.7"] == arguments[
+        arguments.index("--gpu-memory-utilization") : arguments.index("--gpu-memory-utilization")
+        + 2
+    ]
+    assert ["--dtype", "half"] == arguments[
+        arguments.index("--dtype") : arguments.index("--dtype") + 2
+    ]
 
 
 def test_real_mode_serves_the_plain_base_model_without_an_adapter(tmp_path: Path) -> None:
@@ -53,7 +60,9 @@ def test_real_mode_serves_the_plain_base_model_without_an_adapter(tmp_path: Path
     arguments = captured.read_text().splitlines()
     assert arguments[:2] == ["serve", "Qwen/Qwen2.5-3B-Instruct"]
     assert not {"--enable-lora", "--lora-modules", "--max-lora-rank"} & set(arguments)
-    assert ["--served-model-name", "mirror-persona-v1"] == arguments[arguments.index("--served-model-name") : arguments.index("--served-model-name") + 2]
+    assert ["--served-model-name", "mirror-persona-v1"] == arguments[
+        arguments.index("--served-model-name") : arguments.index("--served-model-name") + 2
+    ]
 
 
 def test_real_mode_refuses_a_missing_adapter_path(tmp_path: Path) -> None:

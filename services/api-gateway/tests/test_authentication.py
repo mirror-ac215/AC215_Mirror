@@ -37,9 +37,7 @@ async def test_authenticate_user_accepts_a_seeded_bcrypt_password() -> None:
     )
     users = FakeUsers(seeded)
 
-    authenticated = await authenticate_user(
-        users, "Clinician.Ada@Example.Test", password
-    )
+    authenticated = await authenticate_user(users, "Clinician.Ada@Example.Test", password)
 
     assert authenticated == AuthenticatedUser(
         user_id=seeded.user_id, email=seeded.email, role="clinician"
@@ -48,9 +46,7 @@ async def test_authenticate_user_accepts_a_seeded_bcrypt_password() -> None:
 
 
 @pytest.mark.anyio
-async def test_authenticate_user_returns_none_for_unknown_user_or_wrong_password() -> (
-    None
-):
+async def test_authenticate_user_returns_none_for_unknown_user_or_wrong_password() -> None:
     seeded = StoredUser(
         user_id="00000000-0000-0000-0000-000000000201",
         email="patient.alex@example.test",
@@ -58,14 +54,8 @@ async def test_authenticate_user_returns_none_for_unknown_user_or_wrong_password
         password_hash=bcrypt.hashpw(b"mirror-demo", bcrypt.gensalt()).decode(),
     )
 
-    assert (
-        await authenticate_user(FakeUsers(None), "nobody@example.test", "mirror-demo")
-        is None
-    )
-    assert (
-        await authenticate_user(FakeUsers(seeded), seeded.email, "wrong-password")
-        is None
-    )
+    assert await authenticate_user(FakeUsers(None), "nobody@example.test", "mirror-demo") is None
+    assert await authenticate_user(FakeUsers(seeded), seeded.email, "wrong-password") is None
 
 
 def test_unknown_user_bcrypt_cost_matches_seeded_password_hashes() -> None:
@@ -94,10 +84,7 @@ async def test_authenticate_user_runs_bcrypt_for_an_unknown_email(
 
 
 def test_login_client_ip_ignores_forwarded_header_from_an_untrusted_peer() -> None:
-    assert (
-        login_client_ip("198.51.100.10", "203.0.113.8", ["10.0.0.0/8"])
-        == "198.51.100.10"
-    )
+    assert login_client_ip("198.51.100.10", "203.0.113.8", ["10.0.0.0/8"]) == "198.51.100.10"
 
 
 def test_login_client_ip_uses_rightmost_untrusted_forwarded_hop_from_trusted_proxy() -> None:

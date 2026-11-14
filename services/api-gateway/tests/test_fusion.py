@@ -17,8 +17,13 @@ VALIDATOR = Draft202012Validator(SCHEMA)
 
 
 def face(label: str, prob: float, status: str = "ok") -> dict:
-    return {"status": status, "top2": [[label, prob], ["neutral", 0.1]], "stability": 0.9,
-            "window_s": 10.0, "n_frames": 8}
+    return {
+        "status": status,
+        "top2": [[label, prob], ["neutral", 0.1]],
+        "stability": 0.9,
+        "window_s": 10.0,
+        "n_frames": 8,
+    }
 
 
 def words(label: str, prob: float) -> dict:

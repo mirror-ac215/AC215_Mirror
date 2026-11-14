@@ -1,4 +1,4 @@
-""" Checks whether the services the gateway depends on are reachable."""
+"""Checks whether the services the gateway depends on are reachable."""
 
 import asyncio
 
@@ -16,6 +16,7 @@ async def check_http(base_url: str, timeout_s: float) -> str:
     except httpx.HTTPError:
         return "down"
 
+
 async def check_tcp(host: str, port: int, timeout_s: float) -> str:
     """'ok' if sometghing accepts a connection on host:port (used for Postgres)."""
     try:
@@ -25,6 +26,7 @@ async def check_tcp(host: str, port: int, timeout_s: float) -> str:
         return "ok"
     except (OSError, TimeoutError):
         return "down"
+
 
 async def check_dependencies(settings: Settings) -> dict[str, str]:
     """Check all dependencies at the same time and report each one."""

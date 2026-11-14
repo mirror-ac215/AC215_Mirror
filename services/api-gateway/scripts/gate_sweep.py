@@ -88,15 +88,21 @@ def score(cases: list, settings: Settings) -> dict[str, float]:
         "precision": hits / ok if ok else 0.0,
         "dropped": statuses["dropped"] / len(cases),
         "classes_seen_ok": sum(1 for n, _ in per_class.values() if n),
-        **{f"precision_{label}": per_class[label][1] / per_class[label][0] if per_class[label][0] else 0.0
-           for label in LABELS},
+        **{
+            f"precision_{label}": per_class[label][1] / per_class[label][0]
+            if per_class[label][0]
+            else 0.0
+            for label in LABELS
+        },
     }
 
 
 def main() -> int:
     command = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     command.add_argument("frames", type=Path, help="CSV from export_frame_probs.py")
-    command.add_argument("--fps", type=float, default=1.0, help="frames per second the frontend sends")
+    command.add_argument(
+        "--fps", type=float, default=1.0, help="frames per second the frontend sends"
+    )
     command.add_argument("--target", type=float, default=0.70, help="precision the gate must reach")
     command.add_argument("--wandb-project", help="log every combination to this W&B project")
     args = command.parse_args()
@@ -110,12 +116,20 @@ def main() -> int:
 
     current = next(r for r in results if all(r[k] == getattr(base, k) for k in GRID))
     reaching = [r for r in results if r["precision"] >= args.target]
-    best = max(reaching, key=lambda r: r["coverage"]) if reaching else max(results, key=lambda r: r["precision"])
-    print(f"{len(cases)} windows from {args.frames.name} at {args.fps} fps, target precision {args.target:.0%}")
+    best = (
+        max(reaching, key=lambda r: r["coverage"])
+        if reaching
+        else max(results, key=lambda r: r["precision"])
+    )
+    print(
+        f"{len(cases)} windows from {args.frames.name} at {args.fps} fps, target precision {args.target:.0%}"
+    )
     for name, r in (("current", current), ("chosen", best)):
-        print(f"{name:8s} top>={r['gate_min_top_prob']:.2f} margin>={r['gate_min_margin']:.2f} "
-              f"stability>={r['gate_min_stability']:.2f} -> ok in {r['coverage']:.0%} of windows, "
-              f"right {r['precision']:.0%} of the time")
+        print(
+            f"{name:8s} top>={r['gate_min_top_prob']:.2f} margin>={r['gate_min_margin']:.2f} "
+            f"stability>={r['gate_min_stability']:.2f} -> ok in {r['coverage']:.0%} of windows, "
+            f"right {r['precision']:.0%} of the time"
+        )
 
     # The trade-off curve: settings where no other choice is both more often ok and more often right.
     print("best trade-offs (coverage -> precision):")
@@ -124,18 +138,33 @@ def main() -> int:
         if not frontier or r["precision"] > frontier[-1]["precision"]:
             frontier.append(r)
     for r in frontier:
-        print(f"  ok {r['coverage']:4.0%} -> right {r['precision']:.0%}   (top>={r['gate_min_top_prob']:.2f}, "
-              f"margin>={r['gate_min_margin']:.2f}, stability>={r['gate_min_stability']:.2f})")
+        print(
+            f"  ok {r['coverage']:4.0%} -> right {r['precision']:.0%}   (top>={r['gate_min_top_prob']:.2f}, "
+            f"margin>={r['gate_min_margin']:.2f}, stability>={r['gate_min_stability']:.2f})"
+        )
 
     if args.wandb_project:
         import wandb
 
-        run = wandb.init(project=args.wandb_project, job_type="gate-sweep",
-                         config={"frames": args.frames.name, "fps": args.fps, "target": args.target,
-                                 "window_s": base.gate_window_s, "n_windows": len(cases)})
+        run = wandb.init(
+            project=args.wandb_project,
+            job_type="gate-sweep",
+            config={
+                "frames": args.frames.name,
+                "fps": args.fps,
+                "target": args.target,
+                "window_s": base.gate_window_s,
+                "n_windows": len(cases),
+            },
+        )
         columns = list(results[0])
-        run.log({"sweep": wandb.Table(columns=columns, data=[[r[c] for c in columns] for r in results])})
-        run.summary.update({f"chosen/{k}": v for k, v in best.items()} | {f"current/{k}": v for k, v in current.items()})
+        run.log(
+            {"sweep": wandb.Table(columns=columns, data=[[r[c] for c in columns] for r in results])}
+        )
+        run.summary.update(
+            {f"chosen/{k}": v for k, v in best.items()}
+            | {f"current/{k}": v for k, v in current.items()}
+        )
         run.finish()
     return 0
 

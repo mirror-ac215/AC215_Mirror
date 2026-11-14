@@ -39,7 +39,11 @@ def score(key: dict, guesses: list[dict]) -> dict:
         "accuracy": correct / n if n else 0.0,
         "low": low,
         "high": high,
-        "verdict": ("raters can tell them apart" if low > 0.5
-                    else "no clear difference from chance" if high >= 0.5
-                    else "raters are below chance"),
+        "verdict": (
+            "raters can tell them apart"
+            if low > 0.5
+            else "no clear difference from chance"
+            if high >= 0.5
+            else "raters are below chance"
+        ),
     }

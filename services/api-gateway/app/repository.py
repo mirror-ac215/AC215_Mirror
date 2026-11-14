@@ -47,9 +47,7 @@ class InMemoryRepository:
             }
         )
 
-    async def add_message(
-        self, session_id: str, role: str, text: str, safety_hit: bool
-    ) -> str:
+    async def add_message(self, session_id: str, role: str, text: str, safety_hit: bool) -> str:
         message_id = f"memory-message-{len(self.messages) + 1}"
         self.messages.append(
             {
@@ -98,9 +96,7 @@ class PostgresRepository:
             (session_id, patient_id, started_at, camera_consent),
         )
 
-    async def add_message(
-        self, session_id: str, role: str, text: str, safety_hit: bool
-    ) -> str:
+    async def add_message(self, session_id: str, role: str, text: str, safety_hit: bool) -> str:
         return await asyncio.to_thread(
             self._insert_returning_id,
             "INSERT INTO messages (session_id, role, text, safety_hit) VALUES (%s, %s, %s, %s) RETURNING id",

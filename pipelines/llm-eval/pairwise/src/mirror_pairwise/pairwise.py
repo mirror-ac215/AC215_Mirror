@@ -50,13 +50,15 @@ def build(prompts: list[dict], seed: int) -> tuple[list[dict], dict]:
     visible, key = [], {}
     for n, (item, a, b, pair) in enumerate(rows, start=1):
         cid = f"c{n:04d}"  # opaque, like the style check's s0001: the pair stays in the key only
-        visible.append({
-            "comparison_id": cid,
-            "prompt": item["prompt"],
-            "camera": item.get("camera", "not given"),
-            "reply_a": item["replies"][a],
-            "reply_b": item["replies"][b],
-        })
+        visible.append(
+            {
+                "comparison_id": cid,
+                "prompt": item["prompt"],
+                "camera": item.get("camera", "not given"),
+                "reply_a": item["replies"][a],
+                "reply_b": item["replies"][b],
+            }
+        )
         key[cid] = {"prompt_id": item["prompt_id"], "A": a, "B": b, "pair": pair}
     return visible, key
 
@@ -80,17 +82,27 @@ def tally(key: dict, ratings: list[dict]) -> dict:
     for pair, w in wins.items():
         n = w["first"] + w["second"]
         low, high = wilson(w["first"], n)
-        result[pair] = {"first_wins": w["first"], "second_wins": w["second"], "ties": w["tie"],
-                        "share_first": w["first"] / n if n else 0.0, "low": low, "high": high}
+        result[pair] = {
+            "first_wins": w["first"],
+            "second_wins": w["second"],
+            "ties": w["tie"],
+            "share_first": w["first"] / n if n else 0.0,
+            "low": low,
+            "high": high,
+        }
     # A rater who always picks A is a position bias, not a preference: report it.
     low, high = wilson(a_wins, decided)
-    result["position_a_share"] = {"value": a_wins / decided if decided else 0.0,
-                                  "low": low, "high": high}
+    result["position_a_share"] = {
+        "value": a_wins / decided if decided else 0.0,
+        "low": low,
+        "high": high,
+    }
     return result
 
 
 def write_blinded(prompts: list[dict], seed: int, out_dir: str) -> None:
     from pathlib import Path
+
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     visible, key = build(prompts, seed)
@@ -114,7 +126,11 @@ def length_report(rows: list[dict]) -> dict:
     for row in rows:
         by_model[row["model"]].append(sentence_count(row["reply"]))
     return {
-        model: {"median_sentences": statistics.median(counts), "n": len(counts),
-                "under_2_share": sum(c < 2 for c in counts) / len(counts)}
-        for model, counts in by_model.items() if counts
+        model: {
+            "median_sentences": statistics.median(counts),
+            "n": len(counts),
+            "under_2_share": sum(c < 2 for c in counts) / len(counts),
+        }
+        for model, counts in by_model.items()
+        if counts
     }

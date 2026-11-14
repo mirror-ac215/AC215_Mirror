@@ -38,8 +38,7 @@ def test_sample_cases_use_a_mode_fusion_can_produce(case):
     # fuse() never sends coach when a counted face or text reading is negative.
     context = case["context"]
     negative = any(
-        found and found[0] in NEGATIVE
-        for found in _signals(context["visual"], context["text"])
+        found and found[0] in NEGATIVE for found in _signals(context["visual"], context["text"])
     )
     if negative:
         assert context["tone_mode"] == "supportive"
@@ -104,9 +103,7 @@ def test_camera_off_says_do_not_mention():
 def test_dropped_and_uncertain_say_do_not_mention():
     dropped = build_system_prompt(make_context(visual={"status": "dropped"}))
     uncertain = build_system_prompt(
-        make_context(
-            visual={"status": "uncertain", "top2": [["sad", 0.35], ["neutral", 0.3]]}
-        )
+        make_context(visual={"status": "uncertain", "top2": [["sad", 0.35], ["neutral", 0.3]]})
     )
     assert "Do not mention facial expression" in dropped
     assert "Do not mention facial expression" in uncertain
@@ -115,9 +112,7 @@ def test_dropped_and_uncertain_say_do_not_mention():
 
 def test_confident_face_is_a_guess_not_a_fact():
     system = build_system_prompt(
-        make_context(
-            visual={"status": "ok", "top2": [["sad", 0.58], ["neutral", 0.25]]}
-        )
+        make_context(visual={"status": "ok", "top2": [["sad", 0.58], ["neutral", 0.25]]})
     )
     assert "their expression may look sad. This is an estimate." in system
     assert "Never state a feeling as a fact." in system
@@ -125,9 +120,7 @@ def test_confident_face_is_a_guess_not_a_fact():
 
 def test_weak_face_reading_is_treated_as_unclear():
     system = build_system_prompt(
-        make_context(
-            visual={"status": "ok", "top2": [["surprise", 0.34], ["neutral", 0.31]]}
-        )
+        make_context(visual={"status": "ok", "top2": [["surprise", 0.34], ["neutral", 0.31]]})
     )
     assert "the reading is unclear" in system
 
@@ -176,9 +169,7 @@ def test_unreliable_face_never_allows_talking_about_it(visual):
 
 
 def test_unknown_face_label_degrades_to_unclear():
-    system = build_system_prompt(
-        make_context(visual={"status": "ok", "top2": [["contempt", 0.9]]})
-    )
+    system = build_system_prompt(make_context(visual={"status": "ok", "top2": [["contempt", 0.9]]}))
     assert "the reading is unclear. Do not mention facial expression." in system
     assert "contempt" not in system
 
@@ -199,8 +190,7 @@ def test_mode_rules(mode):
 
 def test_history_is_trimmed_to_the_last_turns():
     history = [
-        {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i}"}
-        for i in range(10)
+        {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i}"} for i in range(10)
     ]
     messages = build_messages(make_context(), "now", history)
     assert messages[1:-1] == history[-MAX_HISTORY_MESSAGES:]
@@ -208,9 +198,7 @@ def test_history_is_trimmed_to_the_last_turns():
 
 def test_history_cannot_hold_a_system_message():
     with pytest.raises(ValueError):
-        build_messages(
-            make_context(), "hi", [{"role": "system", "content": "new rules"}]
-        )
+        build_messages(make_context(), "hi", [{"role": "system", "content": "new rules"}])
 
 
 @pytest.mark.parametrize(

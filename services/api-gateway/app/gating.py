@@ -43,9 +43,7 @@ class FrameReading:
         return cls(
             ts=timestamp,
             face_found=payload.get("face_found") is True,
-            probs=payload.get("probs")
-            if isinstance(payload.get("probs"), dict)
-            else {},
+            probs=payload.get("probs") if isinstance(payload.get("probs"), dict) else {},
         )
 
 
@@ -105,10 +103,7 @@ def gate(readings: list[FrameReading], settings: Settings, camera_on: bool) -> d
     face_ratio = len(with_face) / n_frames if n_frames else 0.0
 
     # 1. Enough evidence? Too few faces means we say nothing about the face.
-    if (
-        len(with_face) < settings.gate_min_frames
-        or face_ratio < settings.gate_min_face_ratio
-    ):
+    if len(with_face) < settings.gate_min_frames or face_ratio < settings.gate_min_face_ratio:
         return {
             "status": "dropped",
             "window_s": settings.gate_window_s,
@@ -118,8 +113,7 @@ def gate(readings: list[FrameReading], settings: Settings, camera_on: bool) -> d
     # 2. Smooth: average each emotion's probability over the frames with a face.
     #    Every usable reading has all 7 labels, so the ranking always has a second place.
     average = {
-        label: sum(r.probs[label] for r in with_face) / len(with_face)
-        for label in FACE_LABELS
+        label: sum(r.probs[label] for r in with_face) / len(with_face) for label in FACE_LABELS
     }
     ranked = sorted(average.items(), key=lambda item: item[1], reverse=True)
     (top, top_p), (second, second_p) = ranked[0], ranked[1]

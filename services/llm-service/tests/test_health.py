@@ -11,9 +11,7 @@ async def test_mock_mode_health_reports_ready_without_model_loading(monkeypatch)
     from app.main import create_app
 
     app = create_app()
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/health")
 
     assert response.status_code == 200
@@ -33,9 +31,7 @@ async def test_mock_mode_returns_a_deterministic_openai_completion(monkeypatch) 
         "max_tokens": 30,
         "temperature": 0.7,
     }
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/v1/chat/completions", json=request)
 
     assert response.status_code == 200
@@ -68,9 +64,7 @@ async def test_mock_mode_streams_openai_chunks_and_done_sentinel(monkeypatch) ->
         "messages": [{"role": "user", "content": "I am overwhelmed today."}],
         "stream": True,
     }
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/v1/chat/completions", json=request)
 
     assert response.status_code == 200
@@ -93,12 +87,11 @@ async def test_mock_mode_streams_openai_chunks_and_done_sentinel(monkeypatch) ->
     assert chunks[0]["choices"] == [
         {"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}
     ]
-    assert "".join(
-        chunk["choices"][0]["delta"].get("content", "") for chunk in chunks
-    ) == "That sounds like a lot to carry. What feels most pressing right now?"
-    assert chunks[-1]["choices"] == [
-        {"index": 0, "delta": {}, "finish_reason": "stop"}
-    ]
+    assert (
+        "".join(chunk["choices"][0]["delta"].get("content", "") for chunk in chunks)
+        == "That sounds like a lot to carry. What feels most pressing right now?"
+    )
+    assert chunks[-1]["choices"] == [{"index": 0, "delta": {}, "finish_reason": "stop"}]
 
 
 @pytest.mark.anyio
@@ -108,9 +101,7 @@ async def test_chat_completion_rejects_empty_messages(monkeypatch) -> None:
     from app.main import create_app
 
     app = create_app()
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/v1/chat/completions",
             json={"model": "mirror-persona-v1", "messages": []},
@@ -126,9 +117,7 @@ async def test_metrics_exposes_mock_request_counter(monkeypatch) -> None:
     from app.main import create_app
 
     app = create_app()
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         completion_response = await client.post(
             "/v1/chat/completions",
             json={
@@ -151,9 +140,7 @@ async def test_request_id_is_preserved_on_mock_responses(monkeypatch) -> None:
     from app.main import create_app
 
     app = create_app()
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/health", headers={"X-Request-ID": "m2-10-test"})
 
     assert response.status_code == 200

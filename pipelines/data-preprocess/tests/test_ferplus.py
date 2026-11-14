@@ -27,14 +27,18 @@ def _sources(tmp_path: Path) -> tuple[Path, Path, Path]:
     fer2013 = tmp_path / "fer2013.csv"
     fer2013.write_text(
         "emotion,pixels,Usage\n"
-        + "".join(f"{code},{' '.join(map(str, _face(seed).ravel()))},{usage}\n"
-                  for usage, code, seed, _ in table),
+        + "".join(
+            f"{code},{' '.join(map(str, _face(seed).ravel()))},{usage}\n"
+            for usage, code, seed, _ in table
+        ),
         encoding="utf-8",
     )
     ferplus = tmp_path / "fer2013new.csv"
     ferplus.write_text(
         f"Usage,Image name,{VOTE_HEADER}\n"
-        + "".join(f"{usage},fer{i:07d}.png,{votes}\n" for i, (usage, *_, votes) in enumerate(table)),
+        + "".join(
+            f"{usage},fer{i:07d}.png,{votes}\n" for i, (usage, *_, votes) in enumerate(table)
+        ),
         encoding="utf-8",
     )
 
@@ -58,7 +62,9 @@ def _sources(tmp_path: Path) -> tuple[Path, Path, Path]:
         )
     (fer_dir / "metadata").mkdir()
     (fer_dir / "metadata" / "transform_spec.json").write_text(
-        json.dumps({"class_order": ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]})
+        json.dumps(
+            {"class_order": ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]}
+        )
     )
     return fer_dir, fer2013, ferplus
 
@@ -79,8 +85,14 @@ def test_images_get_the_crowd_label_and_vote_counts(tmp_path: Path) -> None:
 
     test = _manifest(output, "test")
     # The PublicTest image was "sad" in FER-2013; FER+'s 10 annotators say neutral (8 vs 2 sad).
-    assert [(row["path"], row["label"]) for row in test] == [("test/neutral/PublicTest_1.jpg", "neutral")]
-    assert (test[0]["votes_neutral"], test[0]["votes_sad"], test[0]["votes_happy"]) == ("8", "2", "0")
+    assert [(row["path"], row["label"]) for row in test] == [
+        ("test/neutral/PublicTest_1.jpg", "neutral")
+    ]
+    assert (test[0]["votes_neutral"], test[0]["votes_sad"], test[0]["votes_happy"]) == (
+        "8",
+        "2",
+        "0",
+    )
     assert report["outcome"] == {
         "train: kept": 1,
         "test: kept": 1,
@@ -108,4 +120,3 @@ def test_an_image_that_matches_no_row_is_counted_not_guessed(tmp_path: Path) -> 
     report = prepare(fer_dir, fer2013, ferplus, tmp_path / "out")
 
     assert report["outcome"]["test: unmatched"] == 1
-

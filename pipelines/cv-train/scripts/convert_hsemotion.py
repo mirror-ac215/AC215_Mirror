@@ -32,8 +32,10 @@ import torch
 from onnx import numpy_helper
 from PIL import Image
 
-ONNX_URL = ("https://github.com/HSE-asavchenko/face-emotion-recognition/blob/main/"
-            "models/affectnet_emotions/onnx/enet_b2_7.onnx?raw=true")
+ONNX_URL = (
+    "https://github.com/HSE-asavchenko/face-emotion-recognition/blob/main/"
+    "models/affectnet_emotions/onnx/enet_b2_7.onnx?raw=true"
+)
 MEAN, STD = np.array([0.485, 0.456, 0.406]), np.array([0.229, 0.224, 0.225])
 
 
@@ -47,7 +49,9 @@ def onnx_file() -> Path:
 
 def faces(data_dir: Path, count: int = 1500) -> np.ndarray:
     """Grey, 260 px, ImageNet-normalised training frames: the same input cv-train uses."""
-    rows = list(csv.DictReader((data_dir / "manifests" / "train.csv").open(encoding="utf-8")))[::50][:count]
+    rows = list(csv.DictReader((data_dir / "manifests" / "train.csv").open(encoding="utf-8")))[
+        ::50
+    ][:count]
     images = []
     for row in rows:
         image = Image.open(data_dir / "images" / row["path"]).convert("L").convert("RGB")
@@ -56,7 +60,9 @@ def faces(data_dir: Path, count: int = 1500) -> np.ndarray:
     return np.stack(images)
 
 
-def conv_bn_pairs(model: torch.nn.Module) -> list[tuple[torch.nn.Conv2d, torch.nn.BatchNorm2d | None]]:
+def conv_bn_pairs(
+    model: torch.nn.Module,
+) -> list[tuple[torch.nn.Conv2d, torch.nn.BatchNorm2d | None]]:
     """Every convolution in forward order, with the BatchNorm that follows it (None for SE convs)."""
     pairs, pending = [], None
     for module in model.modules():
@@ -77,7 +83,9 @@ def convert(data_dir: Path, output: Path) -> None:
     graph = onnx.load(source).graph
     weights = {tensor.name: numpy_helper.to_array(tensor) for tensor in graph.initializer}
     onnx_convs = [node for node in graph.node if node.op_type == "Conv"]
-    model = timm.create_model("tf_efficientnet_b2", num_classes=7, pretrained=False, global_pool="max").eval()
+    model = timm.create_model(
+        "tf_efficientnet_b2", num_classes=7, pretrained=False, global_pool="max"
+    ).eval()
     pairs = conv_bn_pairs(model)
     if len(pairs) != len(onnx_convs):
         raise ValueError(f"{len(pairs)} timm convolutions vs {len(onnx_convs)} in the ONNX graph")
@@ -104,16 +112,20 @@ def convert(data_dir: Path, output: Path) -> None:
     hooks = []
     for conv, bn in pairs:
         if bn is not None:
+
             def record(module, inputs, output, bn=bn):
                 y = output.detach().double()
-                totals = sums.setdefault(bn, [torch.zeros(y.shape[1], dtype=torch.double)] * 2 + [0])
+                totals = sums.setdefault(
+                    bn, [torch.zeros(y.shape[1], dtype=torch.double)] * 2 + [0]
+                )
                 totals[0] = totals[0] + y.sum((0, 2, 3))
                 totals[1] = totals[1] + (y * y).sum((0, 2, 3))
                 totals[2] += y.shape[0] * y.shape[2] * y.shape[3]
+
             hooks.append(conv.register_forward_hook(record))
     with torch.no_grad():
         for start in range(0, len(images), 100):
-            model(torch.from_numpy(images[start:start + 100]))
+            model(torch.from_numpy(images[start : start + 100]))
     for hook in hooks:
         hook.remove()
     for bn, (total, total_sq, count) in sums.items():
@@ -127,18 +139,29 @@ def convert(data_dir: Path, output: Path) -> None:
 
     # Proof: the rebuilt model gives the ONNX model's answers.
     check = images[-200:]
-    reference = ort.InferenceSession(str(source), providers=["CPUExecutionProvider"]).run(None, {"input": check})[0]
+    reference = ort.InferenceSession(str(source), providers=["CPUExecutionProvider"]).run(
+        None, {"input": check}
+    )[0]
     with torch.no_grad():
         rebuilt = model(torch.from_numpy(check)).numpy()
     difference = float(np.abs(reference - rebuilt).max())
     same_top1 = float((reference.argmax(1) == rebuilt.argmax(1)).mean())
-    print(f"max logit difference {difference:.2e}, same top-1 on {same_top1:.0%} of {len(check)} faces")
+    print(
+        f"max logit difference {difference:.2e}, same top-1 on {same_top1:.0%} of {len(check)} faces"
+    )
     if difference > 1e-3 or same_top1 < 1.0:
         raise SystemExit("conversion does not reproduce the ONNX model; nothing saved")
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"model_state_dict": model.state_dict(), "architecture": "tf_efficientnet_b2",
-                "global_pool": "max", "source": "HSEmotion enet_b2_7 (AffectNet; research use only)"}, output)
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "architecture": "tf_efficientnet_b2",
+            "global_pool": "max",
+            "source": "HSEmotion enet_b2_7 (AffectNet; research use only)",
+        },
+        output,
+    )
     print(f"saved {output}")
 
 

@@ -42,8 +42,10 @@ def read_pairs(raw_dir: Path, glob: str, prompt_col: str, response_col: str) -> 
             reader = csv.DictReader(handle)
             missing = {prompt_col, response_col} - set(reader.fieldnames or [])
             if missing:
-                raise ValueError(f"{path.name} is missing columns {sorted(missing)}; "
-                                 f"found {reader.fieldnames}. Fix input.*_column in params.yaml")
+                raise ValueError(
+                    f"{path.name} is missing columns {sorted(missing)}; "
+                    f"found {reader.fieldnames}. Fix input.*_column in params.yaml"
+                )
             for i, row in enumerate(reader, start=2):  # row 1 is the header
                 prompt, response = row[prompt_col] or "", row[response_col] or ""
                 pairs.append(Pair(f"{path.name}:{i}", prompt, response))
@@ -86,8 +88,9 @@ def clean(pairs: list[Pair], params: dict[str, Any]) -> tuple[list[Pair], list[d
         elif (key := dedupe_key(pair)) in seen:
             reason = "duplicate"
         if reason:
-            removed.append({"source": pair.source, "reason": reason,
-                            "response_start": pair.response[:80]})
+            removed.append(
+                {"source": pair.source, "reason": reason, "response_start": pair.response[:80]}
+            )
             continue
         seen.add(key)
         kept.append(pair)
@@ -100,8 +103,11 @@ def split(pairs: list[Pair], params: dict[str, Any]) -> dict[str, list[Pair]]:
     random.Random(int(params["split"]["seed"])).shuffle(order)
     n_train = round(len(order) * float(params["split"]["train"]))
     n_val = round(len(order) * float(params["split"]["val"]))
-    return {"train": order[:n_train], "val": order[n_train:n_train + n_val],
-            "test": order[n_train + n_val:]}
+    return {
+        "train": order[:n_train],
+        "val": order[n_train : n_train + n_val],
+        "test": order[n_train + n_val :],
+    }
 
 
 def _write_csv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None:
@@ -121,8 +127,14 @@ def run(raw_dir: Path, out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
     hashes = {}
     for name, rows in splits.items():
         path = out_dir / f"{name}.csv"
-        _write_csv(path, FIELDS, [{"pair_id": dedupe_key(p)[:12], "prompt": p.prompt,
-                                   "response": p.response} for p in rows])
+        _write_csv(
+            path,
+            FIELDS,
+            [
+                {"pair_id": dedupe_key(p)[:12], "prompt": p.prompt, "response": p.response}
+                for p in rows
+            ],
+        )
         hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     _write_csv(out_dir / "removed.csv", ["source", "reason", "response_start"], removed)
 
@@ -136,5 +148,7 @@ def run(raw_dir: Path, out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
         "split_sha256": hashes,
         "seed": int(params["split"]["seed"]),
     }
-    (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
+    (out_dir / "report.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     return report

@@ -33,8 +33,10 @@ def test_perfect_guesses_show_a_difference():
 
 def test_coin_flip_guesses_show_no_difference():
     visible, key = build_items(replies(200), seed=4)
-    guesses = [{"item_id": v["item_id"], "guess": "base" if i % 2 else "lora"}
-               for i, v in enumerate(visible)]
+    guesses = [
+        {"item_id": v["item_id"], "guess": "base" if i % 2 else "lora"}
+        for i, v in enumerate(visible)
+    ]
     result = score(key, guesses)
     assert result["low"] < 0.5 < result["high"]
     assert result["verdict"] == "no clear difference from chance"

@@ -29,7 +29,9 @@ def main() -> int:
     command.add_argument("--split", default="val")
     command.add_argument("--checkpoint", type=Path, required=True)
     command.add_argument("--output", type=Path, required=True)
-    command.add_argument("--fps", type=float, default=30.0, help="Aff-Wild2 videos are recorded at about 30 fps")
+    command.add_argument(
+        "--fps", type=float, default=30.0, help="Aff-Wild2 videos are recorded at about 30 fps"
+    )
     command.add_argument("--batch-size", type=int, default=64)
     args = command.parse_args()
 
@@ -46,12 +48,24 @@ def main() -> int:
         writer = csv.writer(handle)
         writer.writerow(["video", "t", "label", *labels])
         for start in range(0, len(rows), args.batch_size):
-            batch = rows[start:start + args.batch_size]
-            images = [Image.open(args.data_dir / "images" / row["path"]).convert("L").convert("RGB") for row in batch]
-            probabilities = torch.softmax(model(torch.stack([transform(i) for i in images]).to(device)), dim=1)
+            batch = rows[start : start + args.batch_size]
+            images = [
+                Image.open(args.data_dir / "images" / row["path"]).convert("L").convert("RGB")
+                for row in batch
+            ]
+            probabilities = torch.softmax(
+                model(torch.stack([transform(i) for i in images]).to(device)), dim=1
+            )
             for row, values in zip(batch, probabilities.cpu().tolist(), strict=True):
                 video, frame = Path(row["path"]).stem.rsplit("_", 1)  # <video>_<frame number>.jpg
-                writer.writerow([video, f"{int(frame) / args.fps:.3f}", row["label"], *(f"{v:.5f}" for v in values)])
+                writer.writerow(
+                    [
+                        video,
+                        f"{int(frame) / args.fps:.3f}",
+                        row["label"],
+                        *(f"{v:.5f}" for v in values),
+                    ]
+                )
     print(f"wrote {len(rows)} frames to {args.output}")
     return 0
 

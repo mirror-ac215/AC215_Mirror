@@ -125,6 +125,7 @@ def test_ci_summary_script_rejects_unsuccessful_required_results(
         "DB_RESULT": "skipped",
         "DOCS_CONTRACTS_CHANGED": "true",
         "CONTRACT_VALIDATION_RESULT": contract_result,
+        "PYTHON_LINT_RESULT": "success",
     }
 
     result = subprocess.run(

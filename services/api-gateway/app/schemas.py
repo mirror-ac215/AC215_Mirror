@@ -42,9 +42,7 @@ class PatientSummary(BaseModel):
     needs_review: bool
 
 
-VisualEmotionLabel = Literal[
-    "angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"
-]
+VisualEmotionLabel = Literal["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
 TrendEmotionLabel = Literal[
     "anger",
     "angry",

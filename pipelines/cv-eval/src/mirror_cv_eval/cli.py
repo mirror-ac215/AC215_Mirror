@@ -1,4 +1,5 @@
 """Run reproducible batch evaluation of the inherited CV checkpoint."""
+
 from __future__ import annotations
 
 import argparse
@@ -24,13 +25,35 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--output", type=Path, required=True)
     command.add_argument("--code-revision", required=True)
     command.add_argument("--batch-size", type=int, default=32)
-    command.add_argument("--dataset-version", default="fer2013/v1", help="Recorded in the report and W&B, e.g. affwild2/val-v1")
+    command.add_argument(
+        "--dataset-version",
+        default="fer2013/v1",
+        help="Recorded in the report and W&B, e.g. affwild2/val-v1",
+    )
     command.add_argument("--threshold", type=float, default=0.64, help="Macro-F1 regression guard")
-    command.add_argument("--report-only", action="store_true", help="Measure only: exit 0 even below the threshold (baselines on new datasets)")
-    command.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto", help="auto = GPU when available, like pipelines/cv-train")
-    command.add_argument("--model-version", help="Recorded in the report and W&B (default: the name stored in the checkpoint)")
-    command.add_argument("--model-uri", help="Where the checkpoint is published (default: local:<checkpoint file name>)")
-    command.add_argument("--wandb-project", help="Optionally log aggregate metrics and configuration to this W&B project")
+    command.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Measure only: exit 0 even below the threshold (baselines on new datasets)",
+    )
+    command.add_argument(
+        "--device",
+        choices=["auto", "cpu", "cuda"],
+        default="auto",
+        help="auto = GPU when available, like pipelines/cv-train",
+    )
+    command.add_argument(
+        "--model-version",
+        help="Recorded in the report and W&B (default: the name stored in the checkpoint)",
+    )
+    command.add_argument(
+        "--model-uri",
+        help="Where the checkpoint is published (default: local:<checkpoint file name>)",
+    )
+    command.add_argument(
+        "--wandb-project",
+        help="Optionally log aggregate metrics and configuration to this W&B project",
+    )
     return command
 
 
@@ -46,7 +69,12 @@ def transform_from_metadata(specification: dict[str, object]) -> transforms.Comp
         raise ValueError("inference_transform metadata is invalid") from exc
     if channels != 3 or height <= 0 or width <= 0:
         raise ValueError("evaluation requires a positive RGB inference transform")
-    if pixel_range != (0.0, 1.0) or len(mean) != 3 or len(std) != 3 or any(value == 0 for value in std):
+    if (
+        pixel_range != (0.0, 1.0)
+        or len(mean) != 3
+        or len(std) != 3
+        or any(value == 0 for value in std)
+    ):
         raise ValueError("inference_transform is incompatible with ToTensor RGB evaluation")
     return transforms.Compose(
         [
@@ -73,7 +101,9 @@ def load_model(
     state = state.get("state_dict", state.get("model_state_dict", state))
     if not isinstance(state, dict):
         raise TypeError("checkpoint state dictionary is invalid")
-    model.load_state_dict({str(k).removeprefix("module."): v for k, v in state.items()}, strict=True)
+    model.load_state_dict(
+        {str(k).removeprefix("module."): v for k, v in state.items()}, strict=True
+    )
     return model.eval()
 
 
@@ -86,11 +116,15 @@ def model_version_from(checkpoint: Path) -> str:
 
     Stops with a clear message instead of guessing when the name is missing or unknown.
     """
-    state = torch.load(checkpoint, map_location="cpu", weights_only=True, mmap=True)  # mmap: no full read
+    state = torch.load(
+        checkpoint, map_location="cpu", weights_only=True, mmap=True
+    )  # mmap: no full read
     name = state.get("model_name") if isinstance(state, dict) else None
     name = KNOWN_MODEL_NAMES.get(name, name)
     if not isinstance(name, str) or not name.startswith("cv-"):
-        raise SystemExit(f"{checkpoint.name}: no recognised model name ({name!r}); pass --model-version")
+        raise SystemExit(
+            f"{checkpoint.name}: no recognised model name ({name!r}); pass --model-version"
+        )
     return name
 
 
@@ -117,22 +151,54 @@ def run(args: argparse.Namespace) -> int:
     started = perf_counter()
     with torch.inference_mode():
         for offset in range(0, len(rows), args.batch_size):
-            batch_rows = rows[offset:offset + args.batch_size]
-            batch = torch.stack([transform(Image.open(args.data_dir / "images" / row["path"]).convert("L").convert("RGB")) for row in batch_rows])
+            batch_rows = rows[offset : offset + args.batch_size]
+            batch = torch.stack(
+                [
+                    transform(
+                        Image.open(args.data_dir / "images" / row["path"])
+                        .convert("L")
+                        .convert("RGB")
+                    )
+                    for row in batch_rows
+                ]
+            )
             probabilities = torch.softmax(model(batch.to(device)), dim=1).cpu()
             for row, values in zip(batch_rows, probabilities, strict=True):
                 ranked = torch.argsort(values, descending=True)[:2].tolist()
                 y_true.append(row["label"])
                 y_pred.append(labels[ranked[0]])
                 top2.append(tuple(labels[index] for index in ranked))
-    metrics = evaluate_predictions(labels=labels, y_true=tuple(y_true), y_pred=tuple(y_pred), top2=tuple(top2))
-    report = build_report(model_uri=args.model_uri or f"local:{args.checkpoint.name}", model_version=model_version, dataset_version=args.dataset_version, code_revision=args.code_revision, class_order=labels, transform=metadata["inference_transform"], threshold=args.threshold, metrics=metrics)
-    report["runtime"] = {"seconds": round(perf_counter() - started, 3), "batch_size": args.batch_size, "device": device.type}
+    metrics = evaluate_predictions(
+        labels=labels, y_true=tuple(y_true), y_pred=tuple(y_pred), top2=tuple(top2)
+    )
+    report = build_report(
+        model_uri=args.model_uri or f"local:{args.checkpoint.name}",
+        model_version=model_version,
+        dataset_version=args.dataset_version,
+        code_revision=args.code_revision,
+        class_order=labels,
+        transform=metadata["inference_transform"],
+        threshold=args.threshold,
+        metrics=metrics,
+    )
+    report["runtime"] = {
+        "seconds": round(perf_counter() - started, 3),
+        "batch_size": args.batch_size,
+        "device": device.type,
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     if args.wandb_project:
         log_aggregate_report(report, project=args.wandb_project)
-    print(json.dumps({"output": str(args.output), "macro_f1": metrics.macro_f1, "passed": report["regression_guard"]["passed"]}))
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "macro_f1": metrics.macro_f1,
+                "passed": report["regression_guard"]["passed"],
+            }
+        )
+    )
     return 0 if report["regression_guard"]["passed"] or args.report_only else 2
 
 

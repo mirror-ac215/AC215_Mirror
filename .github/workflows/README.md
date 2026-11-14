@@ -2,6 +2,17 @@
 
 `ci.yml` runs on every pull request targeting `main`. It detects which component folders changed and invokes the appropriate reusable workflow.
 
+## Repository-wide Python lint and formatting
+
+Every pull request runs the non-path-gated `Python lint and format` job before `CI summary`. It uses the root `ruff.toml` policy and validates every tracked Python file under `services/` and `pipelines/`:
+
+```bash
+uvx --from ruff==0.16.9 ruff check --config ruff.toml services pipelines
+uvx --from ruff==0.16.9 ruff format --config ruff.toml --check services pipelines
+```
+
+The explicit root configuration makes the repository policy authoritative even where a component has an older local Ruff configuration. Existing long text and regular-expression baselines have narrowly scoped `E501` exceptions in `ruff.toml`; do not add broad ignores.
+
 ## Current Python service check
 
 The reusable workflow in `python-service-ci.yml` validates one Python service or job. It:

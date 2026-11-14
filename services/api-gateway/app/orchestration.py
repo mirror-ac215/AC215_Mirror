@@ -48,9 +48,7 @@ def drop_questions(reply: str) -> str:
 
 
 class TurnRepository(Protocol):
-    async def add_message(
-        self, session_id: str, role: str, text: str, safety_hit: bool
-    ) -> str: ...
+    async def add_message(self, session_id: str, role: str, text: str, safety_hit: bool) -> str: ...
 
     async def add_emotion_window(self, session_id: str, context: dict) -> None: ...
 
@@ -97,6 +95,7 @@ class ChatOrchestrator:
     ) -> ChatTurn:
         safety_result = safety.check(text)
         if safety_result.kind == "crisis":
+
             async def no_tokens() -> AsyncIterator[str]:
                 if False:
                     yield ""
@@ -126,9 +125,7 @@ class ChatOrchestrator:
                 safety_rule=safety_result.rule_id,
             )
 
-        patient_message_id = await self._repository.add_message(
-            session_id, "patient", text, False
-        )
+        patient_message_id = await self._repository.add_message(session_id, "patient", text, False)
 
         try:
             text_context = self._text_emotion.analyse(text).as_context()
@@ -136,9 +133,7 @@ class ChatOrchestrator:
             text_context = None
         context = fuse(visual, text_context, history)
         metrics.record_gate(context["visual"]["status"])
-        metrics.record_fusion(
-            context["agreement"], context["tone_mode"], main_signal(context)
-        )
+        metrics.record_fusion(context["agreement"], context["tone_mode"], main_signal(context))
         llm_messages = build_messages(context, text, conversation)
         fixed_text = {
             "medication": safety.MEDICATION_REPLY,

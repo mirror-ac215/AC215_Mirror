@@ -39,14 +39,19 @@ def evaluate_predictions(
     for index, label in enumerate(labels):
         true_positive = matrix[index][index]
         false_positive = sum(matrix[row][index] for row in range(len(labels)) if row != index)
-        false_negative = sum(matrix[index][column] for column in range(len(labels)) if column != index)
+        false_negative = sum(
+            matrix[index][column] for column in range(len(labels)) if column != index
+        )
         denominator = 2 * true_positive + false_positive + false_negative
         per_class_f1[label] = 0.0 if denominator == 0 else 2 * true_positive / denominator
     correct = sum(matrix[index][index] for index in range(len(labels)))
     return EvaluationMetrics(
         n_examples=len(y_true),
         accuracy=correct / len(y_true),
-        top2_accuracy=sum(actual in candidates for actual, candidates in zip(y_true, top2, strict=True)) / len(y_true),
+        top2_accuracy=sum(
+            actual in candidates for actual, candidates in zip(y_true, top2, strict=True)
+        )
+        / len(y_true),
         macro_f1=sum(per_class_f1.values()) / len(labels),
         per_class_f1=per_class_f1,
         confusion_matrix=tuple(tuple(row) for row in matrix),

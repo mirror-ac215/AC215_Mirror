@@ -15,21 +15,39 @@ import sys
 import time
 
 import pandas as pd
+from compare import MODEL_A, MODEL_B, scores_model_a, scores_model_b
 from sklearn.metrics import accuracy_score, f1_score, recall_score
 from transformers import pipeline
-
-from compare import MODEL_A, MODEL_B, scores_model_a, scores_model_b
 
 GROUPS = {
     "anger": ["angry", "annoyed", "furious", "jealous"],
     "disgust": ["disgusted"],
     "fear": ["afraid", "anxious", "apprehensive", "terrified"],
-    "joy": ["joyful", "excited", "content", "grateful", "hopeful",
-            "proud", "confident", "caring", "trusting", "faithful",
-            "prepared", "anticipating"],
-    "sadness": ["sad", "devastated", "lonely", "disappointed",
-                "guilty", "ashamed", "embarrassed", "nostalgic",
-                "sentimental"],
+    "joy": [
+        "joyful",
+        "excited",
+        "content",
+        "grateful",
+        "hopeful",
+        "proud",
+        "confident",
+        "caring",
+        "trusting",
+        "faithful",
+        "prepared",
+        "anticipating",
+    ],
+    "sadness": [
+        "sad",
+        "devastated",
+        "lonely",
+        "disappointed",
+        "guilty",
+        "ashamed",
+        "embarrassed",
+        "nostalgic",
+        "sentimental",
+    ],
     "surprise": ["surprised", "impressed"],
 }
 TO_GROUP = {e: g for g, es in GROUPS.items() for e in es}
@@ -52,8 +70,11 @@ def load(path):
             convs[p[0]] = (p[2], text)
     print("conversations in file:", len(convs))
     print("distinct emotion tags:", len({e for e, _ in convs.values()}))
-    rows = [(cid, TO_GROUP[e], t) for cid, (e, t) in convs.items()
-            if e in TO_GROUP and not SKIP.search(t)]
+    rows = [
+        (cid, TO_GROUP[e], t)
+        for cid, (e, t) in convs.items()
+        if e in TO_GROUP and not SKIP.search(t)
+    ]
     df = pd.DataFrame(rows, columns=["conv_id", "gold", "text"])
     print("used after filters:", len(df))
     print("gold labels:", df["gold"].value_counts().to_dict())
@@ -61,8 +82,7 @@ def load(path):
 
 
 def run(model_name, to_scores, texts):
-    clf = pipeline("text-classification", model=model_name,
-                   top_k=None, device=-1)
+    clf = pipeline("text-classification", model=model_name, top_k=None, device=-1)
     start = time.perf_counter()
     outputs = clf(texts, truncation=True, batch_size=32)
     seconds = time.perf_counter() - start
@@ -77,22 +97,21 @@ def main():
     df = load(sys.argv[1])
     labels = sorted(GROUPS)
     rows = []
-    for key, name, fn in [("A", MODEL_A, scores_model_a),
-                          ("B", MODEL_B, scores_model_b)]:
+    for key, name, fn in [("A", MODEL_A, scores_model_a), ("B", MODEL_B, scores_model_b)]:
         preds, seconds = run(name, fn, df["text"].tolist())
         df[f"pred_{key}"] = preds
-        recalls = recall_score(df["gold"], preds, labels=labels,
-                               average=None, zero_division=0)
+        recalls = recall_score(df["gold"], preds, labels=labels, average=None, zero_division=0)
         row = {
             "model": key,
             "n": len(df),
             "accuracy": accuracy_score(df["gold"], preds),
-            "macro_f1": f1_score(df["gold"], preds, labels=labels,
-                                 average="macro", zero_division=0),
+            "macro_f1": f1_score(
+                df["gold"], preds, labels=labels, average="macro", zero_division=0
+            ),
             "said_neutral": collections.Counter(preds)["neutral"] / len(df),
             "ms_per_msg": 1000 * seconds / len(df),
         }
-        row.update({f"recall_{l}": r for l, r in zip(labels, recalls)})
+        row.update({f"recall_{label}": recall for label, recall in zip(labels, recalls)})
         rows.append(row)
     summary = pd.DataFrame(rows).set_index("model").T
     print("\n", summary.round(3).to_string())

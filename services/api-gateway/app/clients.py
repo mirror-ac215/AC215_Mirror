@@ -38,7 +38,12 @@ class LLMServiceClient:
             client.stream(
                 "POST",
                 f"{self._base_url}/v1/chat/completions",
-                json={"model": self._model, "messages": messages, "stream": True, "temperature": 0.3},
+                json={
+                    "model": self._model,
+                    "messages": messages,
+                    "stream": True,
+                    "temperature": 0.3,
+                },
             ) as response,
         ):
             response.raise_for_status()

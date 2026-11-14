@@ -80,9 +80,7 @@ async def get_user_lookup(
     try:
         connection = await asyncio.to_thread(psycopg.connect, settings.database_url)
     except (OSError, psycopg.Error) as error:
-        raise HTTPException(
-            status_code=503, detail="Authentication unavailable"
-        ) from error
+        raise HTTPException(status_code=503, detail="Authentication unavailable") from error
 
     try:
         yield PostgresUserLookup(connection)
@@ -104,9 +102,7 @@ async def authenticate_user(
         return None
     if not valid:
         return None
-    return AuthenticatedUser(
-        user_id=stored.user_id, email=stored.email, role=stored.role
-    )
+    return AuthenticatedUser(user_id=stored.user_id, email=stored.email, role=stored.role)
 
 
 def issue_access_token(
@@ -142,9 +138,7 @@ def decode_access_token(token: str, *, signing_key: str) -> AuthenticatedUser:
             issuer="mirror-api-gateway",
             options={"require": ["sub", "email", "role", "iat", "exp", "iss"]},
         )
-        return AuthenticatedUser(
-            user_id=claims["sub"], email=claims["email"], role=claims["role"]
-        )
+        return AuthenticatedUser(user_id=claims["sub"], email=claims["email"], role=claims["role"])
     except jwt.ExpiredSignatureError as error:
         raise ValueError("Access token expired") from error
     except (jwt.InvalidTokenError, KeyError, ValueError) as error:
@@ -249,9 +243,7 @@ def current_user(
     if credentials is None:
         raise HTTPException(status_code=401, detail="Not logged in")
     try:
-        return decode_access_token(
-            credentials.credentials, signing_key=settings.jwt_signing_key
-        )
+        return decode_access_token(credentials.credentials, signing_key=settings.jwt_signing_key)
     except ValueError as error:
         raise HTTPException(status_code=401, detail="Invalid token") from error
 
