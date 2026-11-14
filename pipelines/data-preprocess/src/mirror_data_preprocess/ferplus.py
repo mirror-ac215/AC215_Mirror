@@ -25,8 +25,16 @@ from PIL import Image
 FER2013_LABELS = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
 # fer2013new.csv vote columns, in file order. contempt / unknown / NF have no Mirror label.
 FERPLUS_VOTES = [
-    "neutral", "happiness", "surprise", "sadness", "anger",
-    "disgust", "fear", "contempt", "unknown", "NF",
+    "neutral",
+    "happiness",
+    "surprise",
+    "sadness",
+    "anger",
+    "disgust",
+    "fear",
+    "contempt",
+    "unknown",
+    "NF",
 ]
 FERPLUS_TO_MIRROR = {
     "neutral": "neutral",
@@ -85,7 +93,11 @@ def rms_distances(ours: np.ndarray, theirs: np.ndarray) -> np.ndarray:
 
 
 def relabel_split(
-    fer_dir: Path, split: str, candidates: list[dict], output_dir: Path, max_rms: float,
+    fer_dir: Path,
+    split: str,
+    candidates: list[dict],
+    output_dir: Path,
+    max_rms: float,
     outcome: Counter[str],
 ) -> list[dict[str, str]]:
     with (fer_dir / "manifests" / f"{split}.csv").open(encoding="utf-8") as handle:
@@ -93,13 +105,19 @@ def relabel_split(
     rows = []
     for usage in SPLIT_USAGES[split]:
         for label in FER2013_LABELS:
-            mine = [r for r in ours if r["label"] == label and Path(r["path"]).name.startswith(usage)]
+            mine = [
+                r for r in ours if r["label"] == label and Path(r["path"]).name.startswith(usage)
+            ]
             theirs = [c for c in candidates if c["usage"] == usage and c["label"] == label]
             if not mine:
                 continue
             pixels = np.stack(
-                [np.asarray(Image.open(fer_dir / "images" / r["path"]).convert("L"), dtype=np.float32)
-                 .reshape(-1) for r in mine]
+                [
+                    np.asarray(
+                        Image.open(fer_dir / "images" / r["path"]).convert("L"), dtype=np.float32
+                    ).reshape(-1)
+                    for r in mine
+                ]
             )
             reference = np.stack([c["pixels"] for c in theirs]).astype(np.float32)
             close = rms_distances(pixels, reference) <= max_rms
@@ -121,8 +139,14 @@ def relabel_split(
                     destination = output_dir / "images" / relative
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(fer_dir / "images" / row["path"], destination)
-                    rows.append({"path": relative.as_posix(), "label": new, "split": split,
-                                 **dict(zip(VOTE_COLUMNS, map(str, matches[0]["votes"]), strict=True))})
+                    rows.append(
+                        {
+                            "path": relative.as_posix(),
+                            "label": new,
+                            "split": split,
+                            **dict(zip(VOTE_COLUMNS, map(str, matches[0]["votes"]), strict=True)),
+                        }
+                    )
     return sorted(rows, key=lambda r: (r["label"], r["path"]))
 
 

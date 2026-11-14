@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from mirror_fairness_audit import LABELS
 from mirror_fairness_audit.audit import Row, audit, gaps, photo_gate, read_predictions, wilson
 from mirror_fairness_audit.cli import main

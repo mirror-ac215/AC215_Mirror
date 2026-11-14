@@ -1,14 +1,12 @@
 """Tests on invented replies: no model or GPU needed."""
 
 import json
+import re
 from pathlib import Path
 
 import httpx
 import pytest
 import yaml
-
-import re
-
 from mirror_persona_checks.checks import (
     ask,
     check_reply,

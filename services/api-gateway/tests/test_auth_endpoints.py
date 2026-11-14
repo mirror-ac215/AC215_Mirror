@@ -1,9 +1,8 @@
 import bcrypt
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from app.auth import StoredUser, clear_login_attempts, get_user_lookup
 from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 
 class FakeUsers:
@@ -123,9 +122,7 @@ async def test_patient_endpoint_accepts_patient_jwt_and_rejects_clinician_jwt() 
         clinician = await api.post(
             "/sessions",
             json={"camera_consent": False},
-            headers={
-                "Authorization": f"Bearer {clinician_login.json()['access_token']}"
-            },
+            headers={"Authorization": f"Bearer {clinician_login.json()['access_token']}"},
         )
 
     assert patient.status_code == 201
@@ -133,9 +130,7 @@ async def test_patient_endpoint_accepts_patient_jwt_and_rejects_clinician_jwt() 
 
 
 @pytest.mark.anyio
-async def test_login_throttles_repeated_failures_without_disclosing_account_state() -> (
-    None
-):
+async def test_login_throttles_repeated_failures_without_disclosing_account_state() -> None:
     async with client() as api:
         responses = [
             await api.post(

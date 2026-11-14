@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from mirror_cv_eval.crop_protocol import (
     CropBox,
     crop_with_margin,

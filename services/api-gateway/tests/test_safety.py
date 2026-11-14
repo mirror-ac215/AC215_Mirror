@@ -10,11 +10,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-from conftest import auth_headers
-from httpx import ASGITransport, AsyncClient
-
 from app import chat, metrics, safety
 from app.main import app
+from conftest import auth_headers
+from httpx import ASGITransport, AsyncClient
 
 CASES = yaml.safe_load((Path(__file__).parent / "safety_cases.yaml").read_text())
 PATIENT = auth_headers(
@@ -55,23 +54,15 @@ def events(body: str) -> list[tuple[str, dict]]:
     out = []
     for block in body.strip().split("\n\n"):
         name, data = block.split("\n")
-        out.append(
-            (name.removeprefix("event: "), json.loads(data.removeprefix("data: ")))
-        )
+        out.append((name.removeprefix("event: "), json.loads(data.removeprefix("data: "))))
     return out
 
 
 async def send(text: str) -> list[tuple[str, dict]]:
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
-        session = await c.post(
-            "/sessions", json={"camera_consent": False}, headers=PATIENT
-        )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        session = await c.post("/sessions", json={"camera_consent": False}, headers=PATIENT)
         sid = session.json()["session_id"]
-        response = await c.post(
-            f"/sessions/{sid}/messages", json={"text": text}, headers=PATIENT
-        )
+        response = await c.post(f"/sessions/{sid}/messages", json={"text": text}, headers=PATIENT)
     assert response.status_code == 200
     return events(response.text)
 
@@ -112,7 +103,9 @@ async def test_message_text_is_never_logged(caplog: pytest.LogCaptureFixture) ->
 
 
 @pytest.mark.anyio
-async def test_medication_turn_gets_the_fixed_reply_not_the_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_medication_turn_gets_the_fixed_reply_not_the_llm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def no_llm(*_args, **_kwargs):
         raise AssertionError("a medication question must not reach the LLM")
 
@@ -136,7 +129,9 @@ def test_metric_labels_match_the_medication_rule_ids() -> None:
 
 
 @pytest.mark.anyio
-async def test_camera_hit_is_logged_and_counted_without_the_text(caplog: pytest.LogCaptureFixture) -> None:
+async def test_camera_hit_is_logged_and_counted_without_the_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     secret = "are you recording me right now"
     before = metrics.REGISTRY.get_sample_value("mirror_gateway_camera_hits_total") or 0.0
     mirror_logger = logging.getLogger("mirror")
@@ -147,7 +142,9 @@ async def test_camera_hit_is_logged_and_counted_without_the_text(caplog: pytest.
         mirror_logger.removeHandler(caplog.handler)
     assert stream[0][1]["text"] == safety.CAMERA_REPLY
     assert metrics.REGISTRY.get_sample_value("mirror_gateway_camera_hits_total") == before + 1
-    assert any("safety_hit kind=camera rule=camera-question" in r.getMessage() for r in caplog.records)
+    assert any(
+        "safety_hit kind=camera rule=camera-question" in r.getMessage() for r in caplog.records
+    )
     assert all(secret not in r.getMessage() for r in caplog.records)
 
 
@@ -160,5 +157,7 @@ async def test_medication_text_is_never_logged(caplog: pytest.LogCaptureFixture)
         await send(secret)
     finally:
         mirror_logger.removeHandler(caplog.handler)
-    assert any("safety_hit kind=medication rule=med-change" in r.getMessage() for r in caplog.records)
+    assert any(
+        "safety_hit kind=medication rule=med-change" in r.getMessage() for r in caplog.records
+    )
     assert all(secret not in r.getMessage() for r in caplog.records)

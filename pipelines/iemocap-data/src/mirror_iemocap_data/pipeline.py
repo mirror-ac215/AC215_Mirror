@@ -24,8 +24,19 @@ from pathlib import Path
 from typing import Any
 
 FIELDS = [
-    "utterance_id", "session", "dialog", "speaker", "kind", "start_s", "end_s",
-    "iemocap_label", "label", "valence", "arousal", "dominance", "text",
+    "utterance_id",
+    "session",
+    "dialog",
+    "speaker",
+    "kind",
+    "start_s",
+    "end_s",
+    "iemocap_label",
+    "label",
+    "valence",
+    "arousal",
+    "dominance",
+    "text",
 ]
 
 # Session1/dialog/EmoEvaluation/Ses01F_impro01.txt and .../transcriptions/Ses01F_impro01.txt;
@@ -81,10 +92,17 @@ def parse_evaluation(text: str) -> list[Evaluation]:
     for line in text.splitlines():
         match = EVALUATION_LINE.match(line.strip())
         if match:
-            rows.append(Evaluation(
-                match["id"], float(match["start"]), float(match["end"]), match["code"],
-                float(match["v"]), float(match["a"]), float(match["d"]),
-            ))
+            rows.append(
+                Evaluation(
+                    match["id"],
+                    float(match["start"]),
+                    float(match["end"]),
+                    match["code"],
+                    float(match["v"]),
+                    float(match["a"]),
+                    float(match["d"]),
+                )
+            )
     return rows
 
 
@@ -110,7 +128,9 @@ def describe(utterance_id: str) -> dict[str, str]:
 
 
 def build(
-    source: Path, label_map: dict[str, str], keep_unlabelled: list[str] | None = None,
+    source: Path,
+    label_map: dict[str, str],
+    keep_unlabelled: list[str] | None = None,
 ) -> tuple[list[dict[str, str]], dict[str, Any]]:
     """Join labels with transcripts and map labels. Returns (rows, counts for the report).
 
@@ -140,13 +160,20 @@ def build(
         elif not text:
             dropped["no_transcript"] += 1
         else:
-            rows.append({
-                "utterance_id": ev.utterance_id, **describe(ev.utterance_id),
-                "start_s": f"{ev.start_s:.4f}", "end_s": f"{ev.end_s:.4f}",
-                "iemocap_label": ev.code, "label": label_map.get(ev.code, ""),
-                "valence": f"{ev.valence:.4f}", "arousal": f"{ev.arousal:.4f}",
-                "dominance": f"{ev.dominance:.4f}", "text": text,
-            })
+            rows.append(
+                {
+                    "utterance_id": ev.utterance_id,
+                    **describe(ev.utterance_id),
+                    "start_s": f"{ev.start_s:.4f}",
+                    "end_s": f"{ev.end_s:.4f}",
+                    "iemocap_label": ev.code,
+                    "label": label_map.get(ev.code, ""),
+                    "valence": f"{ev.valence:.4f}",
+                    "arousal": f"{ev.arousal:.4f}",
+                    "dominance": f"{ev.dominance:.4f}",
+                    "text": text,
+                }
+            )
     counts = {
         "files_read": dict(sorted(files.items())),
         "utterances_labelled": len(evaluations),
@@ -169,8 +196,9 @@ def run(source: Path, out_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
         **counts,
         "utterances_kept": len(rows),
         "labels_kept": dict(sorted(Counter(r["label"] for r in rows if r["label"]).items())),
-        "kept_unlabelled": dict(sorted(
-            Counter(r["iemocap_label"] for r in rows if not r["label"]).items())),
+        "kept_unlabelled": dict(
+            sorted(Counter(r["iemocap_label"] for r in rows if not r["label"]).items())
+        ),
         "per_session": dict(sorted(Counter(r["session"] for r in rows).items())),
         "label_map": dict(sorted(params["labels"].items())),
         "keep_unlabelled": sorted(params.get("keep_unlabelled", [])),

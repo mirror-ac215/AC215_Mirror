@@ -50,9 +50,7 @@ frame_windows: dict[str, FrameWindow] = {}
 turn_histories: dict[str, TurnHistory] = {}
 conversations: dict[str, list[dict[str, str]]] = {}
 repository = PostgresRepository.from_dsn(settings.database_url)
-llm_client = LLMServiceClient(
-    settings.llm_service_url, settings.llm_timeout_s, settings.llm_model
-)
+llm_client = LLMServiceClient(settings.llm_service_url, settings.llm_timeout_s, settings.llm_model)
 cv_client = CVClient(settings.cv_service_url, settings.dependency_timeout_s)
 logger = logging.getLogger("mirror")
 # Compatibility-only audit view; the durable source of review flags is Postgres.
@@ -152,9 +150,7 @@ async def start_session(
         )
     except Exception as exc:
         logger.error("session_persistence_failed type=%s", type(exc).__name__)
-        raise HTTPException(
-            status_code=503, detail="Session is temporarily unavailable"
-        ) from exc
+        raise HTTPException(status_code=503, detail="Session is temporarily unavailable") from exc
     sessions[session.session_id] = session
     session_owners[session.session_id] = user.user_id
     frame_windows[session.session_id] = FrameWindow(settings.gate_max_frames)
@@ -204,9 +200,7 @@ async def receive_frame(
     # Return the current gate result, not an optimistic usable-reading claim.
     visual = visual_context(session_id, session)
     trusted = visual["status"] == "ok"
-    return FrameAck(
-        visual_status=visual["status"], top2=visual.get("top2") if trusted else None
-    )
+    return FrameAck(visual_status=visual["status"], top2=visual.get("top2") if trusted else None)
 
 
 @router.post(
@@ -240,9 +234,7 @@ async def send_message(
         )
     except Exception as exc:
         logger.error("chat_persistence_orchestration_failed", extra={"error": str(exc)})
-        raise HTTPException(
-            status_code=503, detail="Chat is temporarily unavailable"
-        ) from exc
+        raise HTTPException(status_code=503, detail="Chat is temporarily unavailable") from exc
 
     if turn.crisis is not None:
         rule = turn.safety_rule or "unknown"
@@ -257,9 +249,7 @@ async def send_message(
                 "urgency": "urgent",
             }
         )
-        return StreamingResponse(
-            iter([sse("crisis", turn.crisis)]), media_type="text/event-stream"
-        )
+        return StreamingResponse(iter([sse("crisis", turn.crisis)]), media_type="text/event-stream")
 
     if turn.safety_kind == "medication":
         rule = turn.safety_rule or "unknown"

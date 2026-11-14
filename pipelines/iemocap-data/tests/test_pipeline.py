@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from mirror_iemocap_data.pipeline import (
     build,
     describe,
@@ -79,8 +78,11 @@ def _archive(root: Path) -> Path:
 def test_consensus_lines_are_parsed_and_rater_lines_ignored():
     rows = parse_evaluation(EVALUATION)
     assert [r.utterance_id for r in rows] == [
-        "Ses01F_impro01_F000", "Ses01F_impro01_M000", "Ses01F_impro01_F001",
-        "Ses01F_impro01_M001", "Ses01F_impro01_F002",
+        "Ses01F_impro01_F000",
+        "Ses01F_impro01_M000",
+        "Ses01F_impro01_F001",
+        "Ses01F_impro01_M001",
+        "Ses01F_impro01_F002",
     ]
     assert rows[0].code == "neu" and rows[0].start_s == 1.0 and rows[0].end_s == 2.5
     assert (rows[1].valence, rows[1].arousal, rows[1].dominance) == (4.0, 3.5, 3.0)
@@ -94,16 +96,24 @@ def test_transcripts_are_parsed_and_non_utterance_lines_skipped():
 
 def test_utterance_id_is_described():
     assert describe("Ses01F_impro01_F000") == {
-        "session": "1", "dialog": "Ses01F_impro01", "speaker": "F", "kind": "improvised"}
+        "session": "1",
+        "dialog": "Ses01F_impro01",
+        "speaker": "F",
+        "kind": "improvised",
+    }
     assert describe("Ses02M_script01_1_M000") == {
-        "session": "2", "dialog": "Ses02M_script01_1", "speaker": "M", "kind": "scripted"}
+        "session": "2",
+        "dialog": "Ses02M_script01_1",
+        "speaker": "M",
+        "kind": "scripted",
+    }
 
 
 def test_labels_are_mapped_frustration_kept_unlabelled_and_xxx_dropped(tmp_path):
     rows, counts = build(_release(tmp_path), PARAMS["labels"], PARAMS["keep_unlabelled"])
     assert [(r["utterance_id"], r["iemocap_label"], r["label"]) for r in rows] == [
         ("Ses01F_impro01_F000", "neu", "neutral"),
-        ("Ses01F_impro01_F001", "fru", ""),    # frustration: kept, no Mirror label
+        ("Ses01F_impro01_F001", "fru", ""),  # frustration: kept, no Mirror label
         ("Ses01F_impro01_F002", "sad", "sadness"),
         ("Ses01F_impro01_M000", "exc", "joy"),  # excited -> joy
         ("Ses02M_script01_1_M000", "ang", "anger"),
@@ -112,13 +122,22 @@ def test_labels_are_mapped_frustration_kept_unlabelled_and_xxx_dropped(tmp_path)
     assert counts["files_read"] == {"EmoEvaluation": 2, "transcriptions": 2}
 
 
-@pytest.mark.parametrize(("code", "expected"), [
-    ("neu", "neutral"), ("hap", "joy"), ("exc", "joy"), ("sad", "sadness"),
-    ("ang", "anger"), ("fea", "fear"), ("dis", "disgust"), ("sur", "surprise"),
-    ("fru", ""),          # kept without a Mirror label
-    ("oth", None),        # dropped
-    ("xxx", None),        # dropped
-])
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("neu", "neutral"),
+        ("hap", "joy"),
+        ("exc", "joy"),
+        ("sad", "sadness"),
+        ("ang", "anger"),
+        ("fea", "fear"),
+        ("dis", "disgust"),
+        ("sur", "surprise"),
+        ("fru", ""),  # kept without a Mirror label
+        ("oth", None),  # dropped
+        ("xxx", None),  # dropped
+    ],
+)
 def test_every_iemocap_code_is_handled(tmp_path, code, expected):
     """All 11 IEMOCAP codes: 8 map to Mirror's 7 emotions, fru is kept unlabelled, 2 drop."""
     release = tmp_path / "IEMOCAP_full_release"
@@ -163,7 +182,8 @@ def test_archive_and_folder_give_identical_outputs(tmp_path):
     report_b = run(folder, tmp_path / "out_b", PARAMS)
     assert report_a["utterances_sha256"] == report_b["utterances_sha256"]
     assert (tmp_path / "out_a/utterances.csv").read_bytes() == (
-        tmp_path / "out_b/utterances.csv").read_bytes()
+        tmp_path / "out_b/utterances.csv"
+    ).read_bytes()
 
 
 def test_run_twice_is_byte_identical_and_report_is_complete(tmp_path):

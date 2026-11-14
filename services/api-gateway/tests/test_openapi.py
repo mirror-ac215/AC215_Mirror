@@ -8,10 +8,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from jsonschema import Draft202012Validator
-
 from app.main import app
 from app.schemas import FrameAck
+from jsonschema import Draft202012Validator
 
 # tests/ -> api-gateway/ -> services/ -> repo root
 CONTRACT = Path(__file__).parents[3] / "docs" / "contracts" / "api-gateway.openapi.yaml"

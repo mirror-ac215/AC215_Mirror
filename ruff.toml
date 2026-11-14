@@ -1,0 +1,52 @@
+target-version = "py311"
+line-length = 100
+src = ["services", "pipelines"]
+extend-exclude = ["*.md"]
+
+[lint]
+select = ["E", "F", "I"]
+
+# M4-19 baseline: these files contain long, user-facing text or regular expressions.
+# New violations elsewhere fail CI; each exception is intentionally scoped to E501.
+[lint.per-file-ignores]
+"pipelines/cv-eval/scripts/export_frame_probs.py" = ["E501"]
+"pipelines/cv-eval/scripts/webcam_demo.py" = ["E501"]
+"pipelines/cv-eval/src/mirror_cv_eval/cli.py" = ["E501"]
+"pipelines/cv-eval/src/mirror_cv_eval/metrics.py" = ["E501"]
+"pipelines/cv-eval/src/mirror_cv_eval/release_check.py" = ["E501"]
+"pipelines/cv-eval/tests/test_cli.py" = ["E501"]
+"pipelines/cv-eval/tests/test_release_check.py" = ["E501"]
+"pipelines/cv-train/scripts/convert_hsemotion.py" = ["E501"]
+"pipelines/cv-train/src/mirror_cv_train/cli.py" = ["E501"]
+"pipelines/cv-train/src/mirror_cv_train/data.py" = ["E501"]
+"pipelines/cv-train/src/mirror_cv_train/model.py" = ["E501"]
+"pipelines/cv-train/src/mirror_cv_train/train.py" = ["E501"]
+"pipelines/cv-train/tests/test_pieces.py" = ["E501"]
+"pipelines/cv-train/tests/test_smoke_run.py" = ["E501"]
+"pipelines/data-preprocess/src/mirror_data_preprocess/ferplus.py" = ["E501"]
+"pipelines/data-preprocess/src/mirror_data_preprocess/pipeline.py" = ["E501"]
+"pipelines/data-preprocess/tests/test_ferplus.py" = ["E501"]
+"pipelines/fairness-audit/src/mirror_fairness_audit/report.py" = ["E501"]
+"pipelines/llm-eval/text-emotion-selection/compare_full.py" = ["E501"]
+"pipelines/persona-data/src/mirror_persona_data/pipeline.py" = ["E501"]
+"services/api-gateway/app/clients.py" = ["E501"]
+"services/api-gateway/app/config.py" = ["E501"]
+"services/api-gateway/app/fusion.py" = ["E501"]
+"services/api-gateway/app/metrics.py" = ["E501"]
+"services/api-gateway/app/prompt.py" = ["E501"]
+"services/api-gateway/app/repository.py" = ["E501"]
+"services/api-gateway/app/safety.py" = ["E501"]
+"services/api-gateway/app/text_emotion.py" = ["E501"]
+"services/api-gateway/scripts/gate_sweep.py" = ["E501"]
+"services/api-gateway/tests/test_fusion.py" = ["E501"]
+"services/api-gateway/tests/test_gating.py" = ["E501"]
+"services/api-gateway/tests/test_openapi.py" = ["E501"]
+"services/api-gateway/tests/test_safety.py" = ["E501"]
+"services/api-gateway/tests/test_startup.py" = ["E501"]
+"services/cv-service/app/main.py" = ["E501"]
+"services/llm-service/tests/test_entrypoint.py" = ["E501"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

@@ -29,38 +29,55 @@ from prometheus_client import (
 REGISTRY = CollectorRegistry()
 
 REQUESTS = Counter(
-    "mirror_gateway_requests_total", "HTTP requests by route pattern, method and status code",
-    ["route", "method", "status"], registry=REGISTRY,
+    "mirror_gateway_requests_total",
+    "HTTP requests by route pattern, method and status code",
+    ["route", "method", "status"],
+    registry=REGISTRY,
 )
 REQUEST_SECONDS = Histogram(
-    "mirror_gateway_request_seconds", "Time to answer an HTTP request (streams: until the first byte)",
-    ["route"], registry=REGISTRY,
+    "mirror_gateway_request_seconds",
+    "Time to answer an HTTP request (streams: until the first byte)",
+    ["route"],
+    registry=REGISTRY,
 )
 CRISIS_HITS = Counter(
-    "mirror_gateway_crisis_hits_total", "Crisis-check hits by rule id (M3-07)", ["rule"], registry=REGISTRY,
+    "mirror_gateway_crisis_hits_total",
+    "Crisis-check hits by rule id (M3-07)",
+    ["rule"],
+    registry=REGISTRY,
 )
 MEDICATION_HITS = Counter(
-    "mirror_gateway_medication_hits_total", "Medication questions answered with the fixed reply (M3-09)",
-    ["rule"], registry=REGISTRY,
+    "mirror_gateway_medication_hits_total",
+    "Medication questions answered with the fixed reply (M3-09)",
+    ["rule"],
+    registry=REGISTRY,
 )
 CAMERA_HITS = Counter(
-    "mirror_gateway_camera_hits_total", "Camera questions answered with the fixed reply (M3-24)",
+    "mirror_gateway_camera_hits_total",
+    "Camera questions answered with the fixed reply (M3-24)",
     registry=REGISTRY,
 )
 TEXT_EMOTION_SECONDS = Histogram(
-    "mirror_gateway_text_emotion_seconds", "Time to score one message (M3-05)", registry=REGISTRY,
+    "mirror_gateway_text_emotion_seconds",
+    "Time to score one message (M3-05)",
+    registry=REGISTRY,
 )
 TEXT_EMOTION_UNAVAILABLE = Counter(
     "mirror_gateway_text_emotion_unavailable_total",
-    "Messages that went on without a text-emotion reading (fallback)", registry=REGISTRY,
+    "Messages that went on without a text-emotion reading (fallback)",
+    registry=REGISTRY,
 )
 GATE = Counter(
-    "mirror_gateway_gate_total", "Gate outcome per turn: ok / uncertain / dropped / camera_off (M3-04)",
-    ["status"], registry=REGISTRY,
+    "mirror_gateway_gate_total",
+    "Gate outcome per turn: ok / uncertain / dropped / camera_off (M3-04)",
+    ["status"],
+    registry=REGISTRY,
 )
 FUSION = Counter(
-    "mirror_gateway_fusion_total", "Fusion outcome per turn (M3-06)",
-    ["agreement", "tone_mode", "main_signal"], registry=REGISTRY,
+    "mirror_gateway_fusion_total",
+    "Fusion outcome per turn (M3-06)",
+    ["agreement", "tone_mode", "main_signal"],
+    registry=REGISTRY,
 )
 FALLBACK = Counter(
     "mirror_gateway_fallback_total",
@@ -77,7 +94,13 @@ MAIN_SIGNALS = ("face", "text", "none")
 # llm_unavailable: the reply came from the gentle fallback text; cv_unavailable: a frame got no reading.
 FALLBACK_REASONS = ("llm_unavailable", "cv_unavailable")
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
-MEDICATION_RULE_IDS = ("med-change", "med-dose", "med-mix", "med-should", "med-advice")  # app/safety.py
+MEDICATION_RULE_IDS = (
+    "med-change",
+    "med-dose",
+    "med-mix",
+    "med-should",
+    "med-advice",
+)  # app/safety.py
 
 
 def _closed(value: object, allowed: tuple[str, ...]) -> str:

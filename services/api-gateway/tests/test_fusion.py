@@ -4,9 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
-
 from app.fusion import TurnHistory, fuse
+from jsonschema import Draft202012Validator
 
 SCHEMA = json.loads(
     (Path(__file__).parents[3] / "docs" / "contracts" / "context_object.schema.json").read_text(
@@ -17,8 +16,13 @@ VALIDATOR = Draft202012Validator(SCHEMA)
 
 
 def face(label: str, prob: float, status: str = "ok") -> dict:
-    return {"status": status, "top2": [[label, prob], ["neutral", 0.1]], "stability": 0.9,
-            "window_s": 10.0, "n_frames": 8}
+    return {
+        "status": status,
+        "top2": [[label, prob], ["neutral", 0.1]],
+        "stability": 0.9,
+        "window_s": 10.0,
+        "n_frames": 8,
+    }
 
 
 def words(label: str, prob: float) -> dict:

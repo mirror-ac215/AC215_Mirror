@@ -13,7 +13,6 @@ import json
 from pathlib import Path
 
 import httpx
-
 from app.prompt import PROMPT_VERSION, build_messages
 
 CASES = Path(__file__).parent.parent / "tests" / "prompt_cases.json"
@@ -31,16 +30,12 @@ def ask_llm(llm_url: str, model: str, messages: list[dict[str, str]]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--llm-url", help="llm-service base URL, e.g. http://localhost:8002"
-    )
+    parser.add_argument("--llm-url", help="llm-service base URL, e.g. http://localhost:8002")
     parser.add_argument("--model", default="mirror-persona-v1")
     args = parser.parse_args()
 
     print(f"# Prompt samples ({PROMPT_VERSION})\n")
-    print(
-        "Review each reply: does it guess instead of state, ask when signals disagree,"
-    )
+    print("Review each reply: does it guess instead of state, ask when signals disagree,")
     print("stay within 2-4 sentences, and never claim to be a person or a clinician?\n")
     for number, case in enumerate(json.loads(CASES.read_text()), start=1):
         messages = build_messages(case["context"], case["message"], case.get("history"))

@@ -45,7 +45,6 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the gateway (frontend dev server and container).
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
-
     # Text-emotion module (M3-05). Model chosen in M2-11 (D-003 in docs/decisions.md).
     # Pinned to an immutable Hugging Face commit: a rebuild always loads the same weights.
     # Change it only on purpose (see "Model pin" in README.md), never back to "main".
@@ -62,12 +61,15 @@ class Settings(BaseSettings):
     # Re-run the sweep when the served model changes or our own labelled sessions
     # (M3-20) are ready. Out-of-range values are rejected at startup.
     # allow_inf_nan=False: an infinite window would keep stale frames forever.
-    gate_window_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)  # only frames from the last N seconds count
+    # Only frames from the last N seconds count.
+    gate_window_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)
     gate_min_frames: int = Field(default=3, ge=1)  # fewer frames with a face -> "dropped"
     gate_min_face_ratio: float = Field(default=0.5, ge=0, le=1)  # face in under half -> "dropped"
-    gate_min_top_prob: float = Field(default=0.45, ge=0, le=1)  # averaged top emotion must reach this
+    # Averaged top emotion must reach this.
+    gate_min_top_prob: float = Field(default=0.45, ge=0, le=1)
     gate_min_margin: float = Field(default=0.05, ge=0, le=1)  # ...and lead the second by this much
-    gate_min_stability: float = Field(default=0.50, ge=0, le=1)  # ...and be top in this share of frames
+    # ...and be top in this share of frames.
+    gate_min_stability: float = Field(default=0.50, ge=0, le=1)
     gate_max_frames: int = Field(default=30, ge=1)  # cap per session (about 30-60 s of frames)
 
     @model_validator(mode="after")

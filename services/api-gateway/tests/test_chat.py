@@ -1,11 +1,10 @@
 import json
 
 import pytest
-from conftest import auth_headers
-from httpx import ASGITransport, AsyncClient
-
 from app.chat import settings
 from app.main import app
+from conftest import auth_headers
+from httpx import ASGITransport, AsyncClient
 
 PATIENT = auth_headers(
     "00000000-0000-0000-0000-000000000201", "patient.alex@example.test", "patient"
@@ -24,9 +23,7 @@ def client() -> AsyncClient:
 
 
 async def new_session(c: AsyncClient, consent: bool = True) -> str:
-    response = await c.post(
-        "/sessions", json={"camera_consent": consent}, headers=PATIENT
-    )
+    response = await c.post("/sessions", json={"camera_consent": consent}, headers=PATIENT)
     assert response.status_code == 201
     return response.json()["session_id"]
 
@@ -76,9 +73,7 @@ async def test_login_malformed_email_422() -> None:
 async def test_sessions_need_a_token_401_and_a_patient_403() -> None:
     async with client() as c:
         no_token = await c.post("/sessions", json={"camera_consent": True})
-        clinician = await c.post(
-            "/sessions", json={"camera_consent": True}, headers=CLINICIAN
-        )
+        clinician = await c.post("/sessions", json={"camera_consent": True}, headers=CLINICIAN)
     assert no_token.status_code == 401
     assert clinician.status_code == 403
 
@@ -130,9 +125,7 @@ async def test_session_is_persisted_with_authenticated_patient_id_before_it_is_u
         response = await c.post("/sessions", json={"camera_consent": True}, headers=PATIENT)
 
     assert response.status_code == 201
-    assert calls == [
-        (response.json()["session_id"], "00000000-0000-0000-0000-000000000201", True)
-    ]
+    assert calls == [(response.json()["session_id"], "00000000-0000-0000-0000-000000000201", True)]
 
 
 @pytest.mark.anyio
@@ -140,12 +133,8 @@ async def test_frame_accepted_202_only_with_consent() -> None:
     async with client() as c:
         with_consent = await new_session(c, consent=True)
         without = await new_session(c, consent=False)
-        ok = await c.post(
-            f"/sessions/{with_consent}/frames", files=FRAME, headers=PATIENT
-        )
-        conflict = await c.post(
-            f"/sessions/{without}/frames", files=FRAME, headers=PATIENT
-        )
+        ok = await c.post(f"/sessions/{with_consent}/frames", files=FRAME, headers=PATIENT)
+        conflict = await c.post(f"/sessions/{without}/frames", files=FRAME, headers=PATIENT)
         unknown = await c.post("/sessions/nope/frames", files=FRAME, headers=PATIENT)
     assert ok.status_code == 202
     assert ok.json() == {"visual_status": "dropped"}
@@ -162,8 +151,13 @@ async def test_frame_returns_smoothed_top2_only_when_the_gate_trusts_it(monkeypa
             return {
                 "face_found": True,
                 "probs": {
-                    "angry": 0.02, "disgust": 0.02, "fear": 0.02, "happy": 0.8,
-                    "neutral": 0.1, "sad": 0.02, "surprise": 0.02,
+                    "angry": 0.02,
+                    "disgust": 0.02,
+                    "fear": 0.02,
+                    "happy": 0.8,
+                    "neutral": 0.1,
+                    "sad": 0.02,
+                    "surprise": 0.02,
                 },
             }
 
@@ -181,17 +175,11 @@ async def test_frame_returns_smoothed_top2_only_when_the_gate_trusts_it(monkeypa
 @pytest.mark.anyio
 async def test_frame_rejects_non_jpeg_415_and_oversized_413() -> None:
     png = {"image": ("frame.png", b"fake-png-bytes", "image/png")}
-    too_big = {
-        "image": ("big.jpg", b"x" * (settings.max_frame_bytes + 1), "image/jpeg")
-    }
+    too_big = {"image": ("big.jpg", b"x" * (settings.max_frame_bytes + 1), "image/jpeg")}
     async with client() as c:
         session_id = await new_session(c, consent=True)
-        wrong_type = await c.post(
-            f"/sessions/{session_id}/frames", files=png, headers=PATIENT
-        )
-        oversized = await c.post(
-            f"/sessions/{session_id}/frames", files=too_big, headers=PATIENT
-        )
+        wrong_type = await c.post(f"/sessions/{session_id}/frames", files=png, headers=PATIENT)
+        oversized = await c.post(f"/sessions/{session_id}/frames", files=too_big, headers=PATIENT)
     assert wrong_type.status_code == 415
     assert oversized.status_code == 413
 
@@ -223,12 +211,8 @@ async def test_message_streams_tokens_then_done() -> None:
 async def test_other_patient_gets_403_on_someone_elses_session() -> None:
     async with client() as c:
         alex_session = await new_session(c)  # created with PATIENT (Alex)
-        own_frame = await c.post(
-            f"/sessions/{alex_session}/frames", files=FRAME, headers=PATIENT
-        )
-        bri_frame = await c.post(
-            f"/sessions/{alex_session}/frames", files=FRAME, headers=PATIENT_B
-        )
+        own_frame = await c.post(f"/sessions/{alex_session}/frames", files=FRAME, headers=PATIENT)
+        bri_frame = await c.post(f"/sessions/{alex_session}/frames", files=FRAME, headers=PATIENT_B)
         bri_message = await c.post(
             f"/sessions/{alex_session}/messages", json={"text": "hi"}, headers=PATIENT_B
         )

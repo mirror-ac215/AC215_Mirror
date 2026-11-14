@@ -3,12 +3,11 @@
 from collections.abc import AsyncIterator
 
 import pytest
-from conftest import auth_headers
-
 from app.fusion import TurnHistory
 from app.gating import FrameReading
 from app.orchestration import ChatOrchestrator
 from app.text_emotion import TextEmotion
+from conftest import auth_headers
 
 
 class FakeRepository:
@@ -21,9 +20,7 @@ class FakeRepository:
     async def add_session(self, session_id, patient_id, started_at, camera_consent) -> None:
         self.sessions.append({"id": session_id, "patient_id": patient_id})
 
-    async def add_message(
-        self, session_id: str, role: str, text: str, safety_hit: bool
-    ) -> str:
+    async def add_message(self, session_id: str, role: str, text: str, safety_hit: bool) -> str:
         message_id = f"message-{len(self.messages) + 1}"
         self.messages.append(
             {
@@ -58,14 +55,10 @@ def text_emotion() -> TextEmotion:
 
 
 @pytest.mark.anyio
-async def test_normal_turn_runs_emotion_fusion_llm_and_persists_both_messages_and_window() -> (
-    None
-):
+async def test_normal_turn_runs_emotion_fusion_llm_and_persists_both_messages_and_window() -> None:
     repository = FakeRepository()
     llm = FakeLLM()
-    service = ChatOrchestrator(
-        repository=repository, llm=llm, text_emotion=text_emotion()
-    )
+    service = ChatOrchestrator(repository=repository, llm=llm, text_emotion=text_emotion())
     visual = {"status": "camera_off"}
 
     turn = await service.start_turn(
@@ -93,28 +86,28 @@ async def test_normal_turn_runs_emotion_fusion_llm_and_persists_both_messages_an
     assert turn.context["tone_mode"] == "supportive"
     from app import metrics
 
-    assert metrics.REGISTRY.get_sample_value(
-        "mirror_gateway_gate_total", {"status": "camera_off"}
-    ) is not None
-    assert metrics.REGISTRY.get_sample_value(
-        "mirror_gateway_fusion_total",
-        {
-            "agreement": turn.context["agreement"],
-            "tone_mode": turn.context["tone_mode"],
-            "main_signal": "text",
-        },
-    ) is not None
+    assert (
+        metrics.REGISTRY.get_sample_value("mirror_gateway_gate_total", {"status": "camera_off"})
+        is not None
+    )
+    assert (
+        metrics.REGISTRY.get_sample_value(
+            "mirror_gateway_fusion_total",
+            {
+                "agreement": turn.context["agreement"],
+                "tone_mode": turn.context["tone_mode"],
+                "main_signal": "text",
+            },
+        )
+        is not None
+    )
 
 
 @pytest.mark.anyio
-async def test_crisis_persists_patient_message_and_review_flag_without_calling_llm() -> (
-    None
-):
+async def test_crisis_persists_patient_message_and_review_flag_without_calling_llm() -> None:
     repository = FakeRepository()
     llm = FakeLLM()
-    service = ChatOrchestrator(
-        repository=repository, llm=llm, text_emotion=text_emotion()
-    )
+    service = ChatOrchestrator(repository=repository, llm=llm, text_emotion=text_emotion())
 
     turn = await service.start_turn(
         session_id="session-2",
@@ -147,9 +140,7 @@ async def test_crisis_returns_988_without_llm_when_persistence_fails() -> None:
             raise RuntimeError("database unavailable")
 
     llm = FakeLLM()
-    service = ChatOrchestrator(
-        repository=FailingRepository(), llm=llm, text_emotion=text_emotion()
-    )
+    service = ChatOrchestrator(repository=FailingRepository(), llm=llm, text_emotion=text_emotion())
 
     turn = await service.start_turn(
         session_id="session-3",
@@ -170,10 +161,9 @@ async def test_crisis_returns_988_without_llm_when_persistence_fails() -> None:
 async def test_http_turn_forwards_fake_llm_sse_and_uses_fake_cv_and_persistence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from httpx import ASGITransport, AsyncClient
-
     from app import chat
     from app.main import app
+    from httpx import ASGITransport, AsyncClient
 
     repository = FakeRepository()
     llm = FakeLLM()
@@ -192,12 +182,8 @@ async def test_http_turn_forwards_fake_llm_sse_and_uses_fake_cv_and_persistence(
         "patient.alex@example.test",
         "patient",
     )
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        created = await client.post(
-            "/sessions", json={"camera_consent": True}, headers=headers
-        )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        created = await client.post("/sessions", json={"camera_consent": True}, headers=headers)
         session_id = created.json()["session_id"]
         frame = await client.post(
             f"/sessions/{session_id}/frames",

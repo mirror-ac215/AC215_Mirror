@@ -7,6 +7,7 @@ conversation, from the test split. ED's 32 emotions are grouped only to
 balance the sample; Julie labels every message herself.
 Usage: uv run python sample_empathetic.py ~/datasets/empatheticdialogues/test.csv
 """
+
 import csv
 import random
 import re
@@ -16,16 +17,34 @@ GROUPS = {
     "anger": ["angry", "annoyed", "furious", "jealous"],
     "disgust": ["disgusted"],
     "fear": ["afraid", "anxious", "apprehensive", "terrified"],
-    "joy": ["joyful", "excited", "content", "grateful", "hopeful",
-            "proud", "confident", "caring", "trusting", "faithful",
-            "prepared", "anticipating"],
-    "sadness": ["sad", "devastated", "lonely", "disappointed",
-                "guilty", "ashamed", "embarrassed", "nostalgic",
-                "sentimental"],
+    "joy": [
+        "joyful",
+        "excited",
+        "content",
+        "grateful",
+        "hopeful",
+        "proud",
+        "confident",
+        "caring",
+        "trusting",
+        "faithful",
+        "prepared",
+        "anticipating",
+    ],
+    "sadness": [
+        "sad",
+        "devastated",
+        "lonely",
+        "disappointed",
+        "guilty",
+        "ashamed",
+        "embarrassed",
+        "nostalgic",
+        "sentimental",
+    ],
     "surprise": ["surprised", "impressed"],
 }
-QUOTA = {"sadness": 10, "fear": 9, "anger": 8,
-         "joy": 8, "surprise": 8, "disgust": 7}
+QUOTA = {"sadness": 10, "fear": 9, "anger": 8, "joy": 8, "surprise": 8, "disgust": 7}
 
 SELF_HARM = re.compile(
     r"suicid"

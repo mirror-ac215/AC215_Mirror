@@ -45,9 +45,7 @@ def test_load_model_downloads_configured_checkpoint_to_cpu(tmp_path: Path) -> No
     )
 
     assert storage_client.requested_bucket == "mirror-ac215-data"
-    assert storage_client.bucket_instance.requested_blob == (
-        "models/cv/v4/vit_b16_v4.pth"
-    )
+    assert storage_client.bucket_instance.requested_blob == ("models/cv/v4/vit_b16_v4.pth")
     assert model.weight.detach().tolist() == [1.0]
     assert model.training is False
     assert next(model.parameters()).device.type == "cpu"

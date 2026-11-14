@@ -41,10 +41,17 @@ class WeightEMA:
             model.load_state_dict(live)
 
 
-def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
-                    optimizer: torch.optim.Optimizer, device: torch.device,
-                    max_batches: int | None = None, amp: bool = False, step_scheduler: Any = None,
-                    ema: WeightEMA | None = None) -> tuple[float, float]:
+def train_one_epoch(
+    model: nn.Module,
+    loader: Iterable,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    max_batches: int | None = None,
+    amp: bool = False,
+    step_scheduler: Any = None,
+    ema: WeightEMA | None = None,
+) -> tuple[float, float]:
     """One pass over the training data. Labels may be soft (Mixup/CutMix): accuracy uses their argmax.
 
     amp=True computes in bfloat16 where safe (about 2x faster on a recent NVIDIA GPU).
@@ -76,8 +83,13 @@ def train_one_epoch(model: nn.Module, loader: Iterable, criterion: nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model: nn.Module, loader: Iterable, device: torch.device,
-             max_batches: int | None = None, amp: bool = False) -> dict[str, float]:
+def evaluate(
+    model: nn.Module,
+    loader: Iterable,
+    device: torch.device,
+    max_batches: int | None = None,
+    amp: bool = False,
+) -> dict[str, float]:
     """Validation with plain cross-entropy on hard labels; also macro-F1, our model-selection metric."""
     model.eval()
     criterion = nn.CrossEntropyLoss(reduction="sum")
@@ -104,12 +116,24 @@ SELECT_METRICS = ("val_accuracy", "val_macro_f1")
 STOP_METRICS = (*SELECT_METRICS, "val_loss")
 
 
-def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterion: nn.Module,
-        optimizer: torch.optim.Optimizer, scheduler: Any, device: torch.device, epochs: int,
-        early_stopping_patience: int | None = None, max_batches: int | None = None,
-        on_epoch: Callable[[dict[str, float]], None] | None = None, select_by: str = "val_accuracy",
-        amp: bool = False, monitor: dict[str, Iterable] | None = None,
-        ema_decay: float | None = None, stop_by: str | None = None) -> dict[str, Any]:
+def fit(
+    model: nn.Module,
+    train_loader: Iterable,
+    val_loader: Iterable,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: Any,
+    device: torch.device,
+    epochs: int,
+    early_stopping_patience: int | None = None,
+    max_batches: int | None = None,
+    on_epoch: Callable[[dict[str, float]], None] | None = None,
+    select_by: str = "val_accuracy",
+    amp: bool = False,
+    monitor: dict[str, Iterable] | None = None,
+    ema_decay: float | None = None,
+    stop_by: str | None = None,
+) -> dict[str, Any]:
     """Train for `epochs` and keep the weights of the best epoch by `select_by`
     (val_accuracy, as the baseline did, or val_macro_f1). `monitor` loaders are only scored and
     logged each epoch (e.g. FER-2013 val, to watch for forgetting); they never pick the epoch.
@@ -126,23 +150,48 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
     ema = WeightEMA(model, ema_decay) if ema_decay else None
     for epoch in range(1, epochs + 1):
         lr = optimizer.param_groups[-1]["lr"]  # the head's lr (the top one, with layer decay)
-        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device, max_batches,
-                                                amp, None if per_epoch else scheduler, ema)
+        train_loss, train_acc = train_one_epoch(
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            max_batches,
+            amp,
+            None if per_epoch else scheduler,
+            ema,
+        )
         # With EMA, the averaged weights are scored, selected and saved (the live ones keep training).
         with ema.applied(model) if ema is not None else nullcontext():
             val = evaluate(model, val_loader, device, max_batches, amp)
-            row = {"epoch": epoch, "lr": lr, "train_loss": train_loss, "train_accuracy": train_acc,
-                   "val_loss": val["loss"], "val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"]}
+            row = {
+                "epoch": epoch,
+                "lr": lr,
+                "train_loss": train_loss,
+                "train_accuracy": train_acc,
+                "val_loss": val["loss"],
+                "val_accuracy": val["accuracy"],
+                "val_macro_f1": val["macro_f1"],
+            }
             for name, loader in (monitor or {}).items():
-                row[f"monitor_{name}_macro_f1"] = evaluate(model, loader, device, max_batches, amp)["macro_f1"]
+                row[f"monitor_{name}_macro_f1"] = evaluate(model, loader, device, max_batches, amp)[
+                    "macro_f1"
+                ]
             if row[select_by] > best[select_by]:
-                best = {"val_accuracy": val["accuracy"], "val_macro_f1": val["macro_f1"], "epoch": epoch}
+                best = {
+                    "val_accuracy": val["accuracy"],
+                    "val_macro_f1": val["macro_f1"],
+                    "epoch": epoch,
+                }
                 best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         if scheduler is not None and per_epoch:
             scheduler.step(val["loss"])
         history.append(row)
-        print(f"epoch {epoch}/{epochs} train_loss={train_loss:.4f} val_loss={val['loss']:.4f} "
-              f"val_acc={val['accuracy']:.4f} val_macro_f1={val['macro_f1']:.4f}", flush=True)
+        print(
+            f"epoch {epoch}/{epochs} train_loss={train_loss:.4f} val_loss={val['loss']:.4f} "
+            f"val_acc={val['accuracy']:.4f} val_macro_f1={val['macro_f1']:.4f}",
+            flush=True,
+        )
         if on_epoch is not None:
             on_epoch(row)
         if early_stopping_patience is not None:
@@ -157,16 +206,25 @@ def fit(model: nn.Module, train_loader: Iterable, val_loader: Iterable, criterio
     return {"history": history, "best": best}
 
 
-def save_checkpoint(path: Path, model: nn.Module, result: dict[str, Any], class_order: list[str],
-                    model_version: str, params: dict[str, Any]) -> None:
+def save_checkpoint(
+    path: Path,
+    model: nn.Module,
+    result: dict[str, Any],
+    class_order: list[str],
+    model_version: str,
+    params: dict[str, Any],
+) -> None:
     """Same keys as the inherited vit_b16_v3_best.pth, so cv-service and cv-eval load it unchanged."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({
-        "model_name": model_version,
-        "model_state_dict": model.state_dict(),
-        "history": result["history"],
-        "best_val_acc": result["best"]["val_accuracy"],
-        "best_epoch": result["best"]["epoch"],
-        "classes": class_order,
-        "params": params,
-    }, path)
+    torch.save(
+        {
+            "model_name": model_version,
+            "model_state_dict": model.state_dict(),
+            "history": result["history"],
+            "best_val_acc": result["best"]["val_accuracy"],
+            "best_epoch": result["best"]["epoch"],
+            "classes": class_order,
+            "params": params,
+        },
+        path,
+    )

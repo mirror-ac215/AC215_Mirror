@@ -1,5 +1,4 @@
 import pytest
-
 from app import main
 from app.text_emotion import TextEmotionUnavailable
 
@@ -26,7 +25,9 @@ async def test_gateway_stays_available_when_startup_warmup_fails(
         raise TextEmotionUnavailable("model unavailable")
 
     monkeypatch.setattr(
-        main, "get_text_emotion", lambda: type("Emotion", (), {"warm_up": lambda self: unavailable()})()
+        main,
+        "get_text_emotion",
+        lambda: type("Emotion", (), {"warm_up": lambda self: unavailable()})(),
     )
 
     async with main.app.router.lifespan_context(main.app):

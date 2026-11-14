@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from mirror_persona_data.pipeline import Pair, clean, read_pairs, run
 
 PARAMS = yaml.safe_load((Path(__file__).parents[1] / "params.yaml").read_text())
@@ -18,38 +17,47 @@ def _write(path: Path, rows: list[tuple[str, str]]) -> None:
         writer.writerows([(q, a, len(a), "### Instruction: ...", len(q)) for q, a in rows])
 
 
-@pytest.mark.parametrize("response", [
-    "I am Dr. Smith and I think you should rest.",
-    "As a clinical psychologist, I would say this is common.",
-    "I'm a licensed therapist, so trust me on this one point.",
-    "In my clinical practice I have seen this many times before.",
-    "Many of my patients describe exactly this feeling of dread.",
-    # first row of the real data (jbp_clean_full.csv)
-    "I am a psychology professor at the University of Toronto, a clinical psychologist, "
-    "and an author.",
-    "When I wrote 12 Rules for Life I was thinking about exactly this.",
-    "I've certainly seen this as a clinical practitioner, many times over.",
-])
+@pytest.mark.parametrize(
+    "response",
+    [
+        "I am Dr. Smith and I think you should rest.",
+        "As a clinical psychologist, I would say this is common.",
+        "I'm a licensed therapist, so trust me on this one point.",
+        "In my clinical practice I have seen this many times before.",
+        "Many of my patients describe exactly this feeling of dread.",
+        # first row of the real data (jbp_clean_full.csv)
+        "I am a psychology professor at the University of Toronto, a clinical psychologist, "
+        "and an author.",
+        "When I wrote 12 Rules for Life I was thinking about exactly this.",
+        "I've certainly seen this as a clinical practitioner, many times over.",
+    ],
+)
 def test_identity_claims_are_removed(response):
     kept, removed = clean([Pair("f.csv:2", "How do I cope?", response)], PARAMS)
     assert kept == []
     assert removed[0]["reason"].startswith("identity:")
 
 
-@pytest.mark.parametrize("response", [
-    GOOD,
-    "It might help to talk to a clinical psychologist about how often this happens.",
-])
+@pytest.mark.parametrize(
+    "response",
+    [
+        GOOD,
+        "It might help to talk to a clinical psychologist about how often this happens.",
+    ],
+)
 def test_plain_advice_is_kept(response):
     kept, removed = clean([Pair("f.csv:2", "Where do I start?", response)], PARAMS)
     assert [p.response for p in kept] == [response]
     assert removed == []
 
 
-@pytest.mark.parametrize("prompt", [
-    "I have very bad work ethic, Peterson.",
-    "We've got the legendary Jordan Peterson in the house.",
-])
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "I have very bad work ethic, Peterson.",
+        "We've got the legendary Jordan Peterson in the house.",
+    ],
+)
 def test_name_in_question_is_removed(prompt):
     kept, removed = clean([Pair("f.csv:2", prompt, GOOD)], PARAMS)
     assert kept == []

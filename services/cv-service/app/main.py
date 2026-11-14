@@ -145,7 +145,9 @@ def create_app(
         return await predict_upload(image)
 
     @app.post("/predict_batch")
-    async def predict_batch(images: list[UploadFile] = File(...)) -> dict[str, list[dict[str, Any]]]:
+    async def predict_batch(
+        images: list[UploadFile] = File(...),
+    ) -> dict[str, list[dict[str, Any]]]:
         if len(images) > settings.max_batch_size:
             raise HTTPException(
                 status_code=422,

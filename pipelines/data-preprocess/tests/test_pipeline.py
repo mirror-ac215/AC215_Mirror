@@ -6,11 +6,8 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
-
-from PIL import Image
-
 from mirror_data_preprocess.pipeline import preprocess_dataset
-
+from PIL import Image
 
 CLASS_ORDER = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
 

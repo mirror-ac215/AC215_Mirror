@@ -8,9 +8,7 @@ import bcrypt
 import pytest
 
 os.environ.setdefault("DATABASE_URL", "postgresql://unit:unit@localhost:5432/unit")
-os.environ.setdefault(
-    "JWT_SIGNING_KEY", "unit-test-jwt-signing-key-with-adequate-length"
-)
+os.environ.setdefault("JWT_SIGNING_KEY", "unit-test-jwt-signing-key-with-adequate-length")
 
 from app.auth import (
     AuthenticatedUser,
@@ -36,9 +34,7 @@ class TestRepository:
     ) -> None:
         self.sessions.append({"id": session_id, "patient_id": patient_id})
 
-    async def add_message(
-        self, session_id: str, role: str, text: str, safety_hit: bool
-    ) -> str:
+    async def add_message(self, session_id: str, role: str, text: str, safety_hit: bool) -> str:
         message_id = f"test-{len(self.messages) + 1}"
         self.messages.append(
             {

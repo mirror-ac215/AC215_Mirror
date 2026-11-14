@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from app.auth import AuthenticatedUser, decode_access_token, issue_access_token
 
 
@@ -15,15 +14,10 @@ def test_signed_access_token_round_trips_the_seeded_user_identity_and_role(
         role=role,
     )
 
-    token = issue_access_token(
-        user, signing_key="unit-test-signing-key-with-adequate-length"
-    )
+    token = issue_access_token(user, signing_key="unit-test-signing-key-with-adequate-length")
 
     assert (
-        decode_access_token(
-            token, signing_key="unit-test-signing-key-with-adequate-length"
-        )
-        == user
+        decode_access_token(token, signing_key="unit-test-signing-key-with-adequate-length") == user
     )
 
 
@@ -33,14 +27,10 @@ def test_tampered_access_token_is_rejected() -> None:
         email="patient.alex@example.test",
         role="patient",
     )
-    token = issue_access_token(
-        user, signing_key="unit-test-signing-key-with-adequate-length"
-    )
+    token = issue_access_token(user, signing_key="unit-test-signing-key-with-adequate-length")
 
     with pytest.raises(ValueError, match="Invalid token"):
-        decode_access_token(
-            token + "x", signing_key="unit-test-signing-key-with-adequate-length"
-        )
+        decode_access_token(token + "x", signing_key="unit-test-signing-key-with-adequate-length")
 
 
 def test_expired_access_token_is_rejected() -> None:
@@ -57,6 +47,4 @@ def test_expired_access_token_is_rejected() -> None:
     )
 
     with pytest.raises(ValueError, match="expired"):
-        decode_access_token(
-            token, signing_key="unit-test-signing-key-with-adequate-length"
-        )
+        decode_access_token(token, signing_key="unit-test-signing-key-with-adequate-length")

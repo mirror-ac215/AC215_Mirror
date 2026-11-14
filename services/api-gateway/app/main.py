@@ -41,6 +41,7 @@ app.include_router(chat_router)
 app.include_router(clinician_router)
 
 
+
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
@@ -72,7 +73,6 @@ async def health() -> dict[str, object]:
     dependencies = await check_dependencies(settings)
     status = "ok" if all(state == "ok" for state in dependencies.values()) else "degraded"
     return {"status": status, "dependencies": dependencies}
-
 
 
 @app.get("/metrics")
