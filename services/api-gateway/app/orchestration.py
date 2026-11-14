@@ -30,6 +30,16 @@ def main_signal(context: dict) -> str:
 QUESTION_FALLBACK = "I'm here, and I'm listening."
 
 
+# M4-04: the gentle reply when the language model times out or fails before saying anything.
+# No question (the reply rules allow one at most) and no 988: this is not a crisis turn.
+LLM_FALLBACK_REPLY = (
+    "I'm having trouble finding my words right now, but I read what you wrote. "
+    "You're welcome to keep writing, or to try again in a moment."
+)
+# Added when the model fails part-way, so the reply never just stops mid-sentence.
+LLM_INTERRUPTED_NOTE = " (Sorry, I lost my train of thought there. You can keep writing.)"
+
+
 def drop_questions(reply: str) -> str:
     """Removes every sentence with a question mark; QUESTION_FALLBACK if nothing is left."""
     sentences = re.findall(r"[^.!?]*[.!?]+[\"')\]]*|[^.!?]+$", reply)
@@ -149,10 +159,20 @@ class ChatOrchestrator:
             reply_parts: list[str] = []
             # Medication and camera questions never reach the LLM: same stream, fixed text.
             source = fixed_reply() if fixed_text else self._llm.stream(llm_messages)
-            async for token in source:
-                reply_parts.append(token)
+            try:
+                async for token in source:
+                    reply_parts.append(token)
+                    if not hold_reply:
+                        yield token
+            except Exception as exc:  # noqa: BLE001 -- any LLM failure falls back (M4-04)
+                # Timeout, connection refused, bad stream: the turn still ends with a reply,
+                # a done event and a saved message. Never log the patient's text.
+                logger.warning("llm_fallback type=%s", type(exc).__name__)
+                metrics.record_fallback("llm_unavailable")
+                note = LLM_INTERRUPTED_NOTE if reply_parts else LLM_FALLBACK_REPLY
+                reply_parts.append(note)
                 if not hold_reply:
-                    yield token
+                    yield note
             reply = "".join(reply_parts)
             if hold_reply:
                 reply = drop_questions(reply)

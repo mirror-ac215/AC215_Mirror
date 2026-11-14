@@ -194,6 +194,7 @@ async def receive_frame(
         prediction = await cv_client.predict(data)
     except Exception as exc:
         logger.warning("cv_prediction_failed", extra={"error": str(exc)})
+        metrics.record_fallback("cv_unavailable")
         raise HTTPException(
             status_code=503, detail="Camera analysis is unavailable"
         ) from exc
