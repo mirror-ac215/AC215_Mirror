@@ -24,7 +24,7 @@ services:
   api-gateway:
     build: ../services/api-gateway
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: postgresql://${DB_USER:-mirror_app}:${DB_PASSWORD:-local-only-db-password}@db:5432/${DB_NAME:-mirror}
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-only-jwt-signing-key-not-for-production}
@@ -44,7 +44,7 @@ services:
     profiles: ["cv"]
     build: ../services/cv-service
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: /var/secrets/google/adc.json
       MODEL_BUCKET: ${CV_MODEL_BUCKET:-mirror-ac215-data}
@@ -56,7 +56,7 @@ services:
   frontend:
     build: ../services/frontend
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api-gateway:
         condition: service_healthy

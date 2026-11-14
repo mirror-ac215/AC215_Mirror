@@ -31,4 +31,4 @@ Recorded on **Oct 16, 2026** on a Windows 11 laptop from `main` plus this PR's c
 
 **Not in this folder, on purpose:** no data, images, model weights, tokens or passwords. The demo login token stayed in a shell variable; FER-2013 images are not redistributed.
 
-**Reproduce it yourself:** follow the [README](../../README.md) quick start (`.env` with two values, then `docker compose up`), then `dvc pull`. cv-service additionally needs `CV_GOOGLE_APPLICATION_CREDENTIALS` in `infra/.env` pointing at your Google application-default credentials, which are mounted read-only and never copied into the image (see [infra/README.md](../../infra/README.md)).
+**Reproduce it yourself:** follow the [README](../../README.md) quick start; **no setup is needed** for the default local stack, which starts without an `.env` file. Then run `dvc pull`. cv-service additionally needs `CV_GOOGLE_APPLICATION_CREDENTIALS` in `infra/.env` pointing at your Google application-default credentials, which are mounted read-only and never copied into the image (see [infra/README.md](../../infra/README.md)).
