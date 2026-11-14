@@ -1,0 +1,6 @@
+# Run outputs stay out of Git; the numbers that matter go into docs/perf.md.
+runs/
+*.csv
+*.html
+*.jpg
+*.jpeg
