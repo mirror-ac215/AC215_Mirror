@@ -123,6 +123,7 @@ jobs:
     with:
       service_path: services/api-gateway
       image_name: mirror-api-gateway-ci
+      coverage: true
 
   db:
     name: Database integration checks
@@ -144,6 +145,7 @@ jobs:
     with:
       service_path: services/llm-service
       image_name: mirror-llm-service-ci
+      coverage: true
 
   cv_service:
     name: CV service checks
@@ -153,6 +155,7 @@ jobs:
     with:
       service_path: services/cv-service
       image_name: mirror-cv-service-ci
+      coverage: true
 
   data_preprocess:
     name: Data preprocess checks

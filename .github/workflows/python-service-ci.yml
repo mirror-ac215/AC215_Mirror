@@ -12,6 +12,11 @@ on:
         required: false
         default: ""
         type: string
+      coverage:
+        description: Measure coverage and enforce the service's fail_under threshold (M4-20).
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -43,7 +48,24 @@ jobs:
         run: uv run ruff check .
 
       - name: Run pytest
+        if: ${{ !inputs.coverage }}
         run: uv run pytest -v
+
+      - name: Run pytest with coverage gate
+        if: ${{ inputs.coverage }}
+        run: |
+          set -o pipefail
+          uv run pytest -v --cov --cov-report=term-missing --cov-report=xml | tee coverage.txt
+
+      - name: Publish coverage summary
+        if: ${{ always() && inputs.coverage }}
+        run: |
+          {
+            echo "### Coverage: ${{ inputs.service_path }}"
+            echo '```'
+            sed -n '/coverage: platform/,/^TOTAL/p' coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build Docker image
         if: inputs.image_name != ''

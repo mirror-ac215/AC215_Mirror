@@ -31,6 +31,7 @@ dev = [
     "httpx>=0.28.1",
     "jsonschema>=4.26.0",
     "pytest>=9.1.1",
+    "pytest-cov>=7.0.0",
     "pyyaml>=6.0.3",
     "ruff>=0.16.9",
 ]
@@ -38,3 +39,12 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+# M4-20: backend services must keep at least 70% line coverage of runtime code.
+fail_under = 70
+show_missing = true
+skip_empty = true
