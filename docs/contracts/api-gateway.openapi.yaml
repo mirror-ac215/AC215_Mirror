@@ -171,6 +171,7 @@ paths:
   /clinician/patients:
     get:
       summary: (MS4) List the clinician's own patients
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: Patient list
@@ -179,16 +180,18 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PatientSummary" }
+        "401": { description: Not logged in or token is invalid }
         "403": { description: Not a clinician }
 
   /clinician/patients/{patient_id}/trend:
     get:
       summary: (MS4) Aggregated emotion trend for one patient
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: patient_id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: One point per stored emotion window
@@ -197,16 +200,52 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/TrendPoint" }
+        "401": { description: Not logged in or token is invalid }
         "403": { description: Not this clinician's patient }
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HTTPValidationError" }
+
+  /clinician/patients/{patient_id}/review-flags:
+    get:
+      tags: [clinician]
+      summary: List Patient Review Flags
+      description: Return flag IDs and timestamps, never messages, for one assigned patient.
+      operationId: list_patient_review_flags_clinician_patients__patient_id__review_flags_get
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: patient_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid, title: Patient Id }
+      responses:
+        "200":
+          description: Clinician-owned review flag metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReviewFlagSummary" }
+                title: Response List Patient Review Flags Clinician Patients  Patient Id  Review Flags Get
+        "401": { description: Not logged in or token is invalid }
+        "403": { description: Not this clinician's patient }
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HTTPValidationError" }
 
   /clinician/review-flags/{flag_id}:
     patch:
       summary: (MS4) Mark a needs-review flag as reviewed
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: flag_id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -217,8 +256,18 @@ paths:
               properties:
                 reviewed: { type: boolean, const: true }
       responses:
-        "200": { description: Flag marked as reviewed }
+        "200":
+          description: Flag marked as reviewed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewFlagAcknowledgement" }
+        "401": { description: Not logged in or token is invalid }
         "403": { description: Not this clinician's patient }
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HTTPValidationError" }
 
 components:
   securitySchemes:
@@ -235,11 +284,39 @@ components:
       schema: { type: string }
 
   schemas:
+    HTTPValidationError:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: array
+          items: { $ref: "#/components/schemas/ValidationError" }
+    ValidationError:
+      type: object
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf: [{ type: string }, { type: integer }]
+        msg: { type: string }
+        type: { type: string }
+        ctx: { type: object }
+        input: {}
     LabelProb:
       type: array
       description: One label and its probability, as [label, probability].
       prefixItems:
-        - { type: string }
+        - { type: string, enum: [angry, disgust, fear, happy, neutral, sad, surprise] }
+        - { type: number, minimum: 0, maximum: 1 }
+      minItems: 2
+      maxItems: 2
+      items: false
+    TrendLabelProb:
+      type: array
+      description: One stored visual/text label and probability, as [label, probability].
+      prefixItems:
+        - { type: string, enum: [anger, angry, disgust, fear, happy, joy, neutral, sad, sadness, surprise] }
         - { type: number, minimum: 0, maximum: 1 }
       minItems: 2
       maxItems: 2
@@ -308,6 +385,32 @@ components:
       properties:
         ts: { type: string, format: date-time }
         visual_status: { type: string, enum: [ok, uncertain, dropped, camera_off] }
-        visual_top2: { type: array }
-        text_top2: { type: array }
+        visual_top2:
+          type: [array, "null"]
+          maxItems: 2
+          items: { $ref: "#/components/schemas/TrendLabelProb" }
+        text_top2:
+          type: [array, "null"]
+          maxItems: 2
+          items: { $ref: "#/components/schemas/TrendLabelProb" }
         tone_mode: { type: string, enum: [coach, supportive] }
+
+    ReviewFlagAcknowledgement:
+      type: object
+      required: [reviewed]
+      properties:
+        reviewed: { type: boolean, const: true }
+
+    ReviewFlagSummary:
+      type: object
+      title: ReviewFlagSummary
+      description: Clinician-visible flag metadata, deliberately excluding message content.
+      required: [flag_id, created_at, reviewed_at]
+      properties:
+        flag_id: { type: string, format: uuid, title: Flag Id }
+        created_at: { type: string, format: date-time, title: Created At }
+        reviewed_at:
+          title: Reviewed At
+          anyOf:
+            - { type: string, format: date-time }
+            - { type: "null" }
