@@ -355,6 +355,9 @@ jobs:
       - name: Exercise durable ordinary and crisis chat turns
         run: bash infra/tests/test_compose_chat.sh
 
+      - name: Fallback paths (cv-service down, llm-service stopped) still answer
+        run: bash infra/tests/test_compose_fallbacks.sh
+
       - name: Check that Prometheus scrapes the gateway and Grafana shows the dashboard
         run: bash infra/tests/test_compose_monitoring.sh
 

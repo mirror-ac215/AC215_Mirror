@@ -62,6 +62,11 @@ FUSION = Counter(
     "mirror_gateway_fusion_total", "Fusion outcome per turn (M3-06)",
     ["agreement", "tone_mode", "main_signal"], registry=REGISTRY,
 )
+FALLBACK = Counter(
+    "mirror_gateway_fallback_total",
+    "Turns or frames that went on without a dependency, by reason (M4-04)",
+    ["reason"], registry=REGISTRY,
+)
 
 
 # The only values a gate or fusion label can take (docs/contracts/context_object.schema.json).
@@ -69,6 +74,8 @@ GATE_STATUSES = ("ok", "uncertain", "dropped", "camera_off")
 AGREEMENTS = ("agree", "disagree", "n/a")
 TONE_MODES = ("coach", "supportive")
 MAIN_SIGNALS = ("face", "text", "none")
+# llm_unavailable: the reply came from the gentle fallback text; cv_unavailable: a frame got no reading.
+FALLBACK_REASONS = ("llm_unavailable", "cv_unavailable")
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
 MEDICATION_RULE_IDS = ("med-change", "med-dose", "med-mix", "med-should", "med-advice")  # app/safety.py
 
@@ -111,6 +118,11 @@ def record_medication_hit(rule: str) -> None:
 def record_camera_hit() -> None:
     """Count one camera question answered with the fixed reply (never the message text)."""
     CAMERA_HITS.inc()
+
+
+def record_fallback(reason: str) -> None:
+    """Count one fallback by reason (M4-04). Labels come from a closed list, never free text."""
+    FALLBACK.labels(reason=_closed(reason, FALLBACK_REASONS)).inc()
 
 
 def render() -> tuple[bytes, str]:

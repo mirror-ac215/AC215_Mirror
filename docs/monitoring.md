@@ -10,7 +10,7 @@ Basic production monitoring for MS3. Grafana dashboards are planned for MS4 (M4-
 | llm-service logs | vLLM startup, errors, request status and throughput | Cloud Logging |
 | cv-service logs | Model startup failures; each request's path, status and time | Cloud Logging |
 | frontend and caddy logs | Startup and errors | Cloud Logging |
-| api-gateway metrics | Requests, response time, crisis, medication and camera hits (`mirror_gateway_camera_hits_total` counts fixed camera replies and has no labels or message text), text emotion time and failures, gate and fusion outcomes | `/metrics` on the VM |
+| api-gateway metrics | Requests, response time, crisis, medication and camera hits (`mirror_gateway_camera_hits_total` counts fixed camera replies and has no labels or message text), text emotion time and failures, gate and fusion outcomes, fallbacks by reason (`mirror_gateway_fallback_total{reason="llm_unavailable"|"cv_unavailable"}`, M4-04) | `/metrics` on the VM |
 | llm-service metrics | Running and waiting requests, plus vLLM's own performance metrics | `/metrics` on the VM |
 | cv-service metrics | Request counts from its own `/metrics` | `/metrics` on the VM |
 
