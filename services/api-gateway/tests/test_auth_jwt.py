@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from app.auth import AuthenticatedUser, decode_access_token, issue_access_token
 
 

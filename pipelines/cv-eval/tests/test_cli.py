@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import torch
+from PIL import Image
+
 from mirror_cv_eval import cli
 from mirror_cv_eval.cli import parser
-from PIL import Image
 
 
 def test_parser_accepts_an_explicit_wandb_project() -> None:

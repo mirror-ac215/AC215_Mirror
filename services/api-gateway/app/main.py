@@ -41,7 +41,6 @@ app.include_router(chat_router)
 app.include_router(clinician_router)
 
 
-
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))

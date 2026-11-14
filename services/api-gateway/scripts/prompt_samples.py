@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import httpx
+
 from app.prompt import PROMPT_VERSION, build_messages
 
 CASES = Path(__file__).parent.parent / "tests" / "prompt_cases.json"

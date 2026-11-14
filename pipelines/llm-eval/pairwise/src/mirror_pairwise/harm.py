@@ -55,9 +55,7 @@ def cohen_kappa(first: list[str], second: list[str]) -> dict:
         raise ValueError("no replies to compare")
     observed = sum(a == b for a, b in zip(first, second)) / n
     labels = set(first) | set(second)
-    expected = sum(
-        (first.count(label) / n) * (second.count(label) / n) for label in labels
-    )
+    expected = sum((first.count(label) / n) * (second.count(label) / n) for label in labels)
     if expected == 1.0:
         kappa = 1.0 if observed == 1.0 else 0.0
     else:

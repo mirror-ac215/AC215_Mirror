@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from mirror_iemocap_data.pipeline import (
     build,
     describe,

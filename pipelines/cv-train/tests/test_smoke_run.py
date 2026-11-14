@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 import torch
 import yaml
+from PIL import Image
+
 from mirror_cv_train.cli import main
 from mirror_cv_train.model import build_vit
-from PIL import Image
 
 CLASSES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
 
@@ -310,8 +311,9 @@ def test_early_stopping_watches_the_selection_metric_by_default(
 ) -> None:
     # Julie (#56): val loss gets worse every epoch while macro-F1 keeps improving
     # (focal loss + class weights can do this). Stopping on the loss would end the run too early.
-    from mirror_cv_train import train
     from torch import nn
+
+    from mirror_cv_train import train
 
     epochs = [{"loss": 1.0 + e, "accuracy": 0.5, "macro_f1": 0.2 + 0.1 * e} for e in range(3)]
     scores = iter(epochs + epochs)

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from app.runtime import ModelSettings
 from pydantic import ValidationError
+
+from app.runtime import ModelSettings
 
 
 def test_uncertain_margin_defaults_to_current_deployed_value() -> None:

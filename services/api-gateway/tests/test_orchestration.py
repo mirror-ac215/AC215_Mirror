@@ -3,11 +3,12 @@
 from collections.abc import AsyncIterator
 
 import pytest
+from conftest import auth_headers
+
 from app.fusion import TurnHistory
 from app.gating import FrameReading
 from app.orchestration import ChatOrchestrator
 from app.text_emotion import TextEmotion
-from conftest import auth_headers
 
 
 class FakeRepository:
@@ -161,9 +162,10 @@ async def test_crisis_returns_988_without_llm_when_persistence_fails() -> None:
 async def test_http_turn_forwards_fake_llm_sse_and_uses_fake_cv_and_persistence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from httpx import ASGITransport, AsyncClient
+
     from app import chat
     from app.main import app
-    from httpx import ASGITransport, AsyncClient
 
     repository = FakeRepository()
     llm = FakeLLM()

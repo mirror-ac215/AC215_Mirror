@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
-from app.fusion import TurnHistory, fuse
 from jsonschema import Draft202012Validator
+
+from app.fusion import TurnHistory, fuse
 
 SCHEMA = json.loads(
     (Path(__file__).parents[3] / "docs" / "contracts" / "context_object.schema.json").read_text(

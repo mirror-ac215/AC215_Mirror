@@ -4,8 +4,9 @@ import json
 
 import pytest
 import torch
-from mirror_cv_eval import cli, release_check
 from PIL import Image
+
+from mirror_cv_eval import cli, release_check
 
 
 class MeanPixel(torch.nn.Module):

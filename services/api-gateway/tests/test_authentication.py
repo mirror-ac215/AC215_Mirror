@@ -3,6 +3,8 @@ from typing import Self
 
 import bcrypt
 import pytest
+from fastapi import HTTPException
+
 from app.auth import (
     AuthenticatedUser,
     StoredUser,
@@ -12,7 +14,6 @@ from app.auth import (
     require_clinician,
 )
 from app.config import Settings
-from fastapi import HTTPException
 
 
 class FakeUsers:

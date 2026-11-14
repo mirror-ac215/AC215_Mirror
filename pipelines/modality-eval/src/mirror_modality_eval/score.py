@@ -100,16 +100,20 @@ def score_overlap(rows: Iterable[Row]) -> dict:
 
     score_mode scores each mode on its own subset, which differ; this is the like-for-like view.
     """
-    both = [r for r in rows
-            if r.label in SCORED and r.face_reading() is not None and r.text_reading() is not None]
+    both = [
+        r
+        for r in rows
+        if r.label in SCORED and r.face_reading() is not None and r.text_reading() is not None
+    ]
     result = {"rows": len(both)}
     for mode in ("face", "text"):
         reader = MODES[mode]
         hits = sum(1 for r in both if reader(r) == r.label)
         low, high = wilson(hits, len(both))
         result[mode] = {"accuracy": hits / len(both) if both else 0.0, "low": low, "high": high}
-    result["agree_share"] = (sum(1 for r in both if r.face_reading() == r.text_reading()) / len(both)
-                             if both else 0.0)
+    result["agree_share"] = (
+        sum(1 for r in both if r.face_reading() == r.text_reading()) / len(both) if both else 0.0
+    )
     result["face_vs_text_beyond_noise"] = beyond_noise(result["face"], result["text"])
     return result
 

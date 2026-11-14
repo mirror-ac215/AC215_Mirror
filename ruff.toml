@@ -1,7 +1,37 @@
 target-version = "py311"
 line-length = 100
-src = ["services", "pipelines"]
+# Match each component's own working-directory view of first-party packages.
+src = [
+  "services/api-gateway",
+  "services/cv-service",
+  "services/llm-service",
+  "pipelines/cv-eval/src",
+  "pipelines/cv-train/src",
+  "pipelines/data-preprocess/src",
+  "pipelines/fairness-audit/src",
+  "pipelines/iemocap-data/src",
+  "pipelines/llm-eval/pairwise/src",
+  "pipelines/llm-eval/persona-checks/src",
+  "pipelines/llm-finetune/src",
+  "pipelines/modality-eval/src",
+  "pipelines/persona-data/src",
+]
 extend-exclude = ["*.md"]
+
+[lint.isort]
+known-first-party = [
+  "app",
+  "mirror_cv_eval",
+  "mirror_cv_train",
+  "mirror_data_preprocess",
+  "mirror_fairness_audit",
+  "mirror_iemocap_data",
+  "mirror_llm_finetune",
+  "mirror_modality_eval",
+  "mirror_pairwise",
+  "mirror_persona_checks",
+  "mirror_persona_data",
+]
 
 [lint]
 select = ["E", "F", "I"]
@@ -30,6 +60,7 @@ select = ["E", "F", "I"]
 "pipelines/llm-eval/text-emotion-selection/compare_full.py" = ["E501"]
 "pipelines/persona-data/src/mirror_persona_data/pipeline.py" = ["E501"]
 "services/api-gateway/app/clients.py" = ["E501"]
+"services/api-gateway/app/clinician.py" = ["E501"]
 "services/api-gateway/app/config.py" = ["E501"]
 "services/api-gateway/app/fusion.py" = ["E501"]
 "services/api-gateway/app/metrics.py" = ["E501"]
@@ -45,6 +76,9 @@ select = ["E", "F", "I"]
 "services/api-gateway/tests/test_startup.py" = ["E501"]
 "services/cv-service/app/main.py" = ["E501"]
 "services/llm-service/tests/test_entrypoint.py" = ["E501"]
+"pipelines/llm-eval/pairwise/src/mirror_pairwise/__init__.py" = ["E501"]
+"pipelines/llm-eval/pairwise/src/mirror_pairwise/harm.py" = ["E501"]
+"pipelines/llm-eval/pairwise/src/mirror_pairwise/pairwise.py" = ["E501"]
 
 [format]
 quote-style = "double"

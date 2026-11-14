@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
 from app import text_emotion
 from app.text_emotion import (
     LABELS,

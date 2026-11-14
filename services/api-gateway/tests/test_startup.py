@@ -1,4 +1,5 @@
 import pytest
+
 from app import main
 from app.text_emotion import TextEmotionUnavailable
 

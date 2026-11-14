@@ -39,9 +39,7 @@ class FakeClinicianRepository:
             )
         ]
 
-    async def patient_trend(
-        self, clinician_id: str, patient_id: str
-    ) -> list[TrendPoint] | None:
+    async def patient_trend(self, clinician_id: str, patient_id: str) -> list[TrendPoint] | None:
         if clinician_id != ADA_ID or patient_id != ALEX_ID:
             return None
         return [
@@ -134,9 +132,7 @@ async def test_patient_cannot_list_clinician_patients() -> None:
 @pytest.mark.anyio
 async def test_assigned_clinician_can_read_only_aggregate_trend() -> None:
     async with client() as api:
-        response = await api.get(
-            f"/clinician/patients/{ALEX_ID}/trend", headers=CLINICIAN_ADA
-        )
+        response = await api.get(f"/clinician/patients/{ALEX_ID}/trend", headers=CLINICIAN_ADA)
 
     assert response.status_code == 200
     assert response.json() == [
@@ -155,9 +151,7 @@ async def test_assigned_clinician_can_read_only_aggregate_trend() -> None:
 @pytest.mark.anyio
 async def test_unassigned_clinician_cannot_read_patient_trend() -> None:
     async with client() as api:
-        response = await api.get(
-            f"/clinician/patients/{ALEX_ID}/trend", headers=CLINICIAN_LUIS
-        )
+        response = await api.get(f"/clinician/patients/{ALEX_ID}/trend", headers=CLINICIAN_LUIS)
 
     assert response.status_code == 403
 
@@ -209,9 +203,7 @@ async def test_malformed_clinician_resource_ids_return_422(
 
 
 @pytest.mark.anyio
-async def test_assigned_clinician_can_mark_only_their_unresolved_flag_reviewed() -> (
-    None
-):
+async def test_assigned_clinician_can_mark_only_their_unresolved_flag_reviewed() -> None:
     async with client() as api:
         updated = await api.patch(
             f"/clinician/review-flags/{FLAG_ALEX_ID}",

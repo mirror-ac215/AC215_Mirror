@@ -18,8 +18,9 @@ import json
 from pathlib import Path
 
 import torch
-from mirror_cv_eval.cli import load_model, transform_from_metadata
 from PIL import Image
+
+from mirror_cv_eval.cli import load_model, transform_from_metadata
 
 
 def main() -> int:

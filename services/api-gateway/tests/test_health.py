@@ -1,6 +1,7 @@
-import app.main
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+import app.main
 
 
 async def get_health() -> dict:

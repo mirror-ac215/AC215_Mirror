@@ -1,10 +1,11 @@
 import json
 
 import pytest
-from app.chat import settings
-from app.main import app
 from conftest import auth_headers
 from httpx import ASGITransport, AsyncClient
+
+from app.chat import settings
+from app.main import app
 
 PATIENT = auth_headers(
     "00000000-0000-0000-0000-000000000201", "patient.alex@example.test", "patient"

@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
+
 from mirror_persona_checks.checks import (
     ask,
     check_reply,

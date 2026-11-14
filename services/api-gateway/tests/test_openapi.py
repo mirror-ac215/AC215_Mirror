@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from jsonschema import Draft202012Validator
+
 from app.main import app
 from app.schemas import FrameAck
-from jsonschema import Draft202012Validator
 
 # tests/ -> api-gateway/ -> services/ -> repo root
 CONTRACT = Path(__file__).parents[3] / "docs" / "contracts" / "api-gateway.openapi.yaml"
@@ -117,9 +118,7 @@ def test_list_review_flags_operation_matches_contract() -> None:
 
 def frame_ack_validator() -> Draft202012Validator:
     contract = load_contract()
-    response = contract["paths"]["/sessions/{session_id}/frames"]["post"]["responses"][
-        "202"
-    ]
+    response = contract["paths"]["/sessions/{session_id}/frames"]["post"]["responses"]["202"]
     schema = response["content"]["application/json"]["schema"]
     return Draft202012Validator({**schema, "components": contract["components"]})
 
@@ -127,9 +126,7 @@ def frame_ack_validator() -> Draft202012Validator:
 def test_frame_ack_matches_the_published_top2_shape():
     validator = frame_ack_validator()
     ack = FrameAck(visual_status="ok", top2=[("happy", 0.8), ("neutral", 0.1)])
-    assert not list(
-        validator.iter_errors(ack.model_dump(mode="json", exclude_none=True))
-    )
+    assert not list(validator.iter_errors(ack.model_dump(mode="json", exclude_none=True)))
 
 
 @pytest.mark.parametrize(
@@ -145,6 +142,4 @@ def test_frame_ack_matches_the_published_top2_shape():
     ],
 )
 def test_contract_rejects_a_malformed_top2(top2):
-    assert list(
-        frame_ack_validator().iter_errors({"visual_status": "ok", "top2": top2})
-    )
+    assert list(frame_ack_validator().iter_errors({"visual_status": "ok", "top2": top2}))

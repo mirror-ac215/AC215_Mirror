@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from mirror_persona_data.pipeline import Pair, clean, read_pairs, run
 
 PARAMS = yaml.safe_load((Path(__file__).parents[1] / "params.yaml").read_text())

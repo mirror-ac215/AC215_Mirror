@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 
 import pytest
+
 from app import safety
 from app.fusion import TurnHistory
 from app.orchestration import QUESTION_FALLBACK, ChatOrchestrator, drop_questions

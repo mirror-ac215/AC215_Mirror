@@ -18,7 +18,9 @@ class M419LintingTests(unittest.TestCase):
 
     def test_root_ruff_policy_covers_the_declared_python_scope(self) -> None:
         config = (REPO / "ruff.toml").read_text(encoding="utf-8")
-        self.assertIn('src = ["services", "pipelines"]', config)
+        self.assertIn('"services/api-gateway",', config)
+        self.assertIn('"pipelines/llm-eval/pairwise/src",', config)
+        self.assertIn('"mirror_fairness_audit",', config)
         self.assertIn('target-version = "py311"', config)
 
     def test_ci_runs_lint_and_format_checks_for_all_python_components(self) -> None:

@@ -3,11 +3,12 @@
 from pathlib import Path
 
 import pytest
+from conftest import auth_headers
+from httpx import ASGITransport, AsyncClient
+
 from app import metrics
 from app.main import app
 from app.text_emotion import TextEmotion, TextEmotionUnavailable
-from conftest import auth_headers
-from httpx import ASGITransport, AsyncClient
 
 PATIENT = auth_headers(
     "00000000-0000-0000-0000-000000000201", "patient.alex@example.test", "patient"

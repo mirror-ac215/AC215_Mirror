@@ -1,8 +1,9 @@
 import bcrypt
 import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.auth import StoredUser, clear_login_attempts, get_user_lookup
 from app.main import app
-from httpx import ASGITransport, AsyncClient
 
 
 class FakeUsers:

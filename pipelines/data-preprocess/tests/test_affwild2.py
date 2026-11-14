@@ -6,6 +6,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+
 from mirror_data_preprocess.affwild2 import prepare
 
 HEADER = "image,valence,arousal,expression,aus\n"

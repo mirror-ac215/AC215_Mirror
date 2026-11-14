@@ -8,6 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
+from PIL import Image
+
 from mirror_fairness_audit import LABELS
 from mirror_fairness_audit.fairface import Photo
 from mirror_fairness_audit.score import (
@@ -18,7 +20,6 @@ from mirror_fairness_audit.score import (
     to_tensor,
     write,
 )
-from PIL import Image
 
 
 class FixedModel(torch.nn.Module):

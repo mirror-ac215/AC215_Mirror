@@ -10,9 +10,10 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
+
 from app.config import Settings
 from app.gating import FrameReading, FrameWindow, gate
-from jsonschema import Draft202012Validator
 
 SCHEMA = json.loads(
     (Path(__file__).parents[3] / "docs" / "contracts" / "context_object.schema.json").read_text(

@@ -10,10 +10,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-from app import chat, metrics, safety
-from app.main import app
 from conftest import auth_headers
 from httpx import ASGITransport, AsyncClient
+
+from app import chat, metrics, safety
+from app.main import app
 
 CASES = yaml.safe_load((Path(__file__).parent / "safety_cases.yaml").read_text())
 PATIENT = auth_headers(

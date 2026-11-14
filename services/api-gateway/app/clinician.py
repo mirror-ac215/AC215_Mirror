@@ -103,9 +103,7 @@ class PostgresClinicianRepository:
             for patient_id, display_name, last_session_at, needs_review in rows
         ]
 
-    async def patient_trend(
-        self, clinician_id: str, patient_id: str
-    ) -> list[TrendPoint] | None:
+    async def patient_trend(self, clinician_id: str, patient_id: str) -> list[TrendPoint] | None:
         """Return a trend only when the assignment matches in the same SQL query."""
         rows = await asyncio.to_thread(
             self._fetchall,
@@ -185,9 +183,7 @@ class PostgresClinicianRepository:
         finally:
             connection.close()
 
-    def _fetchone_and_commit(
-        self, query: str, params: tuple[Any, ...]
-    ) -> tuple[Any, ...] | None:
+    def _fetchone_and_commit(self, query: str, params: tuple[Any, ...]) -> tuple[Any, ...] | None:
         connection = self._connect()
         try:
             with connection.cursor() as cursor:
@@ -282,7 +278,5 @@ async def mark_review_flag_reviewed(
 ) -> ReviewFlagAcknowledgement:
     """Mark one assigned patient's unresolved review flag as reviewed."""
     if not await repository.mark_reviewed(user.user_id, str(flag_id)):
-        raise HTTPException(
-            status_code=403, detail="Not this clinician's unresolved review flag"
-        )
+        raise HTTPException(status_code=403, detail="Not this clinician's unresolved review flag")
     return ReviewFlagAcknowledgement(reviewed=True)

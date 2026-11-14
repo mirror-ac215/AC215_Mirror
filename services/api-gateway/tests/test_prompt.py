@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from app.fusion import NEGATIVE, _signals
 from app.prompt import (
     BASE_RULES,

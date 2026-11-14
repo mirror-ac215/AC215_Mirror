@@ -19,9 +19,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-from mirror_cv_eval.cli import load_model
 from PIL import Image
 from torchvision import transforms
+
+from mirror_cv_eval.cli import load_model
 
 LABELS = ("angry", "disgust", "fear", "happy", "neutral", "sad", "surprise")
 TRANSFORM = transforms.Compose(

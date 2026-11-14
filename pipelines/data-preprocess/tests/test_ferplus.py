@@ -5,8 +5,9 @@ import json
 from pathlib import Path
 
 import numpy as np
-from mirror_data_preprocess.ferplus import majority, prepare
 from PIL import Image
+
+from mirror_data_preprocess.ferplus import majority, prepare
 
 VOTE_HEADER = "neutral,happiness,surprise,sadness,anger,disgust,fear,contempt,unknown,NF"
 
