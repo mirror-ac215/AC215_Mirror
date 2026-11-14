@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     # Longer messages are cut before scoring (the API allows up to 4000 characters).
     text_emotion_max_chars: int = 2000
 
+    # Second safety layer (M4-15): crisis by meaning (app/crisis_meaning.py).
+    # PROVISIONAL until calibrated: run scripts/calibrate_crisis_meaning.py, then pin the
+    # revision to the commit it prints and set the threshold and margin from its output.
+    # Until the model is in the image's cache, this layer is off and the rules run alone.
+    crisis_meaning_enabled: bool = True
+    crisis_meaning_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    crisis_meaning_revision: str = "main"
+    crisis_meaning_threshold: float = Field(default=0.60, ge=-1, le=1)
+    crisis_meaning_margin: float = Field(default=0.05, ge=0, le=2)
+
     # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
     # result is noisy, so the gateway averages the recent ones and decides
     # whether the reading is steady enough to use.

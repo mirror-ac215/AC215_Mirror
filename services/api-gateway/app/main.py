@@ -9,6 +9,7 @@ from app import metrics as gateway_metrics
 from app.chat import router as chat_router
 from app.clinician import router as clinician_router
 from app.config import Settings
+from app.crisis_meaning import CrisisMeaningUnavailable, get_crisis_meaning
 from app.health import check_dependencies
 from app.logging_config import configure_logging, request_id_context
 from app.text_emotion import TextEmotionUnavailable, get_text_emotion
@@ -25,6 +26,13 @@ async def lifespan(_: FastAPI):
     except TextEmotionUnavailable as exc:
         # Text emotion remains optional; individual turns preserve the text-only fallback.
         logger.warning("text_emotion_warmup_failed", extra={"error_type": type(exc).__name__})
+    meaning = get_crisis_meaning()
+    if meaning is not None:
+        try:
+            meaning.warm_up()
+        except CrisisMeaningUnavailable as exc:
+            # The second safety layer is optional; the M3-07 rules still run on every message.
+            logger.warning("crisis_meaning_warmup_failed", extra={"error_type": type(exc).__name__})
     yield
 
 
