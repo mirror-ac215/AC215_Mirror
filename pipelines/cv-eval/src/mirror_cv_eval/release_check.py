@@ -3,6 +3,7 @@
 Same evaluator as mirror-cv-eval with nothing left to choose: FER+ test (ferplus/v2), macro-F1 >= 0.609,
 no --report-only. CI has no FER-2013 images or GPU, so it runs by hand on a machine with the data.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,9 @@ def sha256_of(path: Path) -> str:
 
 
 def parser() -> argparse.ArgumentParser:
-    command = argparse.ArgumentParser(description="FER+ release check (D-005): fails below macro-F1 0.609")
+    command = argparse.ArgumentParser(
+        description="FER+ release check (D-005): fails below macro-F1 0.609"
+    )
     command.add_argument("--data-dir", type=Path, default=Path("data/processed/ferplus/v2"))
     command.add_argument("--checkpoint", type=Path, required=True)
     command.add_argument("--output", type=Path, required=True)
@@ -43,21 +46,44 @@ def parser() -> argparse.ArgumentParser:
 def run(args: argparse.Namespace) -> int:
     manifest = args.data_dir / "manifests" / "test.csv"
     if sha256_of(manifest) != TEST_MANIFEST_SHA256:
-        raise SystemExit(f"{manifest}: not the ferplus/v2 test manifest; rebuild it with mirror-prepare-ferplus")
+        raise SystemExit(
+            f"{manifest}: not the ferplus/v2 test manifest; rebuild it with mirror-prepare-ferplus"
+        )
     eval_argv = [
-        "--data-dir", str(args.data_dir), "--checkpoint", str(args.checkpoint), "--output", str(args.output),
-        "--code-revision", args.code_revision, "--dataset-version", DATASET_VERSION,
-        "--threshold", str(THRESHOLD), "--device", args.device,
+        "--data-dir",
+        str(args.data_dir),
+        "--checkpoint",
+        str(args.checkpoint),
+        "--output",
+        str(args.output),
+        "--code-revision",
+        args.code_revision,
+        "--dataset-version",
+        DATASET_VERSION,
+        "--threshold",
+        str(THRESHOLD),
+        "--device",
+        args.device,
     ]
-    for flag, value in (("--model-version", args.model_version), ("--model-uri", args.model_uri), ("--wandb-project", args.wandb_project)):
+    for flag, value in (
+        ("--model-version", args.model_version),
+        ("--model-uri", args.model_uri),
+        ("--wandb-project", args.wandb_project),
+    ):
         if value:
             eval_argv += [flag, value]
     status = cli.run(cli.parser().parse_args(eval_argv))
     report = json.loads(args.output.read_text())
-    report["release_check"] = {"decision": "D-005", "checkpoint_sha256": sha256_of(args.checkpoint), "passed": status == 0}
+    report["release_check"] = {
+        "decision": "D-005",
+        "checkpoint_sha256": sha256_of(args.checkpoint),
+        "passed": status == 0,
+    }
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     verdict = "PASS" if status == 0 else "FAIL"
-    print(f"{verdict}: {report['identity']['model_version']} macro-F1 {report['metrics']['macro_f1']:.4f} on {DATASET_VERSION} (needs >= {THRESHOLD})")
+    print(
+        f"{verdict}: {report['identity']['model_version']} macro-F1 {report['metrics']['macro_f1']:.4f} on {DATASET_VERSION} (needs >= {THRESHOLD})"
+    )
     return status
 
 

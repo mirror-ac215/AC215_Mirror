@@ -104,8 +104,13 @@ async def test_low_confidence_camera_readings_never_lead_the_turn() -> None:
             return {
                 "face_found": True,
                 "probs": {
-                    "angry": 0.15, "disgust": 0.14, "fear": 0.14, "happy": 0.15,
-                    "neutral": 0.14, "sad": 0.14, "surprise": 0.14,
+                    "angry": 0.15,
+                    "disgust": 0.14,
+                    "fear": 0.14,
+                    "happy": 0.15,
+                    "neutral": 0.14,
+                    "sad": 0.14,
+                    "surprise": 0.14,
                 },
             }
 

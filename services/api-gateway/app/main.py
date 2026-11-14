@@ -74,7 +74,6 @@ async def health() -> dict[str, object]:
     return {"status": status, "dependencies": dependencies}
 
 
-
 @app.get("/metrics")
 def metrics() -> Response:
     """Prometheus metrics (M3-15): requests, latency, crisis hits, text emotion, gate and fusion."""

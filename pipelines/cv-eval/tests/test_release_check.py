@@ -30,8 +30,17 @@ def ferplus(tmp_path, monkeypatch):
     (data / "metadata").mkdir(parents=True)
     (data / "manifests").mkdir()
     (data / "images").mkdir()
-    spec = {"checkpoint": "gs://example/model.pth", "class_order": ["a", "b"], "inference_transform": {
-        "grayscale_to_channels": 3, "resize": [2, 2], "pixel_range": [0.0, 1.0], "mean": [0.0] * 3, "std": [1.0] * 3}}
+    spec = {
+        "checkpoint": "gs://example/model.pth",
+        "class_order": ["a", "b"],
+        "inference_transform": {
+            "grayscale_to_channels": 3,
+            "resize": [2, 2],
+            "pixel_range": [0.0, 1.0],
+            "mean": [0.0] * 3,
+            "std": [1.0] * 3,
+        },
+    }
     (data / "metadata" / "transform_spec.json").write_text(json.dumps(spec))
     Image.new("L", (2, 2), color=0).save(data / "images" / "black.png")
     Image.new("L", (2, 2), color=255).save(data / "images" / "white.png")
@@ -44,8 +53,22 @@ def ferplus(tmp_path, monkeypatch):
 
 
 def check(data, checkpoint, output) -> int:
-    return release_check.main(["--data-dir", str(data), "--checkpoint", str(checkpoint), "--output", str(output),
-                               "--code-revision", "abc", "--model-version", "cv-test", "--device", "cpu"])
+    return release_check.main(
+        [
+            "--data-dir",
+            str(data),
+            "--checkpoint",
+            str(checkpoint),
+            "--output",
+            str(output),
+            "--code-revision",
+            "abc",
+            "--model-version",
+            "cv-test",
+            "--device",
+            "cpu",
+        ]
+    )
 
 
 def test_a_model_above_the_guard_passes(ferplus, monkeypatch) -> None:
@@ -78,6 +101,10 @@ def test_other_data_is_refused(ferplus, monkeypatch) -> None:
 
 def test_the_guard_cannot_be_loosened() -> None:
     with pytest.raises(SystemExit):
-        release_check.parser().parse_args(["--checkpoint", "c", "--output", "o", "--code-revision", "x", "--report-only"])
+        release_check.parser().parse_args(
+            ["--checkpoint", "c", "--output", "o", "--code-revision", "x", "--report-only"]
+        )
     with pytest.raises(SystemExit):
-        release_check.parser().parse_args(["--checkpoint", "c", "--output", "o", "--code-revision", "x", "--threshold", "0.5"])
+        release_check.parser().parse_args(
+            ["--checkpoint", "c", "--output", "o", "--code-revision", "x", "--threshold", "0.5"]
+        )

@@ -5,11 +5,11 @@ import io
 import json
 import random
 import shutil
-from uuid import uuid4
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 from zipfile import ZipFile
 
 from PIL import Image, UnidentifiedImageError
@@ -30,7 +30,9 @@ def _required_class_order(params: dict[str, Any]) -> list[str]:
     return [str(value) for value in values]
 
 
-def _read_valid_samples(source_archive: Path, params: dict[str, Any]) -> tuple[list[Sample], dict[str, Any]]:
+def _read_valid_samples(
+    source_archive: Path, params: dict[str, Any]
+) -> tuple[list[Sample], dict[str, Any]]:
     labels = set(_required_class_order(params))
     expected_size = (int(params["image"]["stored_width"]), int(params["image"]["stored_height"]))
     samples: list[Sample] = []
@@ -68,7 +70,9 @@ def _read_valid_samples(source_archive: Path, params: dict[str, Any]) -> tuple[l
     return samples, report
 
 
-def _split_train_validation(samples: list[Sample], params: dict[str, Any]) -> tuple[list[Sample], list[Sample]]:
+def _split_train_validation(
+    samples: list[Sample], params: dict[str, Any]
+) -> tuple[list[Sample], list[Sample]]:
     seed = int(params["split"]["seed"])
     train_fraction = float(params["split"]["train_fraction"])
     validation_fraction = float(params["split"]["validation_fraction"])
@@ -117,7 +121,9 @@ def _class_balance(rows: list[dict[str, str]], classes: list[str]) -> dict[str, 
     return {label: counts[label] for label in classes}
 
 
-def preprocess_dataset(source_archive: Path, output_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
+def preprocess_dataset(
+    source_archive: Path, output_dir: Path, params: dict[str, Any]
+) -> dict[str, Any]:
     """Build a deterministic, validated FER-2013 v1 dataset from the raw archive."""
     source_archive = Path(source_archive)
     output_dir = Path(output_dir)
@@ -157,7 +163,9 @@ def preprocess_dataset(source_archive: Path, output_dir: Path, params: dict[str,
         report["source_archive"] = source_archive.as_posix()
         report_path = work_dir / "reports" / "data_report.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        report_path.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+        )
 
         metadata = {
             "class_order": classes,
@@ -175,7 +183,9 @@ def preprocess_dataset(source_archive: Path, output_dir: Path, params: dict[str,
         }
         metadata_path = work_dir / "metadata" / "transform_spec.json"
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        metadata_path.write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+        )
 
         if output_dir.exists():
             output_dir.replace(backup_dir)

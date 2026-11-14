@@ -66,7 +66,13 @@ def test_output_uses_the_fer2013_evaluation_contract(tmp_path: Path) -> None:
 
     metadata = json.loads((output / "metadata" / "transform_spec.json").read_text())
     assert metadata["class_order"] == [
-        "angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"
+        "angry",
+        "disgust",
+        "fear",
+        "happy",
+        "neutral",
+        "sad",
+        "surprise",
     ]
     assert metadata["inference_transform"]["resize"] == [224, 224]
 

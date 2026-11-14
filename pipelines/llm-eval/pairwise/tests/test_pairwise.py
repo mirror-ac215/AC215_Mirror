@@ -6,8 +6,11 @@ from mirror_pairwise import PAIRS
 from mirror_pairwise.pairwise import build, tally, wilson
 
 PROMPTS = [
-    {"prompt_id": f"p{i}", "prompt": f"q{i}",
-     "replies": {"base": f"b{i}", "lora": f"l{i}", "lora_visual": f"v{i}"}}
+    {
+        "prompt_id": f"p{i}",
+        "prompt": f"q{i}",
+        "replies": {"base": f"b{i}", "lora": f"l{i}", "lora_visual": f"v{i}"},
+    }
     for i in range(4)
 ]
 

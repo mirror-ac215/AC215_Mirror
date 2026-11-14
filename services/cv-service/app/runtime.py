@@ -59,9 +59,7 @@ class ExpressionClassifier:
         [
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-            ),
+            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ]
     )
 
@@ -131,8 +129,6 @@ def load_runtime(
     settings = settings or ModelSettings()
     return (
         FaceDetector(),
-        ExpressionClassifier(
-            load_model(settings, storage_client_factory=storage_client_factory)
-        ),
+        ExpressionClassifier(load_model(settings, storage_client_factory=storage_client_factory)),
         settings.model_version,
     )
