@@ -5,7 +5,15 @@ import { API_BASE_URL, USE_MOCK_API } from "@/lib/config";
 import * as mock from "./mock";
 import { createSseParser } from "./sse";
 import { clearAuthenticatedUser, setAuthenticatedUser } from "@/lib/role";
-import type { ChatEvent, FrameAck, LoginResponse, Session } from "./types";
+import type {
+  ChatEvent,
+  FrameAck,
+  LoginResponse,
+  PatientSummary,
+  ReviewFlagSummary,
+  Session,
+  TrendPoint,
+} from "./types";
 
 let accessToken: string | null = null;
 
@@ -13,14 +21,30 @@ function authHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+/** A failed API call. `status` lets screens tell "log in again" (401) from "not yours" (403). */
+export class ApiError extends Error {
+  constructor(
+    readonly path: string,
+    readonly status: number,
+  ) {
+    super(`${path} failed with ${status}`);
+    this.name = "ApiError";
+  }
+}
+
+async function requestJson<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(body),
+    method,
+    headers:
+      body === undefined ? authHeaders() : { "Content-Type": "application/json", ...authHeaders() },
+    body: body === undefined ? null : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${path} failed with ${res.status}`);
+  if (!res.ok) throw new ApiError(path, res.status);
   return (await res.json()) as T;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  return requestJson<T>("POST", path, body);
 }
 
 /** Forget the current user's token (on logout, and before any new login attempt). */
@@ -110,4 +134,36 @@ export async function sendMessage(
     parser.push(value);
   }
   parser.flush();
+}
+
+// --- Clinician dashboard (M4-01). The gateway only returns this clinician's own patients. ---
+
+export async function listPatients(): Promise<PatientSummary[]> {
+  if (USE_MOCK_API) return mock.listPatients();
+  return requestJson<PatientSummary[]>("GET", "/clinician/patients");
+}
+
+export async function getPatientTrend(patientId: string): Promise<TrendPoint[]> {
+  if (USE_MOCK_API) return mock.getPatientTrend(patientId);
+  return requestJson<TrendPoint[]>(
+    "GET",
+    `/clinician/patients/${encodeURIComponent(patientId)}/trend`,
+  );
+}
+
+export async function listReviewFlags(patientId: string): Promise<ReviewFlagSummary[]> {
+  if (USE_MOCK_API) return mock.listReviewFlags(patientId);
+  return requestJson<ReviewFlagSummary[]>(
+    "GET",
+    `/clinician/patients/${encodeURIComponent(patientId)}/review-flags`,
+  );
+}
+
+export async function markFlagReviewed(flagId: string): Promise<void> {
+  if (USE_MOCK_API) return mock.markFlagReviewed(flagId);
+  await requestJson<{ reviewed: true }>(
+    "PATCH",
+    `/clinician/review-flags/${encodeURIComponent(flagId)}`,
+    { reviewed: true },
+  );
 }

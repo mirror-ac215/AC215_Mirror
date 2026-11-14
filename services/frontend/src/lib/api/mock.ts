@@ -3,7 +3,17 @@
 // real gateway later changes nothing for the screens.
 
 import { cannedReplies } from "@/lib/mirror-data";
-import type { ChatEvent, ContextObject, FrameAck, LoginResponse, Role, Session } from "./types";
+import type {
+  ChatEvent,
+  ContextObject,
+  FrameAck,
+  LoginResponse,
+  PatientSummary,
+  ReviewFlagSummary,
+  Role,
+  Session,
+  TrendPoint,
+} from "./types";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -88,4 +98,99 @@ export async function sendMessage(
     note: "Estimates of expression, not facts about feelings.",
   };
   onEvent({ type: "done", data: { message_id: `mock-msg-${replyIndex}`, context } });
+}
+
+// --- Clinician dashboard (M4-01): same shapes as the gateway, same ids as services/db. ---
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const daysAgo = (days: number, hours = 0) =>
+  new Date(Date.now() - days * DAY_MS - hours * 60 * 60 * 1000).toISOString();
+
+const mockPatients: PatientSummary[] = [
+  {
+    patient_id: "00000000-0000-0000-0000-000000000201",
+    display_name: "Alex Rivera",
+    last_session_at: null,
+    needs_review: false,
+  },
+  {
+    patient_id: "00000000-0000-0000-0000-000000000202",
+    display_name: "Bri Santos",
+    last_session_at: daysAgo(1, 2),
+    needs_review: true,
+  },
+  {
+    patient_id: "00000000-0000-0000-0000-000000000203",
+    display_name: "Casey Park",
+    last_session_at: daysAgo(2, 5),
+    needs_review: false,
+  },
+];
+
+const mockFlags: Record<string, ReviewFlagSummary[]> = {
+  "00000000-0000-0000-0000-000000000202": [
+    { flag_id: "mock-flag-bri", created_at: daysAgo(3, 2), reviewed_at: null },
+  ],
+  "00000000-0000-0000-0000-000000000203": [
+    { flag_id: "mock-flag-casey", created_at: daysAgo(8, 5), reviewed_at: daysAgo(7, 5) },
+  ],
+};
+
+function mockTrend(patientId: string): TrendPoint[] {
+  if (patientId !== "00000000-0000-0000-0000-000000000202") return [];
+  const days: [number, string][] = [
+    [13, "joy"],
+    [11, "neutral"],
+    [9, "sadness"],
+    [6, "fear"],
+    [3, "sadness"],
+    [1, "neutral"],
+  ];
+  return days.flatMap(([day, label]) =>
+    [0, 1, 2, 3].map((i): TrendPoint => {
+      const ok = i === 0 || i === 2;
+      return {
+        ts: daysAgo(day, 2 - i / 10),
+        visual_status: ok ? "ok" : i === 1 ? "uncertain" : "dropped",
+        visual_top2: ok
+          ? [
+              [label === "joy" ? "happy" : "neutral", 0.6],
+              ["sad", 0.2],
+            ]
+          : null,
+        text_top2: [
+          [i === 3 ? "neutral" : label, 0.55 + 0.1 * (i % 2)],
+          ["neutral", 0.2],
+        ],
+        tone_mode: "supportive",
+      };
+    }),
+  );
+}
+
+export async function listPatients(): Promise<PatientSummary[]> {
+  await wait(250);
+  return mockPatients.map((p) => ({
+    ...p,
+    needs_review: (mockFlags[p.patient_id] ?? []).some((f) => f.reviewed_at === null),
+  }));
+}
+
+export async function getPatientTrend(patientId: string): Promise<TrendPoint[]> {
+  await wait(250);
+  return mockTrend(patientId);
+}
+
+export async function listReviewFlags(patientId: string): Promise<ReviewFlagSummary[]> {
+  await wait(200);
+  return mockFlags[patientId] ?? [];
+}
+
+export async function markFlagReviewed(flagId: string): Promise<void> {
+  await wait(200);
+  for (const flags of Object.values(mockFlags)) {
+    for (const flag of flags) {
+      if (flag.flag_id === flagId) flag.reviewed_at = new Date().toISOString();
+    }
+  }
 }
