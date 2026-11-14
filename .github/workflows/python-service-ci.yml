@@ -8,8 +8,9 @@ on:
         required: true
         type: string
       image_name:
-        description: Local Docker image tag used only during the CI build.
-        required: true
+        description: Local Docker image tag used only during the CI build. Leave empty for a job with no Dockerfile.
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -45,4 +46,5 @@ jobs:
         run: uv run pytest -v
 
       - name: Build Docker image
+        if: inputs.image_name != ''
         run: docker build --tag "${{ inputs.image_name }}" .

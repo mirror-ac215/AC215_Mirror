@@ -28,6 +28,8 @@ jobs:
       fairness_audit: ${{ steps.filter.outputs.fairness_audit }}
       llm_finetune: ${{ steps.filter.outputs.llm_finetune }}
       persona_checks: ${{ steps.filter.outputs.persona_checks }}
+      pairwise_eval: ${{ steps.filter.outputs.pairwise_eval }}
+      modality_eval: ${{ steps.filter.outputs.modality_eval }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -89,6 +91,12 @@ jobs:
               - 'pipelines/llm-eval/persona-checks/**'
               - 'pipelines/persona-data/params.yaml'
               - 'pipelines/llm-finetune/params.yaml'
+              - '.github/workflows/**'
+            pairwise_eval:
+              - 'pipelines/llm-eval/pairwise/**'
+              - '.github/workflows/**'
+            modality_eval:
+              - 'pipelines/modality-eval/**'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -218,6 +226,23 @@ jobs:
       service_path: pipelines/llm-eval/persona-checks
       image_name: mirror-persona-checks-ci
 
+  # M4-09 evaluation harnesses: locked install, Ruff and pytest (no image to build).
+  pairwise_eval:
+    name: Pairwise eval checks
+    needs: changes
+    if: needs.changes.outputs.pairwise_eval == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/llm-eval/pairwise
+
+  modality_eval:
+    name: Modality eval checks
+    needs: changes
+    if: needs.changes.outputs.modality_eval == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: pipelines/modality-eval
+
   frontend:
     name: Frontend checks
     needs: changes
@@ -345,7 +370,7 @@ jobs:
     name: CI summary
     # Preserve both independently added path-gated jobs: removing either from
     # `needs` would let its failed result bypass this fail-closed summary.
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, frontend, contract_validation, api_gateway, compose]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, compose]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -378,6 +403,10 @@ jobs:
           LLM_FINETUNE_RESULT: ${{ needs.llm_finetune.result }}
           PERSONA_CHECKS_CHANGED: ${{ needs.changes.outputs.persona_checks }}
           PERSONA_CHECKS_RESULT: ${{ needs.persona_checks.result }}
+          PAIRWISE_EVAL_CHANGED: ${{ needs.changes.outputs.pairwise_eval }}
+          PAIRWISE_EVAL_RESULT: ${{ needs.pairwise_eval.result }}
+          MODALITY_EVAL_CHANGED: ${{ needs.changes.outputs.modality_eval }}
+          MODALITY_EVAL_RESULT: ${{ needs.modality_eval.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -452,6 +481,16 @@ jobs:
 
           if [ "$PERSONA_CHECKS_CHANGED" = "true" ] && [ "$PERSONA_CHECKS_RESULT" != "success" ]; then
             echo "Persona checks did not pass: $PERSONA_CHECKS_RESULT"
+            exit 1
+          fi
+
+          if [ "$PAIRWISE_EVAL_CHANGED" = "true" ] && [ "$PAIRWISE_EVAL_RESULT" != "success" ]; then
+            echo "Pairwise eval checks did not pass: $PAIRWISE_EVAL_RESULT"
+            exit 1
+          fi
+
+          if [ "$MODALITY_EVAL_CHANGED" = "true" ] && [ "$MODALITY_EVAL_RESULT" != "success" ]; then
+            echo "Modality eval checks did not pass: $MODALITY_EVAL_RESULT"
             exit 1
           fi
 
