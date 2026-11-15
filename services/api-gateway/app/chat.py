@@ -154,7 +154,9 @@ async def start_session(
     sessions[session.session_id] = session
     session_owners[session.session_id] = user.user_id
     frame_windows[session.session_id] = FrameWindow(settings.gate_max_frames)
-    turn_histories[session.session_id] = TurnHistory()
+    turn_histories[session.session_id] = TurnHistory(
+        checkin_cooldown=settings.fusion_checkin_cooldown_turns
+    )
     conversations[session.session_id] = []
     return session
 

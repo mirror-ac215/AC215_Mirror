@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Longer messages are cut before scoring (the API allows up to 4000 characters).
     text_emotion_max_chars: int = 2000
 
+    # Fusion check-in cooldown (D-004 update, M4-17): after Mirror checks in about a face/words
+    # disagreement, it may check in again at the earliest this many turns later. At least 2, so
+    # never on back-to-back turns. 5 is a judgement call until the M4-09 evaluation can tune it.
+    fusion_checkin_cooldown_turns: int = Field(default=5, ge=2)
+
     # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
     # result is noisy, so the gateway averages the recent ones and decides
     # whether the reading is steady enough to use.

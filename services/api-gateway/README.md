@@ -145,7 +145,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 
 ## Fusion (M3-06)
 
-`app/fusion.py` turns the gated face reading (M3-04) and the text reading (M3-05) into one context object per turn (`docs/contracts/context_object.schema.json`). It follows D-004: when face and words disagree, the more concerning signal leads and Mirror checks in once.
+`app/fusion.py` turns the gated face reading (M3-04) and the text reading (M3-05) into one context object per turn (`docs/contracts/context_object.schema.json`). It follows D-004: when face and words disagree, the more concerning signal leads and Mirror checks in, then waits at least `FUSION_CHECKIN_COOLDOWN_TURNS` turns (default 5, minimum 2) before it may check in again (M4-17).
 
 | Situation | Main signal (`note`) | `agreement` |
 |---|---|---|
@@ -153,7 +153,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | Words calm or unclear, face ok and neutral/happy/surprise | face | agree / disagree |
 | Face ok but negative, words calm | text | **disagree, on purpose** (see below) |
 | Face uncertain, dropped or camera off | text (or none if the words are unclear, prob < 0.40) | n/a |
-| A second disagreement in the same session | as above | n/a, note ends "already checked in this session" |
+| A disagreement less than `FUSION_CHECKIN_COOLDOWN_TURNS` turns after a check-in | as above | n/a, note ends "checked in recently" |
 
 - **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, therefore a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.

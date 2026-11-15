@@ -144,10 +144,13 @@ It does not turn an unmerged pull request into merged functionality.
     talk about facial expression, even if the patient asks about it.
 - **Update (accepted by Mostafa on PR #51, Nov 2, 2026):** the patient's
   answer counts for that moment, not for the whole session. Sessions have no
-  time limit, and someone who says "I'm ok" early may open up later. For MS3,
-  fusion keeps checking in once per session (`TurnHistory.checked_in`). In M4,
-  fusion adds a cooldown: Mirror may ask again after N turns, with N tuned in
-  M4-09.
+  time limit, and someone who says "I'm ok" early may open up later. MS3
+  checked in once per session. Since M4-17, fusion uses a cooldown: after a
+  check-in, Mirror may ask again at the earliest N turns later, if face and
+  words still disagree (`TurnHistory.may_check_in`). N is
+  `FUSION_CHECKIN_COOLDOWN_TURNS`, default 5 and at least 2, so never on
+  back-to-back turns. 5 is a judgement call; tune it once the M4-09 evaluation
+  has run.
 - **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
   gating (M3-04), prompt template (`app/prompt.py`, M3-08).
 

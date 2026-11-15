@@ -1,15 +1,16 @@
 """Fusion (M3-06): the gated face reading + the text reading -> one context object per turn.
 
-D-004: when face and words disagree, Mirror leans towards the more concerning signal and checks in
-once, gently; after that it takes the patient's word and does not ask again.
+D-004: when face and words disagree, Mirror leans towards the more concerning signal and checks in,
+gently. After a check-in it takes the patient's word for a while: it may ask again only once a
+cooldown of N turns has passed and they still disagree (M4-17), never on back-to-back turns.
 
 - Words that sound negative always lead: what the patient tells us outweighs what the camera sees.
 - The face leads only where it has earned it. The M3-04 sweep on held-out video showed the gate is
   "ok" with useful precision only for neutral, happy and surprise; it is almost never right about
   angry, disgust, fear or sad. So a negative face never leads, but it still counts for
   `agreement`: a negative face with calm words is a "disagree" on purpose (the safe direction).
-- agreement: "agree" / "disagree" when both signals count, otherwise "n/a". Only the first
-  disagreement in a session is sent as "disagree"; later ones are "n/a" with a note.
+- agreement: "agree" / "disagree" when both signals count, otherwise "n/a". A disagreement within
+  the cooldown after a check-in is sent as "n/a" with a note.
 - tone_mode: "supportive" by default (MS1 feedback: no tough love for someone who may be struggling);
   "coach" only after 2 of the last 3 turns looked steady, and back to supportive on any negative turn.
 - note: which signal this turn relied on (face / text / none) and how confident it was.
@@ -32,21 +33,41 @@ MIN_TEXT_PROB = 0.40  # same bar as the prompt template (M3-08)
 # When the text module is unavailable: the contract requires a text block; probability 0 makes
 # the prompt treat it as "unclear", so the turn continues without text-emotion context.
 NO_TEXT = {"top2": [["neutral", 0.0]]}
-ALREADY_CHECKED_IN = "; already checked in this session"
+ALREADY_CHECKED_IN = "; checked in recently"
+# D-004 update (M4-17): turns from one check-in to the earliest next one. 2 is the minimum, so
+# Mirror never checks in on back-to-back turns. The gateway sets it from
+# FUSION_CHECKIN_COOLDOWN_TURNS (app/config.py).
+DEFAULT_CHECKIN_COOLDOWN = 5
 
 
 class TurnHistory:
-    """Per session: whether each recent turn looked steady, and whether Mirror already checked in."""
+    """Per session: whether each recent turn looked steady, and when Mirror last checked in."""
 
-    def __init__(self, turns: int = 3) -> None:
+    def __init__(self, turns: int = 3, checkin_cooldown: int = DEFAULT_CHECKIN_COOLDOWN) -> None:
+        if checkin_cooldown < 2:
+            raise ValueError("checkin_cooldown must be at least 2: never check in back to back")
         self.steady: deque[bool] = deque(maxlen=turns)
-        self.checked_in = False
+        self.checkin_cooldown = checkin_cooldown
+        self.turns = 0  # finished turns so far; the turn being fused now has this index
+        self.last_check_in: int | None = None  # index of the turn that last checked in
+
+    @property
+    def checked_in(self) -> bool:
+        """Whether Mirror has checked in at all in this session."""
+        return self.last_check_in is not None
+
+    def may_check_in(self) -> bool:
+        """True when the current turn may check in: never before, or the cooldown has passed."""
+        return (
+            self.last_check_in is None or self.turns - self.last_check_in >= self.checkin_cooldown
+        )
 
     def record(self, context: dict) -> None:
         """Remember a finished turn. Call once per turn, after the reply is final."""
         self.steady.append(_steady(_signals(context["visual"], context["text"])))
         if context["agreement"] == "disagree":
-            self.checked_in = True
+            self.last_check_in = self.turns
+        self.turns += 1
 
 
 def common_label(label: str) -> str:
@@ -82,8 +103,8 @@ def fuse(visual: dict, text: dict | None, history: TurnHistory, steady_needed: i
     if face_label and text_label:
         both_negative = face_label in NEGATIVE and text_label in NEGATIVE
         agreement = "agree" if face_label == text_label or both_negative else "disagree"
-        if agreement == "disagree" and history.checked_in:
-            agreement, note_extra = "n/a", ALREADY_CHECKED_IN  # D-004: ask once, then trust them
+        if agreement == "disagree" and not history.may_check_in():
+            agreement, note_extra = "n/a", ALREADY_CHECKED_IN  # D-004: trust them for a while
     else:
         agreement = "n/a"
 
