@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import * as api from "@/lib/api/client";
 import { USE_MOCK_API } from "@/lib/config";
+import { loginErrorMessage } from "@/lib/screen-states";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): { notice?: string } =>
@@ -43,8 +44,8 @@ function Login() {
     try {
       const result = await api.login(email, password);
       navigate({ to: result.role === "patient" ? "/consent" : "/clinician" });
-    } catch {
-      setError("Wrong email or password.");
+    } catch (err) {
+      setError(loginErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -95,13 +96,18 @@ function Login() {
                 className="h-11 rounded-[11px]"
               />
             </div>
-            {error && <p className="text-sm text-safety">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-safety">
+                {error}
+              </p>
+            )}
             <Button
               type="submit"
               disabled={busy}
+              aria-busy={busy}
               className="brand-gradient h-11 w-full rounded-[11px] text-white shadow-soft hover:opacity-95"
             >
-              Continue
+              {busy ? "Signing in…" : "Continue"}
             </Button>
           </form>
           {notice && <p className="mt-4 text-sm text-safety">{notice}</p>}

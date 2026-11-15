@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   navigate,
@@ -588,5 +588,78 @@ describe("Session camera lifecycle", () => {
       expect(screen.queryByText("Sad")).toBeNull();
       expect(screen.getByText("No reading yet.")).toBeTruthy();
     });
+  });
+});
+
+describe("Session screen states (M4-24)", () => {
+  // Earlier tests leave a stubbed camera behind; these tests are about the chat, not the camera.
+  beforeEach(() => {
+    Object.defineProperty(navigator, "mediaDevices", { value: undefined, configurable: true });
+  });
+
+  it("shows a loading state while the session starts", async () => {
+    let resolve: (value: { session_id: string }) => void = () => {};
+    startSession.mockReturnValue(new Promise((r) => (resolve = r)));
+
+    render(<Session />);
+
+    expect(screen.getByText(/Starting your session/).getAttribute("role")).toBe("status");
+    await act(async () => resolve({ session_id: "s1" }));
+    expect(screen.queryByText(/Starting your session/)).toBeNull();
+  });
+
+  it("shows that Mirror is replying until the first token arrives", async () => {
+    startSession.mockResolvedValue({ session_id: "s1" });
+    let emit: (event: { type: string; data: unknown }) => void = () => {};
+    let finish: () => void = () => {};
+    sendMessage.mockImplementation(
+      (_id: string, _text: string, onEvent: typeof emit) =>
+        new Promise<void>((r) => {
+          emit = onEvent;
+          finish = r;
+        }),
+    );
+
+    render(<Session />);
+    const input = await screen.findByPlaceholderText("Type a message…");
+    fireEvent.change(input, { target: { value: "hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(await screen.findByRole("status", { name: "Mirror is replying" })).toBeTruthy();
+    await act(async () => emit({ type: "token", data: "Hi there." }));
+    expect(screen.queryByRole("status", { name: "Mirror is replying" })).toBeNull();
+    expect(screen.getByText("Hi there.")).toBeTruthy();
+    await act(async () => finish());
+  });
+
+  it("keeps the text and offers a retry when a message fails to send", async () => {
+    startSession.mockResolvedValue({ session_id: "s1" });
+    sendMessage.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    sendMessage.mockResolvedValueOnce(undefined);
+
+    render(<Session />);
+    const input = (await screen.findByPlaceholderText("Type a message…")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/Your message didn't send/);
+    expect(input.value).toBe("hello");
+    expect(screen.queryByText("hello")).toBeNull(); // the unsent bubble is taken back
+    expect(screen.queryByText(/couldn't reach the server/i)).toBeNull(); // not in Mirror's voice
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage.mock.calls[1]?.[1]).toBe("hello");
+    await waitFor(() => expect(screen.queryByText(/Your message didn't send/)).toBeNull());
+  });
+
+  it("limits a message to the 4000 characters the gateway accepts", async () => {
+    startSession.mockResolvedValue({ session_id: "s1" });
+
+    render(<Session />);
+    const input = (await screen.findByPlaceholderText("Type a message…")) as HTMLInputElement;
+
+    expect(input.maxLength).toBe(4000);
   });
 });

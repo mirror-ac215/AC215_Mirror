@@ -21,6 +21,7 @@ import {
   visualFromFrameAck,
 } from "@/lib/camera";
 import { hasRequiredRole } from "@/lib/role";
+import { MAX_MESSAGE_LENGTH, MESSAGE_NOT_SENT } from "@/lib/screen-states";
 
 const EXPIRED_SESSION_NOTICE =
   "Your session expired. Call or text 988, or call 911 in an emergency.";
@@ -74,6 +75,7 @@ export function Session() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sessionFailed, setSessionFailed] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
   const [attempt, setAttempt] = useState(0); // bump to retry starting the session
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraRequested, setCameraRequested] = useState(true);
@@ -229,6 +231,7 @@ export function Session() {
     const text = draft.trim();
     if (!text || !sessionId || sending) return;
     setDraft("");
+    setSendFailed(false);
     setSending(true);
     // Until this run has its own reading, the gateway's answer may still reflect an earlier run.
     const readingRun =
@@ -257,10 +260,11 @@ export function Session() {
         terminateSession(EXPIRED_SESSION_NOTICE);
         return;
       }
-      setMessages((m) => [
-        ...m.slice(0, -1),
-        { from: "bot", text: "Sorry, I couldn't reach the server. Please try again." },
-      ]);
+      // Take back the unsent message and the empty reply, and give the text back to the
+      // patient: the error is shown apart from the chat, never in Mirror's voice.
+      setMessages((m) => m.slice(0, -2));
+      setDraft(text);
+      setSendFailed(true);
     } finally {
       setSending(false);
     }
@@ -315,7 +319,23 @@ export function Session() {
                           }`
                     }
                   >
-                    {m.text}
+                    {m.from === "bot" && !m.text && sending && i === messages.length - 1 ? (
+                      <span
+                        role="status"
+                        aria-label="Mirror is replying"
+                        className="flex gap-1 py-1.5"
+                      >
+                        {[0, 150, 300].map((delay) => (
+                          <span
+                            key={delay}
+                            className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-ink"
+                            style={{ animationDelay: `${delay}ms` }}
+                          />
+                        ))}
+                      </span>
+                    ) : (
+                      m.text
+                    )}
                   </div>
                 </div>
               ))}
@@ -323,8 +343,21 @@ export function Session() {
             </div>
 
             <div className="border-t border-border p-4">
+              {!sessionId && !sessionFailed && (
+                <p role="status" className="mb-2 text-sm text-muted-ink">
+                  Starting your session…
+                </p>
+              )}
+              {sendFailed && (
+                <p role="alert" className="mb-2 text-sm text-safety">
+                  {MESSAGE_NOT_SENT}{" "}
+                  <button onClick={() => void send()} className="underline">
+                    Try again
+                  </button>
+                </p>
+              )}
               {sessionFailed && (
-                <p className="mb-2 text-sm text-safety">
+                <p role="alert" className="mb-2 text-sm text-safety">
                   Couldn&apos;t start your session.{" "}
                   <button onClick={() => setAttempt((a) => a + 1)} className="underline">
                     Try again
@@ -335,6 +368,7 @@ export function Session() {
                 <Input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   onKeyDown={(e) => e.key === "Enter" && send()}
                   placeholder={sessionId ? "Type a message…" : "Connecting…"}
                   disabled={!sessionId}
