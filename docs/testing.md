@@ -96,7 +96,8 @@ cd services/api-gateway   # or cv-service, llm-service
 uv run pytest --cov --cov-report=term-missing
 ```
 
-Each service's `pyproject.toml` measures `app/` only and fails below 70%.
+Each service's `pyproject.toml` measures `app/` only and fails below 70%. The `Missing` column
+lists the line numbers no test runs: this is the list of untested code per service.
 
 ### Frontend
 
@@ -166,7 +167,8 @@ Not run in CI, on purpose:
 - **Per component:** one job each, named after the component ("API gateway checks", "Frontend
   checks", ...), in the PR's Checks tab.
 - **Coverage:** the three backend jobs print the per-file table in the job log and in the run's
-  Summary page ("Coverage: services/..."). Below 70% the job fails.
+  Summary page ("Coverage: services/..."). Below 70% the job fails. Path gating means a PR that
+  changes no backend service shows no coverage table.
 - **System tests:** "Compose stack smoke test"; on failure it prints every container's logs.
 - **Gate:** "CI summary" is the one required check. It fails if any job for a changed
   component did not succeed.
@@ -175,5 +177,9 @@ Not run in CI, on purpose:
 
 - No browser end-to-end test until M4-05.
 - Pipelines and the frontend have no coverage gate yet; only the three backend services do.
+  Vitest coverage for the frontend is not reported in CI.
+- llm-service's coverage counts `app/` only, which is the mock. Real serving
+  (`docker-entrypoint.sh` + vLLM) is not measured by any test.
 - `infra/tests/test_m4_19_linting.py` and `tests/m2_04_dvc_smoke.sh` are not run by any CI job.
-- What is still untested inside each service is listed in M5-12.
+- What is still untested inside each service: the `Missing` column of the coverage table
+  (see above); the full list is M5-12.
