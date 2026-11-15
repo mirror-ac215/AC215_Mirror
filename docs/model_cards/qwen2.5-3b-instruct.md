@@ -12,10 +12,10 @@ The model that writes Mirror's chat replies. **Owner:** Julie (M4-11). **Last up
 | Adapter | None in production (D-006). `llm-service` can load one with `LORA_ADAPTER_PATH` |
 | Served name | `mirror-persona-v1`. The name was kept when the adapter was dropped, therefore the gateway did not change |
 | Serving | `llm-service` real mode: vLLM `v0.11.0` (OpenAI-compatible `/v1/chat/completions`, streamed) |
-| Hardware | One NVIDIA T4 on the GCP VM (`infra/compose.prod.yml`) |
-| Serving limits | `MAX_MODEL_LEN=2048` tokens; `MAX_NUM_SEQS=1` (one request generates at a time); FlashInfer sampler off on the T4 |
-| Decoding | `temperature: 0.3`, streamed (`services/api-gateway/app/clients.py`, line 41) |
-| System prompt | Built by the gateway, version `m3-08-v7` (`services/api-gateway/app/prompt.py`, line 10) |
+| Hardware | One GPU on the GCP VM (`infra/compose.prod.yml`). The setup guide (`infra/README.md`) targets a T4 and falls back to an L4 when T4s are out of stock; the MS3 evidence run on Nov 11 used an L4 (`docs/evidence/README.md`) |
+| Serving limits | `MAX_MODEL_LEN=2048` tokens; `MAX_NUM_SEQS=1` (one request generates at a time); FlashInfer sampler off by default (it crashes on the T4) |
+| Decoding | `temperature: 0.3`, streamed (`services/api-gateway/app/clients.py`) |
+| System prompt | Built by the gateway, version `m3-08-v7` (`services/api-gateway/app/prompt.py`) |
 | Mock mode | Laptops and CI use a deterministic mock on the same API; it involves no model |
 
 ## Intended use
@@ -36,7 +36,7 @@ The model that writes Mirror's chat replies. **Owner:** Julie (M4-11). **Last up
 1. The gateway runs the safety check on the patient's text (`services/api-gateway/app/safety.py`). Crisis -> medication -> camera, in that order.
 2. If a rule fires, the model is skipped: a crisis gets 988 resources and a review flag for the clinician; a medication or camera question gets a fixed reply.
 3. Otherwise the gateway builds one context note from the text-emotion reading and the gated face reading (`app/fusion.py`), adds it to the system prompt, and calls `llm-service`.
-4. The prompt tells the model to answer in 1 to 4 short sentences (line 38), never report a camera reading or a score, and never guess a feeling (lines 52-54, `app/prompt.py`).
+4. The prompt (`app/prompt.py`) tells the model to answer in 1 to 4 short sentences, never report a camera reading or a score, and never state a feeling as a fact. It may offer a signal from the context note only as a gentle guess that it says might be wrong. When the patient asks what the camera sees, it does not guess a feeling at all.
 
 ## Training data and the adapter experiment
 
@@ -62,7 +62,7 @@ Production uses no fine-tuning. This section records the adapter we trained and 
 | Crisis rules | 26 regex rules for suicide, self-harm or harming someone else. Lean towards firing. The persona reply is withheld; the patient sees 988 and 911; the clinician gets a review flag | `app/safety.py`, M3-07 |
 | Medication rules | 5 rules: questions about changing, stopping, mixing or dosing medication get a fixed reply pointing to the prescriber | `app/safety.py`, M3-09 (#90) |
 | Camera rules | Questions about what the camera sees or keeps get a fixed, plain answer | `app/safety.py`, M3-24 |
-| Prompt rules | No camera readings, scores or guessed feelings; 1 to 4 short sentences | `app/prompt.py` |
+| Prompt rules | No camera readings or scores; feelings never stated as fact, signals offered only as a gentle guess; 1 to 4 short sentences | `app/prompt.py` |
 | Tests | Crisis, medication and camera cases, including everyday sentences that must not fire | `services/api-gateway/tests/safety_cases.yaml` |
 
 The face reading is never an input to any safety rule. Message text is never logged, only the rule id.
@@ -97,7 +97,7 @@ The face reading is never an input to any safety rule. Message text is never log
 
 ## Privacy
 
-The gateway logs the safety rule id, never the message text (`services/api-gateway/app/chat.py`, lines 248-268). Whether vLLM's request logging is off on the VM has not been checked.
+The gateway logs the safety rule id, never the message text (`services/api-gateway/app/chat.py`). Whether vLLM's request logging is off on the VM has not been checked.
 
 ## Performance
 
@@ -125,6 +125,6 @@ uv run mirror-persona-checks --llm-url http://localhost:8002
 ## Next steps
 
 - Fill the evaluation section from the first M4-09 run.
-- Re-run the 70 questions on prompt `m3-08-v7` and on the T4 VM.
-- Pin the model revision in `llm-service`.
+- Re-run the 70 questions on prompt `m3-08-v7` and on the GPU VM.
+- Pin the model revision in `llm-service` to `aa8e725`, the one the comparison used (its own task, Owen).
 - Measure latency under load (M4-07).
