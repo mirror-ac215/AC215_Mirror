@@ -61,9 +61,12 @@ grep -q '"review_flag_created": true' <<<"$crisis"
 
 # Query only row counts, never patient text, to prove the session/message/flag
 # inserts used the running Compose database rather than the in-process fake.
-sessions=$("${compose[@]}" exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM sessions"')
-messages=$("${compose[@]}" exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM messages"')
-flags=$("${compose[@]}" exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM review_flags"')
+# Counts are scoped to Alex: the seeded demo history (services/db/demo-history.sql)
+# belongs to other patients and must not make these checks pass on its own.
+alex="00000000-0000-0000-0000-000000000201"
+sessions=$("${compose[@]}" exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAc \"SELECT count(*) FROM sessions WHERE patient_id = '${alex}'\"")
+messages=$("${compose[@]}" exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAc \"SELECT count(*) FROM messages m JOIN sessions s ON s.id = m.session_id WHERE s.patient_id = '${alex}'\"")
+flags=$("${compose[@]}" exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAc \"SELECT count(*) FROM review_flags WHERE patient_id = '${alex}'\"")
 test "$sessions" -ge 2
 test "$messages" -ge 3
 test "$flags" -ge 1
