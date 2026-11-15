@@ -1,9 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-proxy-config
+data:
+  Caddyfile: |
+    :8080 {
+      @metrics path /api/metrics
+      respond @metrics 404
+      handle_path /api/* {
+        reverse_proxy 127.0.0.1:8000
+      }
+      respond 404
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-gateway
 spec:
-  replicas: 2
+  # The gateway holds sessions and frame windows in process memory. Do not scale
+  # this deployment until sessions are externalized or explicit affinity is added.
+  replicas: 1
   selector:
     matchLabels: { app: api-gateway }
   template:
@@ -13,14 +30,24 @@ spec:
       containers:
         - name: api-gateway
           image: ${MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY}/mirror-api-gateway:${MIRROR_IMAGE_TAG}
-          ports: [{ containerPort: 8000 }]
+          ports: [{ containerPort: 8000, name: http }]
           envFrom: [{ secretRef: { name: mirror-runtime } }]
           readinessProbe: { httpGet: { path: /health, port: 8000 } }
           livenessProbe: { httpGet: { path: /health, port: 8000 } }
+        - name: api-gateway-proxy
+          image: caddy:2.8.4-alpine
+          ports: [{ containerPort: 8080, name: public }]
+          volumeMounts:
+            - name: proxy-config
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+      volumes:
+        - name: proxy-config
+          configMap: { name: api-gateway-proxy-config }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: api-gateway }
 spec:
   selector: { app: api-gateway }
-  ports: [{ port: 8000, targetPort: 8000 }]
+  ports: [{ port: 8000, targetPort: public }]

@@ -21,6 +21,7 @@ class M509KubernetesAssetTests(unittest.TestCase):
         self.assertIn("namespace: mirror", content)
         for resource in (
             "namespace.yaml",
+            "db.yaml",
             "api-gateway.yaml",
             "cv-service.yaml",
             "llm-service.yaml",
@@ -28,6 +29,40 @@ class M509KubernetesAssetTests(unittest.TestCase):
             "ingress.yaml",
         ):
             self.assertIn(f"- {resource}", content)
+
+    def test_gateway_is_single_replica_and_strips_api_prefix_before_upstream(self) -> None:
+        gateway = (K8S / "api-gateway.yaml").read_text(encoding="utf-8")
+        self.assertIn("replicas: 1", gateway)
+        self.assertIn("handle_path /api/*", gateway)
+        self.assertIn("reverse_proxy 127.0.0.1:8000", gateway)
+        self.assertIn("path /api/metrics", gateway)
+
+    def test_database_is_stateful_and_persists_postgres_data(self) -> None:
+        db = (K8S / "db.yaml").read_text(encoding="utf-8")
+        self.assertIn("kind: StatefulSet", db)
+        self.assertIn("volumeClaimTemplates:", db)
+        self.assertIn("mountPath: /var/lib/postgresql/data", db)
+
+    def test_model_services_have_long_startup_probes_and_cv_identity_handoff(self) -> None:
+        cv = (K8S / "cv-service.yaml").read_text(encoding="utf-8")
+        llm = (K8S / "llm-service.yaml").read_text(encoding="utf-8")
+        for content in (cv, llm):
+            self.assertIn("startupProbe:", content)
+            self.assertIn("failureThreshold: 120", content)
+        self.assertIn("serviceAccountName: mirror-cv-service", cv)
+        self.assertIn("MODEL_BUCKET", cv)
+        self.assertIn("MODEL_OBJECT", cv)
+        self.assertIn("MODEL_VERSION", cv)
+        self.assertIn("iam.gke.io/gcp-service-account", cv)
+
+    def test_render_script_supplies_image_and_nonsecret_runtime_coordinates(self) -> None:
+        script = (K8S / "render.sh").read_text(encoding="utf-8")
+        self.assertIn("MIRROR_IMAGE_REGISTRY", script)
+        self.assertIn("MIRROR_IMAGE_REPOSITORY", script)
+        self.assertIn("MIRROR_IMAGE_TAG", script)
+        self.assertIn("MIRROR_DOMAIN", script)
+        self.assertIn("MIRROR_CV_GSA", script)
+        self.assertIn("kustomize build", script)
 
     def test_llm_deployment_is_the_only_gpu_scheduled_workload(self) -> None:
         llm = (K8S / "llm-service.yaml").read_text(encoding="utf-8")

@@ -1,8 +1,9 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: db
 spec:
+  serviceName: db
   replicas: 1
   selector:
     matchLabels: { app: db }
@@ -15,11 +16,21 @@ spec:
           image: ${MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY}/mirror-db:${MIRROR_IMAGE_TAG}
           ports: [{ containerPort: 5432 }]
           envFrom: [{ secretRef: { name: mirror-runtime } }]
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
           readinessProbe: { tcpSocket: { port: 5432 } }
+  volumeClaimTemplates:
+    - metadata: { name: postgres-data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: { storage: 20Gi }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: db }
 spec:
+  clusterIP: None
   selector: { app: db }
   ports: [{ port: 5432, targetPort: 5432 }]
