@@ -1,10 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const demoPassword = process.env.MIRROR_DEMO_PASSWORD;
-
-if (!demoPassword) {
-  throw new Error("MIRROR_DEMO_PASSWORD must be set for the seeded Compose test accounts.");
-}
+// Compose supplies this documented local-only default in CI. A local override lets the
+// test use a disposable stack configured with a different non-production seed password.
+const demoPassword = process.env.MIRROR_E2E_PASSWORD ?? "local-demo-password";
 
 async function signIn(page: Page, email: string): Promise<void> {
   await page.goto("/");

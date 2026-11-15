@@ -375,9 +375,8 @@ jobs:
   e2e:
     name: End-to-end patient to clinician smoke test
     runs-on: ubuntu-latest
-    env:
-      # Local-only seeded-account password shared with the disposable Compose stack.
-      MIRROR_DEMO_PASSWORD: local-only-e2e-password
+    # Like the M4-21 Compose smoke job, this uses compose.yml's local-only defaults
+    # so CI proves a fresh clone works without manually supplied configuration.
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

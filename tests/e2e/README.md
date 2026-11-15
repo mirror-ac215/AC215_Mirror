@@ -15,6 +15,7 @@ From the repository root, start a fresh local stack using an explicitly disposab
 
 ```bash
 export MIRROR_DEMO_PASSWORD=local-only-e2e-password
+export MIRROR_E2E_PASSWORD="$MIRROR_DEMO_PASSWORD"
 docker compose -p mirror-e2e -f infra/compose.yml up --build --wait
 (cd tests/e2e && npm ci && npx playwright install --with-deps chromium && npm test)
 docker compose -p mirror-e2e -f infra/compose.yml down -v
