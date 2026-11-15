@@ -372,6 +372,46 @@ jobs:
         if: always()
         run: docker compose -f infra/compose.yml --profile monitoring down -v
 
+  e2e:
+    name: End-to-end patient to clinician smoke test
+    runs-on: ubuntu-latest
+    env:
+      # Local-only seeded-account password shared with the disposable Compose stack.
+      MIRROR_DEMO_PASSWORD: local-only-e2e-password
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Node 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install locked Playwright dependencies
+        working-directory: tests/e2e
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and start disposable local stack
+        run: docker compose -p mirror-e2e -f infra/compose.yml up --build --wait --wait-timeout 300
+
+      - name: Exercise patient consent, fake camera, chat, and clinician view
+        working-directory: tests/e2e
+        run: npm test
+
+      - name: Show Compose logs if the smoke test failed
+        if: failure()
+        run: docker compose -p mirror-e2e -f infra/compose.yml logs
+
+      - name: Remove disposable local stack
+        if: always()
+        run: docker compose -p mirror-e2e -f infra/compose.yml down -v --remove-orphans
+
   python_lint:
     name: Python lint and format
     runs-on: ubuntu-latest
@@ -391,7 +431,7 @@ jobs:
     name: CI summary
     # Preserve both independently added path-gated jobs: removing either from
     # `needs` would let its failed result bypass this fail-closed summary.
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, compose, python_lint]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, compose, e2e, python_lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -434,10 +474,16 @@ jobs:
           CONTRACT_VALIDATION_RESULT: ${{ needs.contract_validation.result }}
           COMPOSE_CHANGED: ${{ needs.changes.outputs.compose }}
           COMPOSE_RESULT: ${{ needs.compose.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
           PYTHON_LINT_RESULT: ${{ needs.python_lint.result }}
         run: |
           if [ "$CHANGES_RESULT" != "success" ]; then
             echo "Changed-component detection did not pass: $CHANGES_RESULT"
+            exit 1
+          fi
+
+          if [ "$E2E_RESULT" != "success" ]; then
+            echo "End-to-end patient to clinician smoke test did not pass: $E2E_RESULT"
             exit 1
           fi
 
