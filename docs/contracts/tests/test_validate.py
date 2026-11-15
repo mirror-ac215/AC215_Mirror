@@ -99,17 +99,20 @@ def test_openapi_validation_rejects_an_invalid_future_contract(tmp_path, monkeyp
 
 
 @pytest.mark.parametrize(
-    ("changes_result", "contract_result", "expected_exit"),
+    ("changes_result", "contract_result", "e2e_result", "expected_exit"),
     [
-        ("success", "success", 0),
-        ("success", "failure", 1),
-        ("success", "cancelled", 1),
-        ("success", "skipped", 1),
-        ("failure", "success", 1),
+        ("success", "success", "success", 0),
+        ("success", "failure", "success", 1),
+        ("success", "cancelled", "success", 1),
+        ("success", "skipped", "success", 1),
+        ("failure", "success", "success", 1),
+        ("success", "success", "failure", 1),
+        ("success", "success", "cancelled", 1),
+        ("success", "success", "skipped", 1),
     ],
 )
 def test_ci_summary_script_rejects_unsuccessful_required_results(
-    changes_result: str, contract_result: str, expected_exit: int
+    changes_result: str, contract_result: str, e2e_result: str, expected_exit: int
 ) -> None:
     import yaml
 
@@ -125,6 +128,7 @@ def test_ci_summary_script_rejects_unsuccessful_required_results(
         "DB_RESULT": "skipped",
         "DOCS_CONTRACTS_CHANGED": "true",
         "CONTRACT_VALIDATION_RESULT": contract_result,
+        "E2E_RESULT": e2e_result,
         "PYTHON_LINT_RESULT": "success",
     }
 
