@@ -12,7 +12,7 @@ from test_orchestration import FakeLLM, FakeRepository, text_emotion
 
 import app.main as gateway_main
 from app import metrics
-from app.crisis_meaning import CrisisMeaning, CrisisMeaningUnavailable
+from app.crisis_meaning import SAFE_EXAMPLES, CrisisMeaning, CrisisMeaningUnavailable
 from app.fusion import TurnHistory
 from app.orchestration import ChatOrchestrator
 
@@ -48,6 +48,17 @@ def test_fires_on_a_message_close_to_a_crisis_example() -> None:
 
 def test_stays_quiet_when_the_message_is_closer_to_an_everyday_example() -> None:
     assert layer().check("I want to vanish to a beach holiday") is None
+
+
+def test_real_model_false_alarm_regressions_are_active_safe_examples() -> None:
+    """CI-identified everyday false alarms must be represented in the active safe controls."""
+    safe_texts = {text for _, text in SAFE_EXAMPLES}
+    assert {
+        "the train was so late I wanted to scream",
+        "I gave my cat to my sister while I travel.",
+        "I'm going to end it with him tonight",
+        "I want to end it on a good note",
+    } <= safe_texts
 
 
 def test_stays_quiet_below_the_threshold() -> None:
