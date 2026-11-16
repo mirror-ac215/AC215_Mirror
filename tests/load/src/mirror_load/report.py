@@ -55,6 +55,13 @@ class Summary:
     overhead_ok: bool
     frame_p95_ms: float | None
     failures: int
+    replies: int  # finished replies, both runs
+    replies_with_first_token: int  # of those, how many have a first-token time, both runs
+
+    @property
+    def first_token_complete(self) -> bool:
+        """True when every finished reply is in the first-token numbers."""
+        return self.replies_with_first_token == self.replies
 
 
 def summarise(camera_on: dict[str, Row], camera_off: dict[str, Row]) -> Summary:
@@ -68,6 +75,8 @@ def summarise(camera_on: dict[str, Row], camera_off: dict[str, Row]) -> Summary:
     failures = sum(r.failures for r in camera_on.values()) + sum(
         r.failures for r in camera_off.values()
     )
+    replies = camera_on[FULL_REPLY].count + camera_off[FULL_REPLY].count
+    with_first_token = camera_on[FIRST_TOKEN].count + camera_off[FIRST_TOKEN].count
     return Summary(
         reply_p95_ms=reply_p95,
         reply_ok=reply_p95 < REPLY_TARGET_MS,
@@ -75,6 +84,8 @@ def summarise(camera_on: dict[str, Row], camera_off: dict[str, Row]) -> Summary:
         overhead_ok=overhead <= CAMERA_OVERHEAD_TARGET_MS,
         frame_p95_ms=frame.p95_ms if frame else None,
         failures=failures,
+        replies=replies,
+        replies_with_first_token=with_first_token,
     )
 
 
@@ -100,6 +111,12 @@ def to_markdown(s: Summary, where: str) -> str:
         ),
         ("p95 frame upload", frame, "-", "-"),
         ("failed requests (both runs)", str(s.failures), "0", verdict(s.failures == 0)),
+        (
+            "replies with a first-token time (both runs)",
+            f"{s.replies_with_first_token} of {s.replies}",
+            "all",
+            "complete" if s.first_token_complete else "incomplete",
+        ),
     ]
     return "\n".join(f"| {where} | {a} | {b} | {c} | {d} |" for a, b, c, d in rows)
 

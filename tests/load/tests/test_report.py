@@ -43,6 +43,7 @@ def test_meets_both_targets(tmp_path):
     assert s.overhead_ms == 200 and s.overhead_ok
     assert s.reply_p95_ms == 3000 and s.reply_ok
     assert s.frame_p95_ms == 120
+    assert s.replies == 80 and s.first_token_complete
     assert "Aggregated" not in on
 
 
@@ -62,6 +63,22 @@ def test_misses_targets_and_counts_failures(tmp_path):
     assert s.failures == 3
     table = to_markdown(s, "VM")
     assert "6000 ms" in table and "misses target" in table and "no frames sent" in table
+
+
+def test_reports_replies_missing_a_first_token(tmp_path):
+    on = read_stats(
+        write_stats(
+            tmp_path / "on.csv", [(FIRST_TOKEN, 9, 0, 300, 900), (FULL_REPLY, 10, 0, 1200, 3000)]
+        )
+    )
+    off = read_stats(
+        write_stats(
+            tmp_path / "off.csv", [(FIRST_TOKEN, 10, 0, 250, 700), (FULL_REPLY, 10, 0, 1100, 2800)]
+        )
+    )
+    s = summarise(on, off)
+    assert not s.first_token_complete
+    assert "19 of 20 | all | incomplete" in to_markdown(s, "local")
 
 
 def test_run_without_replies_is_an_error(tmp_path):

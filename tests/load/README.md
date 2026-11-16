@@ -19,7 +19,9 @@ Next to Locust's own request stats, each message records two timings:
 | `reply: first token` | the first `token` event |
 | `reply: complete` | the `done` event |
 
-A reply that ends in `crisis` or stops early counts as a failure.
+A reply that ends in `crisis`, stops early, or ends with `done` and no token counts as a
+failure. The report also prints how many finished replies have a first-token time; anything
+below "all" means the first-token numbers are incomplete.
 
 ## How the camera's overhead is measured
 
@@ -39,7 +41,7 @@ export CV_GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/application_defau
 docker compose -f infra/compose.yml --profile cv up --build -d
 curl -s http://localhost:8001/health   # wait for "status":"ok" (the model is 343 MB)
 cd tests/load
-uv sync
+uv sync --frozen
 # use the same demo password as the stack, if infra/.env sets one
 export MIRROR_DEMO_PASSWORD="$(grep '^MIRROR_DEMO_PASSWORD=' ../../infra/.env | cut -d= -f2-)"
 MIRROR_CAMERA=on  uv run locust -f locustfile.py --headless -u 5 -r 5 -t 3m --csv runs/camera-on
@@ -48,6 +50,21 @@ uv run python -m mirror_load.report runs/camera-on_stats.csv runs/camera-off_sta
 ```
 
 The last command prints the rows for the results table in `docs/perf.md`. `runs/` stays out of Git.
+
+## Publish a run
+
+A published run must be checkable from the repository alone:
+
+1. Run from a clean checkout and record the exact commit: `git rev-parse HEAD` (the full SHA,
+   not the branch name).
+2. Copy only the two stats files into `results/<date>-<where>/`, for example
+   `results/2026-11-14-local/camera-on_stats.csv` and `camera-off_stats.csv`. They hold request
+   names, counts and percentiles only; no message text, frames or tokens. Do not commit the
+   `_history.csv`, `_failures.csv` or `_exceptions.csv` files.
+3. In `docs/perf.md`, give the full commit SHA, the frame used (grey or consented face frame,
+   never the image itself) and the path to the stats files. Anyone can re-run
+   `uv run python -m mirror_load.report results/<run>/camera-on_stats.csv results/<run>/camera-off_stats.csv`
+   and get the same rows.
 
 Locally, llm-service is the mock: the camera overhead is meaningful, the reply time is not.
 
@@ -66,14 +83,16 @@ time, therefore 5 patients queue.
 | `MIRROR_DEMO_PASSWORD` | `local-demo-password` | the demo patients' password; must match `infra/.env` if it sets one, or every login fails with 401 |
 | `MIRROR_LOAD_FRAME` | unset | path to a JPEG to send; unset sends a plain grey frame |
 
-The grey frame has no face: cv-service runs face detection, finds none, and the gate answers
-"dropped". That still times the full camera path. To exercise the "ok" path, point
-`MIRROR_LOAD_FRAME` at a consented photo kept outside the repository.
+The grey frame has no face: cv-service runs the face detector, finds none, and returns before
+the emotion model runs (`services/cv-service/app/main.py`, lines 112-116); the gate answers
+"dropped". A grey-frame run therefore times the camera pipeline without the emotion model, not
+the camera's real overhead. For the real overhead, point `MIRROR_LOAD_FRAME` at a consented face
+photo kept outside the repository (never commit it, or any other biometric material).
 
 ## Tests
 
 ```bash
-uv sync && uv run pytest && uv run ruff check . && uv run ruff format --check .
+uv sync --frozen && uv run pytest && uv run ruff check . && uv run ruff format --check .
 ```
 
 `tests/` covers the SSE timing and the report; the locustfile itself needs a running stack.

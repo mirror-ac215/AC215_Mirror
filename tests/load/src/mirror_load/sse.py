@@ -15,7 +15,7 @@ from dataclasses import dataclass
 class ReplyTiming:
     first_token_ms: float | None  # None when no token arrived (crisis, or an empty reply)
     complete_ms: float  # until `done`, `crisis`, or the end of the stream
-    outcome: str  # "done", "crisis" or "incomplete"
+    outcome: str  # "done", "empty" (`done` with no token), "crisis" or "incomplete"
     tokens: int
 
 
@@ -36,5 +36,8 @@ def time_reply(
             if first_token_ms is None:
                 first_token_ms = (clock() - started) * 1000
         elif event in ("done", "crisis"):
-            return ReplyTiming(first_token_ms, (clock() - started) * 1000, event, tokens)
+            # A `done` with no token is a reply the patient never saw: report it as "empty",
+            # therefore it counts as a failure and never drops out of the first-token numbers.
+            outcome = "empty" if event == "done" and tokens == 0 else event
+            return ReplyTiming(first_token_ms, (clock() - started) * 1000, outcome, tokens)
     return ReplyTiming(first_token_ms, (clock() - started) * 1000, "incomplete", tokens)
