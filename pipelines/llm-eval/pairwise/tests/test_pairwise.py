@@ -2,14 +2,20 @@ import re
 
 import pytest
 
-from mirror_pairwise import PAIRS
+from mirror_pairwise import LORA_PAIRS, PAIRS
 from mirror_pairwise.pairwise import build, tally, wilson
 
 PROMPTS = [
     {
         "prompt_id": f"p{i}",
         "prompt": f"q{i}",
-        "replies": {"base": f"b{i}", "lora": f"l{i}", "lora_visual": f"v{i}"},
+        "replies": {
+            "plain": f"n{i}",
+            "plain_camera": f"c{i}",
+            "base": f"b{i}",
+            "lora": f"l{i}",
+            "lora_visual": f"v{i}",
+        },
     }
     for i in range(4)
 ]
@@ -51,6 +57,18 @@ def test_comparison_ids_are_opaque_and_unique():
     assert len(set(ids)) == len(ids) == len(key)
     for cid in ids:
         assert re.fullmatch(r"c\d{4}", cid)  # no prompt ID, pair or model name in it
+
+
+def test_first_run_compares_plain_qwen_without_and_with_the_camera_note():
+    assert PAIRS == (("plain", "plain_camera"),)
+    _, key = build(PROMPTS, seed=11)
+    assert {info["pair"] for info in key.values()} == {"plain-plain_camera"}
+
+
+def test_lora_design_still_builds():
+    visible, key = build(PROMPTS, seed=12, pairs=LORA_PAIRS)
+    assert len(visible) == len(PROMPTS) * len(LORA_PAIRS)
+    assert {info["pair"] for info in key.values()} == {f"{a}-{b}" for a, b in LORA_PAIRS}
 
 
 def test_orientation_is_mixed():

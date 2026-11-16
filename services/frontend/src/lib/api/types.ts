@@ -61,3 +61,29 @@ export type ChatEvent =
   | { type: "crisis"; data: CrisisPayload }
   | { type: "token"; data: string }
   | { type: "done"; data: DonePayload };
+
+// --- Clinician dashboard (M4-01), from the /clinician/* endpoints (M4-03) ---
+
+/** One patient assigned to the logged-in clinician. No messages, no frames. */
+export interface PatientSummary {
+  patient_id: string;
+  display_name: string;
+  last_session_at: string | null; // ISO date-time, null before the first session
+  needs_review: boolean;
+}
+
+/** One stored emotion window: aggregate readings only, never message text. */
+export interface TrendPoint {
+  ts: string; // ISO date-time
+  visual_status: VisualStatus;
+  visual_top2?: LabelProb[] | null;
+  text_top2?: LabelProb[] | null;
+  tone_mode: "coach" | "supportive";
+}
+
+/** A review flag raised by the crisis path. Metadata only, never the message. */
+export interface ReviewFlagSummary {
+  flag_id: string;
+  created_at: string;
+  reviewed_at: string | null;
+}

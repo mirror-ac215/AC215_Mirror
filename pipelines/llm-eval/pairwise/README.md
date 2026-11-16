@@ -4,22 +4,24 @@
 > accepted until the gates in [`EVALUATION_GATES.md`](EVALUATION_GATES.md) are met. It does not
 > select a CV model or training protocol; those decisions stay with Mostafa.
 
-Blind pairwise preference on held-out prompts: base vs LoRA, base vs LoRA with visual
-context, and LoRA vs LoRA with visual context.
+Blind pairwise preference on held-out prompts. **First run (agreed on #100, Nov 14):** plain Qwen
+without vs with the camera note in the prompt (`FIRST_RUN_PAIRS`), since D-006 serves plain Qwen
+with no adapter. The original three-way LoRA design is kept as `LORA_PAIRS` and can be passed to
+`build(..., pairs=LORA_PAIRS)`.
 
 ## Input format
 One JSON object per line in the prompts file. The `camera` field is the gate's reading for that
 moment; use `"not given"` when there is none.
 
 ```json
-{"prompt_id": "p017", "prompt": "I can't sleep and everything feels heavy.", "camera": "ok: sad", "replies": {"base": "...", "lora": "...", "lora_visual": "..."}}
+{"prompt_id": "p017", "prompt": "I can't sleep and everything feels heavy.", "camera": "ok: sad", "replies": {"plain": "...", "plain_camera": "..."}}
 ```
 
 ## Steps
 1. **Pick prompts** (`split.held_out`): about 100 questions from the persona test split,
    none seen in training, fixed by a seed.
-2. **Generate replies** for each prompt from the three models. This needs the GPU stack
-   and is not in this code.
+2. **Generate replies** for each prompt, once without and once with the camera note. This needs
+   the GPU stack and is not in this code.
 3. **Blind** (`pairwise.write_blinded`): every pair in random A/B order. The rater sees
    `comparisons.jsonl` only, with opaque IDs (`c0001`, ...). The prompt and the pair are in
    `key.json` only, which stays sealed until the ratings are in.
