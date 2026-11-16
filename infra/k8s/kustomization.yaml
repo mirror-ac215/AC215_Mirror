@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: mirror
 resources:
   - namespace.yaml
+  - managed-certificate.yaml
   - db.yaml
   - api-gateway.yaml
   - cv-service.yaml

@@ -5,12 +5,16 @@ metadata:
 data:
   Caddyfile: |
     :8080 {
-      @metrics path /api/metrics
-      respond @metrics 404
-      handle_path /api/* {
-        reverse_proxy 127.0.0.1:8000
+      # `route` preserves this deny-before-proxy order. Without it, Caddy's
+      # directive sorter can place handle_path before respond.
+      route {
+        @metrics path /api/metrics*
+        respond @metrics 404
+        handle_path /api/* {
+          reverse_proxy 127.0.0.1:8000
+        }
+        respond 404
       }
-      respond 404
     }
 ---
 apiVersion: apps/v1
@@ -41,6 +45,8 @@ spec:
             - name: proxy-config
               mountPath: /etc/caddy/Caddyfile
               subPath: Caddyfile
+          readinessProbe: { httpGet: { path: /api/health, port: 8080 } }
+          livenessProbe: { httpGet: { path: /api/health, port: 8080 } }
       volumes:
         - name: proxy-config
           configMap: { name: api-gateway-proxy-config }

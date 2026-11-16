@@ -5,6 +5,7 @@ secrets/*
 *.env
 !.env.example
 infra/.env.prod
+infra/k8s/mirror-gke-rendered.yaml
 *.pem
 *-key.json
 *service-account*.json

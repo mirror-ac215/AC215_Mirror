@@ -16,6 +16,11 @@ spec:
           image: ${MIRROR_IMAGE_REGISTRY}/${MIRROR_IMAGE_REPOSITORY}/mirror-db:${MIRROR_IMAGE_TAG}
           ports: [{ containerPort: 5432 }]
           envFrom: [{ secretRef: { name: mirror-runtime } }]
+          env:
+            # Keep PostgreSQL's initialized cluster below the PVC mount root:
+            # a newly formatted volume contains lost+found at that root.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
