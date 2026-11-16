@@ -100,7 +100,11 @@ class ChatOrchestrator:
             return result
         try:
             rule_id = self._crisis_meaning.check(text)
-        except CrisisMeaningUnavailable:
+        except CrisisMeaningUnavailable as exc:
+            # Visible, never silent: one count per message checked by the rules alone,
+            # and a structured log with the stage (never the message text).
+            metrics.record_fallback("crisis_meaning_unavailable")
+            logger.warning("crisis_meaning_fallback", extra={"stage": exc.stage})
             return result
         return safety.SafetyResult("crisis", rule_id) if rule_id else result
 

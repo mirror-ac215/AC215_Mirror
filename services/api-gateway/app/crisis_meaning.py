@@ -96,7 +96,15 @@ SAFE_EXAMPLES: tuple[tuple[str, str], ...] = (
 
 
 class CrisisMeaningUnavailable(RuntimeError):
-    """The model could not load or run. The rules still run on their own."""
+    """The model could not load or run. The rules still run on their own.
+
+    `stage` is "load" (the model or examples never loaded) or "inference" (one message
+    could not be scored): logs and metrics report it, never the message.
+    """
+
+    def __init__(self, detail: str, stage: str = "load") -> None:
+        super().__init__(detail)
+        self.stage = stage
 
 
 @dataclass(frozen=True)
@@ -207,7 +215,7 @@ class CrisisMeaning:
         try:
             (vector,) = embed([message[: self.max_chars]])
         except Exception as exc:
-            raise CrisisMeaningUnavailable(str(exc)) from exc
+            raise CrisisMeaningUnavailable(str(exc), stage="inference") from exc
         assert self._crisis_vectors is not None and self._safe_vectors is not None
         crisis_sims = [_dot(vector, v) for v in self._crisis_vectors]
         best = max(range(len(crisis_sims)), key=crisis_sims.__getitem__)

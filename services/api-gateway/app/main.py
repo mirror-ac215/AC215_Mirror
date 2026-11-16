@@ -32,7 +32,11 @@ async def lifespan(_: FastAPI):
             meaning.warm_up()
         except CrisisMeaningUnavailable as exc:
             # The second safety layer is optional; the M3-07 rules still run on every message.
-            logger.warning("crisis_meaning_warmup_failed", extra={"error_type": type(exc).__name__})
+            # Every later message counts as a crisis_meaning_unavailable fallback (/metrics).
+            logger.error(
+                "crisis_meaning_warmup_failed",
+                extra={"error_type": type(exc).__name__, "stage": exc.stage},
+            )
     yield
 
 

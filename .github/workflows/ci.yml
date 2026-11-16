@@ -125,6 +125,33 @@ jobs:
       image_name: mirror-api-gateway-ci
       coverage: true
 
+  api_gateway_model:
+    name: API gateway real-model safety gate
+    # M4-15: the second safety layer is judged with the pinned model it ships with, not a fake.
+    # The image already holds the model (Dockerfile); the test runs with no network at all,
+    # therefore it can neither download a model nor pass without the shipped one.
+    needs: changes
+    if: needs.changes.outputs.api_gateway == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the gateway image (ships the pinned models)
+        run: docker build --tag mirror-api-gateway-model services/api-gateway
+
+      - name: Add the locked test tools to a copy of the image (no model downloads)
+        run: |
+          docker run --name gateway-test-tools mirror-api-gateway-model uv sync --frozen --group dev
+          docker commit gateway-test-tools mirror-api-gateway-model-test
+
+      - name: Run the real-model safety cases offline
+        run: |
+          docker run --rm --network none \
+            -e RUN_MODEL_TESTS=1 -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
+            mirror-api-gateway-model-test \
+            uv run --no-sync pytest tests/test_crisis_meaning_model.py -v -rxs -p no:cacheprovider
+
   db:
     name: Database integration checks
     needs: changes
@@ -430,7 +457,7 @@ jobs:
     name: CI summary
     # Preserve both independently added path-gated jobs: removing either from
     # `needs` would let its failed result bypass this fail-closed summary.
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, compose, e2e, python_lint]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, api_gateway_model, compose, e2e, python_lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -441,6 +468,7 @@ jobs:
           SERVICE_TEMPLATE_RESULT: ${{ needs.service_template.result }}
           API_GATEWAY_CHANGED: ${{ needs.changes.outputs.api_gateway }}
           API_GATEWAY_RESULT: ${{ needs.api_gateway.result }}
+          API_GATEWAY_MODEL_RESULT: ${{ needs.api_gateway_model.result }}
           DB_CHANGED: ${{ needs.changes.outputs.db }}
           DB_RESULT: ${{ needs.db.result }}
           LLM_SERVICE_CHANGED: ${{ needs.changes.outputs.llm_service }}
@@ -498,6 +526,10 @@ jobs:
 
           if [ "$API_GATEWAY_CHANGED" = "true" ] && [ "$API_GATEWAY_RESULT" != "success" ]; then
             echo "API gateway checks did not pass: $API_GATEWAY_RESULT"
+            exit 1
+          fi
+          if [ "$API_GATEWAY_CHANGED" = "true" ] && [ "$API_GATEWAY_MODEL_RESULT" != "success" ]; then
+            echo "API gateway real-model safety gate did not pass: $API_GATEWAY_MODEL_RESULT"
             exit 1
           fi
 

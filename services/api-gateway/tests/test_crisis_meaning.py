@@ -10,6 +10,7 @@ import re
 import pytest
 from test_orchestration import FakeLLM, FakeRepository, text_emotion
 
+from app import metrics
 from app.crisis_meaning import CrisisMeaning, CrisisMeaningUnavailable
 from app.fusion import TurnHistory
 from app.orchestration import ChatOrchestrator
@@ -141,6 +142,61 @@ async def test_unavailable_meaning_layer_leaves_the_rules_in_charge() -> None:
     assert turn.crisis is None
     assert [token async for token in turn.tokens]
     assert len(llm.calls) == 1
+
+
+def meaning_fallbacks() -> float:
+    value = metrics.REGISTRY.get_sample_value(
+        "mirror_gateway_fallback_total", {"reason": "crisis_meaning_unavailable"}
+    )
+    return value or 0.0
+
+
+@pytest.mark.anyio
+async def test_a_failed_load_is_counted_and_logged_and_rules_still_catch_crisis(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def broken(texts):
+        raise OSError("no model")
+
+    service = ChatOrchestrator(FakeRepository(), FakeLLM(), text_emotion(), layer(embedder=broken))
+    before = meaning_fallbacks()
+
+    with caplog.at_level(logging.WARNING, logger="mirror"):
+        everyday = await service.start_turn(**turn_args("I had a quiet day at work"))
+        rules_crisis = await service.start_turn(**turn_args("I want to die"))
+
+    # The everyday message was checked by the rules alone: counted once.
+    assert everyday.crisis is None
+    assert meaning_fallbacks() == before + 1
+    # The deterministic rules stay active (and do not need the meaning layer).
+    assert rules_crisis.crisis is not None
+    assert not rules_crisis.safety_rule.startswith("meaning-")
+    fallbacks = [r for r in caplog.records if r.getMessage() == "crisis_meaning_fallback"]
+    assert [r.stage for r in fallbacks] == ["load"]
+    assert "quiet day" not in caplog.text
+
+
+@pytest.mark.anyio
+async def test_a_failed_inference_is_counted_with_its_stage(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def fails_on_messages(texts):
+        if texts == [t for _, t in CRISIS] or texts == [t for _, t in SAFE]:
+            return bag_of_words(texts)  # the examples load fine
+        raise RuntimeError("inference failed")
+
+    service = ChatOrchestrator(
+        FakeRepository(), FakeLLM(), text_emotion(), layer(embedder=fails_on_messages)
+    )
+    before = meaning_fallbacks()
+
+    with caplog.at_level(logging.WARNING, logger="mirror"):
+        turn = await service.start_turn(**turn_args("I had a quiet day at work"))
+
+    assert turn.crisis is None
+    assert meaning_fallbacks() == before + 1
+    fallbacks = [r for r in caplog.records if r.getMessage() == "crisis_meaning_fallback"]
+    assert [r.stage for r in fallbacks] == ["inference"]
 
 
 @pytest.mark.anyio

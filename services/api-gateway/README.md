@@ -117,15 +117,42 @@ margin are chosen on the dev set, then applied unchanged to a holdout set never 
 `all-MiniLM-L6-v2` was tried first and dropped: its best setting caught 11 of 12 dev phrasings
 but flagged 4 everyday sentences ("I hurt myself at the gym yesterday").
 
-**Read with care.** Dev is perfect because the examples were written after seeing it; holdout
-is the honest number: about half of new wording is caught. Still missed: "I've written a note
-for my mum", "I can't see any way out except dying", "I've decided tonight is the night". This
-layer adds catches without new false alarms in our tests; it does not make crisis detection
-complete. Both test sets were written by the same person, so a reviewer's own sentences are the
-next check.
+**A best-effort second layer, not a guarantee.** Dev is perfect because the examples were
+written after seeing it; holdout is the honest number: about half of new wording is caught.
+Still missed: "I've written a note for my mum", "I can't see any way out except dying", "I've
+decided tonight is the night". The layer only adds crisis detections; it never clears a message
+the rules flagged and never decides a message is safe. It does not make crisis detection
+complete, and nothing in Mirror should rely on it catching a given phrasing. It is on by
+default because, on the holdout, it takes the rules from 1 of 8 to 5 of 8 with no new false
+alarms in our tests; `CRISIS_MEANING_ENABLED=false` switches it off.
 
-Real-model test: `RUN_MODEL_TESTS=1 uv run pytest tests/test_crisis_meaning_model.py` (known
-misses are strict xfails).
+**Required gate (CI: "API gateway real-model safety gate").** `tests/test_crisis_meaning_model.py`
+runs inside the built image with no network, on the model the image ships:
+
+- every everyday sentence must stay quiet: the 62 `expect: none` cases, the dev and holdout
+  look-alikes, and Mostafa's 5 independent ones (#111);
+- every crisis phrasing must fire, including Mostafa's 5 independent ones, except the 4 known
+  misses, which stay strict xfails: a known gap is recorded, not hidden, and the test fails the
+  day one starts firing (then it moves to the must-fire list). Adding a miss needs a reviewer's
+  approval on the PR.
+
+Locally: `RUN_MODEL_TESTS=1 uv run pytest tests/test_crisis_meaning_model.py` (downloads the
+pinned model once).
+
+**When it is down.** If the model fails to load or to score a message, the rules decide alone and
+the fallback is visible: `mirror_gateway_fallback_total{reason="crisis_meaning_unavailable"}`
+counts every message checked by the rules alone, and the gateway logs `crisis_meaning_fallback`
+with `stage` = `load` or `inference` (never the message text). A failed start-up warm-up also logs
+`crisis_meaning_warmup_failed` at error level.
+
+**Crisis wins over medication, on purpose.** When a message is both a medication question and a
+crisis by meaning, the patient gets the crisis reply with 988, not the fixed medication reply,
+and the clinician is flagged. A message such as "should I double my sleeping pills?" can
+therefore get 988 instead of the medication reply (raised by Mostafa on #111). A missed crisis costs more than a crisis reply to a medication question.
+
+**Cost and known limits.** The model adds about 420 MB to the gateway image (agreed on #111).
+Both models (text emotion and this layer) run synchronously in the event loop; moving them to
+`asyncio.to_thread` is a later improvement, not needed at 5 patients.
 
 ## Text-emotion module (M3-05)
 
