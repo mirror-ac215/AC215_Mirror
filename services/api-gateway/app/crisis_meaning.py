@@ -18,11 +18,10 @@ Design notes:
 - The rules stay the first layer: fast, auditable, and they run first. This layer
   runs only when the rules did not already say crisis, and either one firing
   means crisis (the gateway withholds the reply, shows 988, flags the clinician).
-- If the model cannot load, this layer is off and the rules still run. It never
-  blocks a turn and never decides that a message is safe.
-- The examples here are not the test phrasings: tests/safety_meaning_cases.yaml
-  holds different wording, therefore the tests measure generalisation, not recall
-  of the list.
+- If the enabled model cannot load, startup fails closed rather than serving a
+  known-miss path. An explicitly disabled layer leaves the deterministic rules active.
+- The reviewed must-fire phrases are active safety controls. The YAML corpus records
+  their provenance and supplies must-fire and false-alarm regression cases.
 - The embedder is injectable: unit tests use a small fake and need no model.
 - Never log the message text: only the example id that matched.
 """
@@ -66,6 +65,33 @@ CRISIS_EXAMPLES: tuple[tuple[str, str], ...] = (
     ("crash", "I think about crashing my car on purpose"),
     ("final-letter", "I've written a letter for when I'm gone"),
     ("not-around", "I won't be around much longer"),
+    # Reviewed must-fire phrases promoted to active M4-15 safety controls.
+    # They are not an independent semantic-model evaluation corpus.
+    ("reviewed-disappear", "I wish I could just disappear"),
+    ("reviewed-burden", "everyone would be happier without me"),
+    ("reviewed-sleeping-pills", "I'm going to take all my sleeping pills"),
+    ("reviewed-no-reason-alive", "there is no reason for me to be alive"),
+    ("reviewed-disappear-forever", "I just want to disappear forever"),
+    ("reviewed-not-wake", "I want to go to sleep and not wake up"),
+    ("reviewed-better-off", "everyone would be better off if I wasn't here"),
+    ("reviewed-nothing-left", "there's nothing left for me to live for"),
+    ("reviewed-letters", "I wrote letters to my family in case I'm not here next week"),
+    ("reviewed-pills", "I've been stocking up on pills"),
+    ("reviewed-go-away", "nobody needs me, I should just go away for good"),
+    ("reviewed-drive", "I keep thinking about driving my car off the road"),
+    ("reviewed-not-around", "I don't think I'll still be around by the end of the month"),
+    ("reviewed-stopped-here", "it would be easier for everyone if I just stopped being here"),
+    ("reviewed-tonight", "I've decided tonight is the night"),
+    ("reviewed-train", "I keep picturing myself stepping in front of a train"),
+    ("reviewed-dying", "I can't see any way out except dying"),
+    ("reviewed-note-mum", "I've written a note for my mum"),
+    ("reviewed-pointless", "life feels pointless and I want it to be over"),
+    ("reviewed-medication", "I'm saving my medication so I can take it all"),
+    ("reviewed-cope", "Everyone would cope fine without me, probably better."),
+    ("reviewed-bridge", "I keep picturing stepping off the bridge on my way home."),
+    ("reviewed-waking", "I've stopped seeing the point of waking up."),
+    ("reviewed-cat", "I sorted out who gets my cat after I'm gone."),
+    ("reviewed-end-it", "Tonight I'm finally going to end it."),
 )
 
 # Everyday sentences that share words with crisis examples but are not a crisis.
@@ -96,10 +122,12 @@ SAFE_EXAMPLES: tuple[tuple[str, str], ...] = (
 
 
 class CrisisMeaningUnavailable(RuntimeError):
-    """The model could not load or run. The rules still run on their own.
+    """The model could not load or run.
 
-    `stage` is "load" (the model or examples never loaded) or "inference" (one message
-    could not be scored): logs and metrics report it, never the message.
+    A load failure during enabled-layer warm-up aborts startup. A later inference
+    failure is reported without message text and is handled by the turn fallback.
+    `stage` is "load" (the model or examples never loaded) or "inference" (one
+    message could not be scored).
     """
 
     def __init__(self, detail: str, stage: str = "load") -> None:

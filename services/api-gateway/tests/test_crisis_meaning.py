@@ -10,6 +10,7 @@ import re
 import pytest
 from test_orchestration import FakeLLM, FakeRepository, text_emotion
 
+import app.main as gateway_main
 from app import metrics
 from app.crisis_meaning import CrisisMeaning, CrisisMeaningUnavailable
 from app.fusion import TurnHistory
@@ -74,6 +75,22 @@ def test_a_failed_load_is_unavailable_and_not_retried_every_message() -> None:
     with pytest.raises(CrisisMeaningUnavailable):
         meaning.check("anything else")
     assert len(calls) == 1
+
+
+@pytest.mark.anyio
+async def test_enabled_meaning_layer_refuses_startup_when_it_cannot_warm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A configured safety layer cannot silently degrade to known-miss behavior."""
+    monkeypatch.setattr(
+        gateway_main,
+        "get_crisis_meaning",
+        lambda: layer(embedder=lambda _: (_ for _ in ()).throw(OSError("missing"))),
+    )
+
+    with pytest.raises(CrisisMeaningUnavailable):
+        async with gateway_main.lifespan(gateway_main.app):
+            pass
 
 
 def turn_args(text: str) -> dict:

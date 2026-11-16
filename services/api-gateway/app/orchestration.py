@@ -93,7 +93,8 @@ class ChatOrchestrator:
         """Rules first (M3-07); if they don't say crisis, the meaning layer (M4-15).
 
         Either one firing means crisis, also over a medication or camera hit:
-        crisis always wins. If the meaning layer is unavailable, the rules decide alone.
+        crisis always wins. Load failure is rejected during startup; a later per-message
+        inference failure is visible in metrics and falls back to deterministic rules.
         """
         result = safety.check(text)
         if result.kind == "crisis" or self._crisis_meaning is None:

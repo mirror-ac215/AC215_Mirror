@@ -54,10 +54,9 @@ class Settings(BaseSettings):
     text_emotion_max_chars: int = 2000
 
     # Second safety layer (M4-15): crisis by meaning (app/crisis_meaning.py).
-    # Pinned and calibrated Nov 14 with scripts/calibrate_crisis_meaning.py (README,
-    # "Second safety layer"): threshold and margin chosen on the dev set; holdout caught
-    # 4 of 8 new crisis phrasings with 0 false alarms. Re-run it after changing the model
-    # or the examples, and pin the revision it prints, never "main".
+    # The historical must-fire corpus is promoted into active controls. Any future
+    # model or example change needs a newly authored independent evaluation corpus;
+    # do not treat the promoted phrases as generalisation evidence.
     crisis_meaning_enabled: bool = True
     # all-MiniLM-L6-v2 was tried first: it could not separate crisis from everyday
     # sentences (calibration, Nov 14). all-mpnet-base-v2 is larger (~420 MB) and stronger.

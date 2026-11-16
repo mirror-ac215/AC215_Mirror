@@ -15,7 +15,8 @@ RUN uv sync --frozen --no-dev
 # The gateway never downloads at runtime, so the pinned text emotion model ships in the image.
 RUN uv run --no-sync python -c "from huggingface_hub import snapshot_download; from app.config import Settings as S; f = S.model_fields; snapshot_download(f['text_emotion_model'].default, revision=f['text_emotion_revision'].default, allow_patterns=['*.json', '*.txt', 'pytorch_model.bin'])"
 
-# Same for the M4-15 second safety layer (~420 MB). Without it the rules run alone.
+# Same for the enabled M4-15 safety layer (~420 MB). The gateway fails
+# startup if this shipped, pinned model cannot warm, preventing known-miss serving.
 RUN uv run --no-sync python -c "from huggingface_hub import snapshot_download; from app.config import Settings as S; f = S.model_fields; snapshot_download(f['crisis_meaning_model'].default, revision=f['crisis_meaning_revision'].default, allow_patterns=['*.json', '*.txt', 'model.safetensors'])"
 
 EXPOSE 8000

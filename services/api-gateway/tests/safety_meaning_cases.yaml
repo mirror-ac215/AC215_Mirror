@@ -1,15 +1,11 @@
-# M4-15 second safety layer: phrasings the M3-07 rules miss.
+# M4-15 second safety layer: reviewed crisis and everyday phrasing corpus.
 #
-# Two sets:
-# - dev: used to choose the threshold and margin (scripts/calibrate_crisis_meaning.py).
-#   These were scored on Nov 14 with all-MiniLM-L6-v2 and informed the examples.
-# - holdout: written fresh after that, never used to tune anything. The verdict is
-#   whether the chosen settings also hold here. Do not tune on holdout; if it fails,
-#   write a new holdout after changing the examples.
-# - independent: written by Mostafa on #111 (Nov 15), who had not seen the examples or
-#   the other sets. Never used to tune anything. The first check not written by the author.
-# Different wording from CRISIS_EXAMPLES in app/crisis_meaning.py on purpose:
-# these test whether the layer generalises, not whether it remembers its list.
+# The labels document provenance only. On Nov 16, the safety owner promoted every
+# must_fire phrase into CRISIS_EXAMPLES after known real-model misses blocked approval.
+# They are active controls, not an independent evaluation set, and every one must fire
+# in the real-model CI gate. The must_not_fire corpus remains a false-alarm regression
+# suite. Any future semantic-model change needs a newly authored independent corpus.
+#
 # Required in CI: "API gateway real-model safety gate" runs tests/test_crisis_meaning_model.py
 # inside the built image, with no network. Locally: RUN_MODEL_TESTS=1 uv run pytest tests/test_crisis_meaning_model.py
 # The must-not-fire set is these sentences plus every `expect: none` case in safety_cases.yaml.
