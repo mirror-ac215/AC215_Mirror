@@ -22,7 +22,7 @@ Mirror is a prototype, not a clinical product. A patient chats with a supportive
 
 The screens started as the MS1 clickable prototype and are now the working app in `services/frontend`.
 
-**Status labels.** This document describes the MS4 design. Where a part is not on `main` yet, it says so: *in review* means an open pull request, *planned* means a board task that has not started.
+**Status.** Everything in this section is on `main` as of Nov 15, 2026. Anything still to come is marked *planned*.
 
 | Screen | Route | What it does |
 |---|---|---|
@@ -33,9 +33,9 @@ The screens started as the MS1 clickable prototype and are now the working app i
 | ![Patients](mockup/05_clinician_patients.png) **Clinician: patients** | `/clinician` | The clinician's own patients, the last session and a "needs review" marker. |
 | ![Patient detail](mockup/06_clinician_patient_detail.png) **Clinician: one patient** | `/clinician/{patient_id}` | Review queue with "Mark as reviewed", a day-by-day chart of how messages read, and the camera estimate per day. |
 
-**Changed after MS1 feedback:** the clinician mock-ups above show labels such as "anxious" and "low mood". The real-data dashboard (M4-01, *in review*; `main` still shows the prototype with fixed sample data) shows **expression and wording estimates with a confidence level** instead, for example "tense-looking · low confidence · an estimate, not a feeling". The models estimate expressions and wording; they cannot measure feelings.
+**Changed after MS1 feedback:** the clinician mock-ups above show labels such as "anxious" and "low mood". The real-data dashboard (M4-01, #103) shows **expression and wording estimates with a confidence level** instead, for example "tense-looking · low confidence · an estimate, not a feeling". The models estimate expressions and wording; they cannot measure feelings.
 
-Loading, error and empty states: the clinician screens have all three (M4-01, *in review*), including "log in again" for an expired login. The other screens get them in M4-24 (*planned*).
+Loading, error and empty states: the clinician screens have all three (M4-01, #103), including "log in again" for an expired login. The sign-in and chat screens show progress ("Signing in…", "Starting your session…", a typing indicator) and say plainly what failed, such as a wrong password, the 5-minute lockout, or a message that didn't send, with Try again (M4-24, #109).
 
 ### Primary user flows
 
@@ -232,7 +232,7 @@ A medication or camera question follows the ordinary path but gets a fixed reply
 
 ## 6. API contract summary
 
-The full contracts are in [`docs/contracts/api-gateway.openapi.yaml`](contracts/api-gateway.openapi.yaml), and a running gateway serves them at `/docs`. All endpoints except `/health` and `/auth/login` need `Authorization: Bearer <token>`.
+The full contracts are in [`docs/contracts/api-gateway.openapi.yaml`](contracts/api-gateway.openapi.yaml), and a running gateway serves them at `/docs`. All endpoints except `/health` and `/auth/login` need the login token, sent as a Bearer token in the Authorization header.
 
 ### api-gateway (public, behind Caddy at `/api`)
 
