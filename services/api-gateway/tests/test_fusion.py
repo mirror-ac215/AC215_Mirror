@@ -35,7 +35,7 @@ def turn(visual: dict, text: dict | None, history: TurnHistory | None = None) ->
     history = history if history is not None else TurnHistory()
     context = fuse(visual, text, history)
     VALIDATOR.validate(context)  # raises if the shape breaks the contract
-    history.record(context)
+    history.record(context, reply_delivered=True)
     return context
 
 

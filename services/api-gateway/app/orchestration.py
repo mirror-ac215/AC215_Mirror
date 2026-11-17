@@ -152,6 +152,7 @@ class ChatOrchestrator:
 
         async def forward_and_persist() -> AsyncIterator[str]:
             reply_parts: list[str] = []
+            llm_failed = False
             # Medication and camera questions never reach the LLM: same stream, fixed text.
             source = fixed_reply() if fixed_text else self._llm.stream(llm_messages)
             try:
@@ -164,17 +165,23 @@ class ChatOrchestrator:
                 # a done event and a saved message. Never log the patient's text.
                 logger.warning("llm_fallback type=%s", type(exc).__name__)
                 metrics.record_fallback("llm_unavailable")
+                llm_failed = True
                 note = LLM_INTERRUPTED_NOTE if reply_parts else LLM_FALLBACK_REPLY
                 reply_parts.append(note)
                 if not hold_reply:
                     yield note
             reply = "".join(reply_parts)
+            cut = False
             if hold_reply:
-                reply = drop_questions(reply)
+                kept = drop_questions(reply)
+                cut = kept != reply.strip()
+                reply = kept
                 yield reply
             await self._repository.add_message(session_id, "assistant", reply, False)
             await self._repository.add_emotion_window(session_id, context)
-            history.record(context)
+            # M4-17: a check-in only counts if the patient saw the model's reply as written.
+            # A fixed reply, an LLM fallback or a removed question means it never reached them.
+            history.record(context, reply_delivered=not (fixed_text or llm_failed or cut))
 
         return ChatTurn(
             message_id=patient_message_id,

@@ -150,7 +150,10 @@ It does not turn an unmerged pull request into merged functionality.
   words still disagree (`TurnHistory.may_check_in`). N is
   `FUSION_CHECKIN_COOLDOWN_TURNS`, default 5 and at least 2, so never on
   back-to-back turns. 5 is a judgement call; tune it once the M4-09 evaluation
-  has run.
+  has run. The cooldown starts only when the patient actually saw the check-in:
+  not when a fixed medication or camera reply, an LLM fallback, or the
+  no-two-questions rule replaced or cut the model's reply. Only finished, saved,
+  non-crisis turns count towards N.
 - **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
   gating (M3-04), prompt template (`app/prompt.py`, M3-08).
 

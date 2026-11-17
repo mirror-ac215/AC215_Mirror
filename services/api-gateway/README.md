@@ -157,7 +157,7 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 
 - **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, therefore a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
-- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context)` once, when the turn's reply is final.
+- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context, reply_delivered=...)` once, when the turn's reply is final. `reply_delivered` is False when a fixed reply, an LLM fallback or the no-two-questions rule replaced or cut the model's reply; a check-in then does not start the cooldown. Crisis turns are never recorded.
 
 ## Metrics (M3-15)
 

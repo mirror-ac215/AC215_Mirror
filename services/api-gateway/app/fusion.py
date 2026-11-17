@@ -18,7 +18,12 @@ cooldown of N turns has passed and they still disagree (M4-17), never on back-to
 Usage, once per chat turn:
 
     context = fuse(visual, text, history)  # reads the history, changes nothing: safe to retry
-    history.record(context)                # once, when the turn's reply is final
+    history.record(context, reply_delivered=True)  # once, when the turn's reply is final
+
+A check-in starts the cooldown only if the patient actually saw it: `reply_delivered` is False
+when the language model's reply was replaced (fixed medication or camera reply, LLM fallback) or
+cut by the no-two-questions rule. Only finished, saved, non-crisis turns are recorded, so only
+those advance the turn count.
 """
 
 from __future__ import annotations
@@ -62,10 +67,14 @@ class TurnHistory:
             self.last_check_in is None or self.turns - self.last_check_in >= self.checkin_cooldown
         )
 
-    def record(self, context: dict) -> None:
-        """Remember a finished turn. Call once per turn, after the reply is final."""
+    def record(self, context: dict, *, reply_delivered: bool) -> None:
+        """Remember a finished turn. Call once per turn, after the reply is final.
+
+        reply_delivered: the language model's reply reached the patient unchanged. A "disagree"
+        turn counts as a check-in only then; otherwise the cooldown does not start.
+        """
         self.steady.append(_steady(_signals(context["visual"], context["text"])))
-        if context["agreement"] == "disagree":
+        if context["agreement"] == "disagree" and reply_delivered:
             self.last_check_in = self.turns
         self.turns += 1
 
@@ -92,7 +101,7 @@ def _steady(signals: tuple[list | None, list | None]) -> bool:
 def fuse(visual: dict, text: dict | None, history: TurnHistory, steady_needed: int = 2) -> dict:
     """The gate's `visual` block + the text module's block (None if unavailable) -> context object.
 
-    Reads `history` but does not change it: call `history.record(context)` once the turn is final.
+    Reads `history` but does not change it: call `history.record(context, ...)` once the turn is final.
     """
     text = text or NO_TEXT
     face, words = _signals(visual, text)
