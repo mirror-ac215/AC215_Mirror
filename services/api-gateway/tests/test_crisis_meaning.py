@@ -8,6 +8,7 @@ import math
 import re
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from test_orchestration import FakeLLM, FakeRepository, text_emotion
 
 import app.main as gateway_main
@@ -88,20 +89,73 @@ def test_a_failed_load_is_unavailable_and_not_retried_every_message() -> None:
     assert len(calls) == 1
 
 
-@pytest.mark.anyio
-async def test_enabled_meaning_layer_refuses_startup_when_it_cannot_warm(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A configured safety layer cannot silently degrade to known-miss behavior."""
-    monkeypatch.setattr(
-        gateway_main,
-        "get_crisis_meaning",
-        lambda: layer(embedder=lambda _: (_ for _ in ()).throw(OSError("missing"))),
-    )
+def broken_layer() -> CrisisMeaning:
+    def broken(texts):
+        raise OSError("missing")
 
-    with pytest.raises(CrisisMeaningUnavailable):
+    return layer(embedder=broken)
+
+
+@pytest.mark.anyio
+async def test_gateway_starts_with_rules_only_when_the_meaning_model_cannot_load(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#111: no model -> the gateway still serves the rules and the 988 screen, loudly."""
+    meaning = broken_layer()
+    monkeypatch.setattr(gateway_main, "get_crisis_meaning", lambda: meaning)
+
+    with caplog.at_level(logging.ERROR, logger="mirror"):
         async with gateway_main.lifespan(gateway_main.app):
             pass
+
+    warmup = [r for r in caplog.records if r.getMessage() == "crisis_meaning_warmup_failed"]
+    assert len(warmup) == 1
+    assert warmup[0].levelno == logging.ERROR
+    assert warmup[0].stage == "load"
+    assert meaning.available is False
+
+
+@pytest.mark.anyio
+async def test_health_reports_the_meaning_layer_down_after_a_failed_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def all_up(settings):
+        return {"cv-service": "ok", "llm-service": "ok", "db": "ok"}
+
+    meaning = broken_layer()
+    with pytest.raises(CrisisMeaningUnavailable):
+        meaning.warm_up()
+    monkeypatch.setattr(gateway_main, "check_dependencies", all_up)
+    monkeypatch.setattr(gateway_main, "get_crisis_meaning", lambda: meaning)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=gateway_main.app), base_url="http://test"
+    ) as client:
+        body = (await client.get("/health")).json()
+
+    assert body["status"] == "degraded"
+    assert body["dependencies"]["crisis-meaning"] == "down"
+
+
+@pytest.mark.anyio
+async def test_health_reports_the_meaning_layer_ok_once_loaded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def all_up(settings):
+        return {"cv-service": "ok", "llm-service": "ok", "db": "ok"}
+
+    meaning = layer()
+    meaning.warm_up()
+    monkeypatch.setattr(gateway_main, "check_dependencies", all_up)
+    monkeypatch.setattr(gateway_main, "get_crisis_meaning", lambda: meaning)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=gateway_main.app), base_url="http://test"
+    ) as client:
+        body = (await client.get("/health")).json()
+
+    assert body["status"] == "ok"
+    assert body["dependencies"]["crisis-meaning"] == "ok"
 
 
 def turn_args(text: str) -> dict:

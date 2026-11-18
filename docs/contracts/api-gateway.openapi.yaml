@@ -18,7 +18,10 @@ paths:
       security: []
       responses:
         "200":
-          description: Gateway is up; each dependency reported separately
+          description: >-
+            Gateway is up; each dependency reported separately. When the M4-15 crisis-meaning
+            layer is enabled, `crisis-meaning` is `down` if its model failed to load (the
+            deterministic safety rules still run).
           content:
             application/json:
               schema:
@@ -29,7 +32,7 @@ paths:
                   dependencies:
                     type: object
                     additionalProperties: { type: string, enum: [ok, down] }
-                    example: { cv-service: ok, llm-service: ok, db: ok }
+                    example: { cv-service: ok, llm-service: ok, db: ok, crisis-meaning: ok }
 
   /auth/login:
     post:

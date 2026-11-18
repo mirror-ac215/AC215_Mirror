@@ -31,13 +31,14 @@ async def lifespan(_: FastAPI):
         try:
             meaning.warm_up()
         except CrisisMeaningUnavailable as exc:
-            # This is an active safety control, not an optional enrichment. Starting
-            # without it would reintroduce reviewed must-fire misses, so fail closed.
+            # Keep serving (#111): a patient is safer with the deterministic rules and
+            # the 988 screen than with no gateway. The failure is loud, not silent:
+            # this error log, a fallback count per message checked by the rules alone,
+            # and /health reporting "crisis-meaning" as down (status "degraded").
             logger.error(
                 "crisis_meaning_warmup_failed",
                 extra={"error_type": type(exc).__name__, "stage": exc.stage},
             )
-            raise
     yield
 
 
@@ -83,6 +84,9 @@ async def add_request_id(request: Request, call_next):
 async def health() -> dict[str, object]:
     """Gateway is alive; each dependency is reported separately (contract:/health)."""
     dependencies = await check_dependencies(settings)
+    meaning = get_crisis_meaning()
+    if meaning is not None:  # absent when the layer is switched off
+        dependencies["crisis-meaning"] = "ok" if meaning.available else "down"
     status = "ok" if all(state == "ok" for state in dependencies.values()) else "degraded"
     return {"status": status, "dependencies": dependencies}
 

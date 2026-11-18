@@ -18,8 +18,9 @@ Design notes:
 - The rules stay the first layer: fast, auditable, and they run first. This layer
   runs only when the rules did not already say crisis, and either one firing
   means crisis (the gateway withholds the reply, shows 988, flags the clinician).
-- If the enabled model cannot load, startup fails closed rather than serving a
-  known-miss path. An explicitly disabled layer leaves the deterministic rules active.
+- If the enabled model cannot load, the gateway still starts: the deterministic
+  rules and the 988 screen stay active, and the failure is loud (error log at
+  start, a fallback count per message, /health "degraded"). Agreed on #111.
 - The reviewed must-fire phrases are active safety controls. The YAML corpus records
   their provenance and supplies must-fire and false-alarm regression cases.
 - The embedder is injectable: unit tests use a small fake and need no model.
@@ -129,8 +130,8 @@ SAFE_EXAMPLES: tuple[tuple[str, str], ...] = (
 class CrisisMeaningUnavailable(RuntimeError):
     """The model could not load or run.
 
-    A load failure during enabled-layer warm-up aborts startup. A later inference
-    failure is reported without message text and is handled by the turn fallback.
+    The turn falls back to the deterministic rules alone and counts the fallback;
+    no message text is reported.
     `stage` is "load" (the model or examples never loaded) or "inference" (one
     message could not be scored).
     """
@@ -238,6 +239,11 @@ class CrisisMeaning:
                     )
         assert self._embedder is not None
         return self._embedder
+
+    @property
+    def available(self) -> bool:
+        """False once the model has failed to load; /health then reports "down"."""
+        return not self._failed
 
     def warm_up(self) -> None:
         """Load the model and embed the examples before the first patient message."""

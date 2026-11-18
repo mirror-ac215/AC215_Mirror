@@ -119,10 +119,19 @@ image ships. Every reviewed crisis phrasing must fire and every everyday sentenc
 including the 62 `expect: none` cases and all reviewed look-alikes. There are no xfails.
 
 The enabled meaning layer is an active safety control, not an optional enhancement. The gateway
-warms it before serving and refuses startup if it cannot load or score its shipped model; this
-prevents a silent fallback to a known-miss path. `CRISIS_MEANING_ENABLED=false` is retained only
-for an explicitly reviewed experimental deployment and is not the accepted default safety
-configuration.
+warms it before serving. If the shipped model cannot load, the gateway still starts, with the
+deterministic rules and the 988 screen as the only crisis check (agreed on #111: a patient is safer
+with the rules alone than with no app). The failure is loud, never silent:
+
+- `crisis_meaning_warmup_failed` is logged at error level at startup;
+- `mirror_gateway_fallback_total{reason="crisis_meaning_unavailable"}` counts every message
+  checked by the rules alone, with a `crisis_meaning_fallback` log (stage, never the text);
+- `/health` reports `"crisis-meaning": "down"` and `"status": "degraded"`.
+
+The real-model CI gate already proves the shipped image loads the model, therefore this path only
+matters if a deployment breaks. `CRISIS_MEANING_ENABLED=false` is retained only for an explicitly
+reviewed experimental deployment and is not the accepted default safety configuration; with the
+layer off, `/health` omits the `crisis-meaning` entry.
 
 Locally: `RUN_MODEL_TESTS=1 uv run pytest tests/test_crisis_meaning_model.py` (downloads the
 pinned model once).
