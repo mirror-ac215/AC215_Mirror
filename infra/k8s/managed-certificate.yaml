@@ -1,0 +1,7 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: mirror-managed
+spec:
+  domains:
+    - "${MIRROR_DOMAIN}"
