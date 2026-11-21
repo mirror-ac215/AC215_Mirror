@@ -2,7 +2,7 @@
 
 This document covers MS4 Deliverable 1. It brings together the user interface, the architecture, the data flow, one request step by step, the API and the code layout. The detailed sources stay where they are and are linked from each section: [architecture](architecture.md), [contracts](contracts/), [data model](data-model.md), [decisions](decisions.md) and [mock-ups](mockup/README.md).
 
-Mirror is a prototype, not a clinical product. A patient chats with a supportive persona. With consent, their webcam gives a facial-expression signal and their words give a tone signal. Both are combined into one short, uncertainty-labelled note per message, and that note shapes the reply. A rule-based safety check runs before the model. A clinician sees each patient's trends and anything that needs a review.
+Mirror is a prototype, not a clinical product. A patient chats with a supportive persona. With consent, their webcam gives a facial-expression signal and their words give a tone signal. Both are combined into one short, uncertainty-labelled note per message, and that note shapes the reply. A safety check runs before the model: deterministic rules first, then a second layer that matches crisis wording by meaning (M4-15). A clinician sees each patient's trends and anything that needs a review.
 
 ## Contents
 
@@ -22,7 +22,7 @@ Mirror is a prototype, not a clinical product. A patient chats with a supportive
 
 The screens started as the MS1 clickable prototype and are now the working app in `services/frontend`.
 
-**Status.** Everything in this section is on `main` as of Nov 15, 2026. Anything still to come is marked *planned*.
+**Status.** Everything in this section is on `main` as of Nov 21, 2026. Anything still to come is marked *planned*.
 
 | Screen | Route | What it does |
 |---|---|---|
@@ -33,9 +33,9 @@ The screens started as the MS1 clickable prototype and are now the working app i
 | ![Patients](mockup/05_clinician_patients.png) **Clinician: patients** | `/clinician` | The clinician's own patients, the last session and a "needs review" marker. |
 | ![Patient detail](mockup/06_clinician_patient_detail.png) **Clinician: one patient** | `/clinician/{patient_id}` | Review queue with "Mark as reviewed", a day-by-day chart of how messages read, and the camera estimate per day. |
 
-**Changed after MS1 feedback:** the clinician mock-ups above show labels such as "anxious" and "low mood". The real-data dashboard (M4-01, #103) shows **expression and wording estimates with a confidence level** instead, for example "tense-looking · low confidence · an estimate, not a feeling". The models estimate expressions and wording; they cannot measure feelings.
+**Changed after MS1 feedback:** the clinician mock-ups above show labels such as "anxious" and "low mood". The real-data dashboard (M4-01, [#103](https://github.com/mirror-ac215/AC215_Mirror/pull/103)) shows **expression and wording estimates with a confidence level** instead, for example "tense-looking · low confidence · an estimate, not a feeling". The models estimate expressions and wording; they cannot measure feelings.
 
-Loading, error and empty states: the clinician screens have all three (M4-01, #103), including "log in again" for an expired login. The sign-in and chat screens show progress ("Signing in…", "Starting your session…", a typing indicator) and say plainly what failed, such as a wrong password, the 5-minute lockout, or a message that didn't send, with Try again (M4-24, #109).
+Loading, error and empty states: the clinician screens have all three (M4-01, [#103](https://github.com/mirror-ac215/AC215_Mirror/pull/103)), including "log in again" for an expired login. The sign-in and chat screens show progress ("Signing in…", "Starting your session…", a typing indicator) and say plainly what failed, such as a wrong password, the 5-minute lockout, or a message that didn't send, with Try again (M4-24, [#109](https://github.com/mirror-ac215/AC215_Mirror/pull/109)).
 
 ### Primary user flows
 
@@ -99,9 +99,9 @@ flowchart LR
 | llm-service | Owen | vLLM serving plain Qwen 2.5-3B-Instruct (decision D-006), OpenAI-compatible API |
 | db | Owen | Postgres. Never stores camera frames |
 | Prometheus and Grafana | Julie | Gateway metrics dashboard, opt-in Compose profile, not public |
-| GCP operations (VM, Artifact Registry, deploys) | Mostafa (runs), Owen (prepares) | Mostafa alone runs anything billable: creating and starting the VM, pushing images, deploying, checking it runs, and confirming it is stopped afterwards. Owen prepares the deployment files and serving set-up in the repository but does not run paid cloud commands. |
+| GCP operations (VM, paid jobs, deploys) | Mostafa (runs), Owen (prepares) | GitHub Actions builds and publishes the images to Artifact Registry automatically on each merge. Mostafa alone owns the paid cloud work: the VM's lifecycle (create, start, stop), paid jobs, deploying and checking the running system, and confirming everything is stopped afterwards. Owen prepares the deployment files and serving set-up in the repository but does not run paid cloud commands. |
 
-**Where it runs.** Locally, one command starts the stack with no setup (`docker compose -f infra/compose.yml up --build`; the LLM runs as a mock without a GPU). For the deployed demo, the same Compose file plus `compose.prod.yml` runs on one GCP VM with one GPU, using images from Artifact Registry tagged by commit. The setup guide (`infra/README.md`) targets a T4 and falls back to an L4 when T4s are out of stock; the MS3 evidence run on Nov 11 used an L4 (`docs/evidence/README.md`). This is the reviewed deployment set-up, not a claim that a VM is running now: it is stopped between demos to save cost. MS5 moves this to Kubernetes (GKE).
+**Where it runs.** Locally, one command starts the stack with no setup (`docker compose -f infra/compose.yml up --build`; the LLM runs as a mock without a GPU). For the deployed demo, the same Compose file plus `compose.prod.yml` runs on one GCP VM with one GPU, using images from Artifact Registry tagged by commit. The setup guide (`infra/README.md`) targets a T4 and falls back to an L4 when T4s are out of stock; the MS3 evidence run on Nov 11 used an L4 (`docs/evidence/README.md`). This is the reviewed deployment set-up, not a claim that a VM is running now: it is stopped between demos to save cost. Kubernetes (GKE) is *planned* for MS5; its repository files are in review in [PR #107](https://github.com/mirror-ac215/AC215_Mirror/pull/107) and not merged.
 
 **Jobs that run on demand** (not always-on services): data preprocessing (DVC stages), cv-train, cv-eval with the release guard, the fairness audit, llm-finetune (Vertex AI job ready; the adapters so far were trained locally, D-006), and the evaluation harnesses. They are tracked in Weights & Biases.
 
@@ -131,7 +131,7 @@ flowchart LR
 |---|---|---|
 | **API gateway / orchestrator** | `services/api-gateway` | The browser talks to one service. The model services stay simple and never see the browser |
 | **Contracts first** | `docs/contracts/*.openapi.yaml`, `context_object.schema.json`, validated in CI | Three people build in parallel against the same shapes; a mismatch fails CI |
-| **Safety first, fail closed** | `app/safety.py` runs before any model | A crisis message never reaches the language model; the same message always gets the same answer |
+| **Safety first, fail closed** | `app/safety.py` rules, then the meaning match (`app/crisis_meaning.py`), run before the language model | A crisis message never reaches the language model; the same message always gets the same answer |
 | **Pipeline of small pure steps** | `safety` → `text_emotion` → `gating` → `fusion` → `prompt` in `app/orchestration.py` | Each step is testable on its own (162 safety cases, gate sweep, fusion rules) |
 | **Repository pattern** | `app/repository.py`, `app/clinician.py` | SQL lives behind one interface; tests use a fake; ownership is enforced in every query |
 | **Dependency injection** | FastAPI `Depends` for settings, the current user and repositories | Role checks and test doubles without global state |
@@ -209,7 +209,7 @@ sequenceDiagram
     end
 
     B->>G: POST /sessions/{id}/messages {"text": ...}
-    G->>G: safety check (rules, before any model)
+    G->>G: safety check (rules, then meaning match, before the LLM)
     alt crisis wording
         G->>D: save message (safety_hit), create review flag
         G-->>B: SSE event "crisis" (988, 911), stream ends
@@ -270,7 +270,7 @@ AC215_Mirror/
 ├── services/                  long-running containers (the application)
 │   ├── frontend/              React app: routes/ (screens), lib/api/ (the only code that calls the API),
 │   │                          lib/ (camera, chat, clinician helpers), components/
-│   ├── api-gateway/           FastAPI: app/auth.py, chat.py, clinician.py, safety.py, text_emotion.py,
+│   ├── api-gateway/           FastAPI: app/auth.py, chat.py, clinician.py, safety.py, crisis_meaning.py, text_emotion.py,
 │   │                          gating.py, fusion.py, prompt.py, orchestration.py, repository.py
 │   ├── cv-service/            face-model serving (/predict)
 │   ├── llm-service/           vLLM image (real) and a mock for laptops and CI

@@ -1,6 +1,6 @@
 # Monitoring
 
-Basic production monitoring for MS3. Grafana dashboards are planned for MS4 (M4-08).
+Production logging and metrics, set up in MS3. The Prometheus and Grafana dashboard (M4-08) is built: an opt-in, private Compose profile described in [`infra/monitoring/README.md`](../infra/monitoring/README.md).
 
 ## What is monitored
 
