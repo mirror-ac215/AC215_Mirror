@@ -31,7 +31,7 @@ clone with Docker, `uv` and Node 24 (the version CI uses); nothing needs cloud a
 | Ruff | Lint and format for all Python (`ruff.toml`, M4-19) |
 | ESLint, `tsc` | Frontend lint and type check |
 | Locust | Load test (`tests/load`, M4-07, PR #110) |
-| Playwright | End-to-end browser test (M4-05, not built yet) |
+| Playwright | End-to-end patient-to-clinician smoke test (M4-05) |
 
 ## What each level covers
 
@@ -59,8 +59,18 @@ and the shared contracts (`docs/contracts`: every example validates against its 
 `test_m3_14_assets.py`, `test_monitoring_assets.py`, `test_m4_21_one_command.py`,
 `test_m4_19_linting.py`.
 
-**End-to-end (browser).** Planned in M4-05: Playwright signs in, gives consent, chats with a fake
-camera stream and opens the clinician view. This section gets its commands when M4-05 merges.
+**End-to-end (browser).** M4-05 uses Playwright against a disposable local Compose stack: a seeded
+patient signs in, consents to Chromium's synthetic camera stream, chats with the mock LLM, and a
+seeded clinician opens the assigned-patient view. It never uses a physical camera, patient frames,
+model downloads, or cloud services. To run it locally:
+
+```bash
+export MIRROR_DEMO_PASSWORD=local-only-e2e-password
+export MIRROR_E2E_PASSWORD="$MIRROR_DEMO_PASSWORD"
+docker compose -p mirror-e2e -f infra/compose.yml up --build --wait
+(cd tests/e2e && npm ci && npx playwright install --with-deps chromium && npm test)
+docker compose -p mirror-e2e -f infra/compose.yml down -v
+```
 
 ## Run each suite locally
 
@@ -177,12 +187,16 @@ Not run in CI, on purpose:
   Summary page ("Coverage: services/..."). Below 70% the job fails. Path gating means a PR that
   changes no backend service shows no coverage table.
 - **System tests:** "Compose stack smoke test"; on failure it prints every container's logs.
+- **Browser acceptance:** "End-to-end patient to clinician smoke test" installs Chromium, starts
+  the disposable `mirror-e2e` Compose stack, exercises the accepted patient-to-clinician flow, and
+  removes the stack. It runs on every pull request to `main`.
 - **Gate:** "CI summary" is the one required check. It fails if any job for a changed
   component did not succeed.
 
 ## Gaps
 
-- No browser end-to-end test until M4-05.
+- Browser E2E is covered by the disposable Compose + Playwright M4-05 smoke test; it is a
+  synthetic-camera, mock-LLM acceptance test rather than a real-model or paid-cloud validation.
 - Pipelines and the frontend have no coverage gate yet; only the three backend services do.
   Vitest coverage for the frontend is not reported in CI.
 - llm-service's coverage counts `app/` only, which is the mock. Real serving
