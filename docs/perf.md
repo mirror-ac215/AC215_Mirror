@@ -32,12 +32,34 @@ What this shows: the grey frame has no face, therefore cv-service ran the face d
 returned before the emotion model (`services/cv-service/app/main.py`, lines 112-116), and the
 gate answered "dropped". The 90 ms is the cost of frame uploads, face detection and the drop
 path while 5 patients chat. It is **not** the camera's real overhead and does not show that the
-300 ms target is met. The 250 ms reply time is the mock and says nothing about the real model.
+300 ms target is met; Run 2 measures that. The 250 ms reply time is the mock and says nothing
+about the real model.
 
-**Run 2: to run. Camera overhead with a consented face frame (`ok` path).**
-Same commands with `MIRROR_LOAD_FRAME` pointing at a consented face photo kept outside Git.
-To record: the full commit SHA, the stats files under `tests/load/results/<run>/`, and the
-"replies with a first-token time" row (must read "all"). This run decides the 300 ms target.
+**Run 2: Nov 20, 2026. Camera overhead with a consented face frame (`ok` path).**
+Code under test: commit `2b9dd0f2e1a26736ecaf5058fe5afa21af8464e4`, clean working tree. Julie's
+MacBook Air, local compose with cv-service (`cv-vit-b16-v4`) and the mock LLM. Frame:
+`MIRROR_LOAD_FRAME` set to a consented face photo of a team member, kept outside Git. 5 patients for
+3 minutes per run: 95 replies with the camera on, 91 with the camera off. Stats files:
+[`tests/load/results/2026-11-20-local-face/`](../tests/load/results/2026-11-20-local-face/).
+
+| Where | Measure | Result | Target | Verdict |
+|---|---|---|---|---|
+| local compose (mock LLM) | p95 full reply | 290 ms | < 5000 ms | mock only, not a verdict |
+| local compose (mock LLM) | camera overhead (p95 first token, camera on - off) | 90 ms | <= 300 ms | meets target |
+| local compose (mock LLM) | p95 frame upload | 290 ms | - | - |
+| local compose (mock LLM) | failed requests (both runs) | 0 | 0 | meets target |
+| local compose (mock LLM) | replies with a first-token time (both runs) | 186 of 186 | all | complete |
+
+What this shows: the photo took the `ok` path. The gateway's gate counter
+(`mirror_gateway_gate_total`, read from `/metrics` after both runs on a freshly started stack)
+reads `ok` 90, `dropped` 5, `camera_off` 91: 90 of the 95 camera-on turns used the emotion model,
+and the 91 camera-off turns match the camera-off run. The p95 frame upload rose from 110 ms
+(Run 1, grey frame) to 290 ms, the cost of the emotion model on each frame. With the model
+running, the camera adds 90 ms to the p95 first token: the 300 ms target is met locally. The
+reply time is the mock and says nothing about the real model (Run 3).
+
+To check the rows: `cd tests/load && uv run python -m mirror_load.report
+results/2026-11-20-local-face/camera-on_stats.csv results/2026-11-20-local-face/camera-off_stats.csv`.
 
 **Run 3: to run (MS5). The same test against the GPU VM** for the real reply time. Mostafa runs
 the VM and will run it the next time the VM is up; MS4 does not require it.
