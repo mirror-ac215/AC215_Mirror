@@ -28,6 +28,7 @@ from app.auth import (
 )
 from app.clients import CVClient, LLMServiceClient
 from app.config import Settings, get_settings
+from app.crisis_meaning import get_crisis_meaning
 from app.fusion import TurnHistory
 from app.gating import FrameReading, FrameWindow, gate
 from app.orchestration import ChatOrchestrator
@@ -218,7 +219,9 @@ async def send_message(
     user: Annotated[AuthenticatedUser, Depends(require_patient)],
 ) -> StreamingResponse:
     session = get_owned_session(session_id, user)
-    orchestrator = ChatOrchestrator(repository, llm_client, get_text_emotion())
+    orchestrator = ChatOrchestrator(
+        repository, llm_client, get_text_emotion(), get_crisis_meaning()
+    )
     try:
         turn = await orchestrator.start_turn(
             session_id=session_id,

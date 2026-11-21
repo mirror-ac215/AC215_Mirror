@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app import metrics, safety
+from app.crisis_meaning import CrisisMeaning, CrisisMeaningUnavailable
 from app.fusion import TurnHistory, fuse
 from app.prompt import build_messages
 from app.text_emotion import TextEmotion, TextEmotionUnavailable
@@ -77,11 +78,36 @@ class ChatOrchestrator:
     """
 
     def __init__(
-        self, repository: TurnRepository, llm: LLMClient, text_emotion: TextEmotion
+        self,
+        repository: TurnRepository,
+        llm: LLMClient,
+        text_emotion: TextEmotion,
+        crisis_meaning: CrisisMeaning | None = None,
     ) -> None:
         self._repository = repository
         self._llm = llm
         self._text_emotion = text_emotion
+        self._crisis_meaning = crisis_meaning
+
+    def _safety(self, text: str) -> safety.SafetyResult:
+        """Rules first (M3-07); if they don't say crisis, the meaning layer (M4-15).
+
+        Either one firing means crisis, also over a medication or camera hit:
+        crisis always wins. If the model failed to load or cannot score this message,
+        the deterministic rules decide alone and the fallback is counted and logged.
+        """
+        result = safety.check(text)
+        if result.kind == "crisis" or self._crisis_meaning is None:
+            return result
+        try:
+            rule_id = self._crisis_meaning.check(text)
+        except CrisisMeaningUnavailable as exc:
+            # Visible, never silent: one count per message checked by the rules alone,
+            # and a structured log with the stage (never the message text).
+            metrics.record_fallback("crisis_meaning_unavailable")
+            logger.warning("crisis_meaning_fallback", extra={"stage": exc.stage})
+            return result
+        return safety.SafetyResult("crisis", rule_id) if rule_id else result
 
     async def start_turn(
         self,
@@ -93,7 +119,7 @@ class ChatOrchestrator:
         history: TurnHistory,
         conversation: list[dict[str, str]],
     ) -> ChatTurn:
-        safety_result = safety.check(text)
+        safety_result = self._safety(text)
         if safety_result.kind == "crisis":
 
             async def no_tokens() -> AsyncIterator[str]:

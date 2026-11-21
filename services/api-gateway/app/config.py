@@ -53,6 +53,18 @@ class Settings(BaseSettings):
     # Longer messages are cut before scoring (the API allows up to 4000 characters).
     text_emotion_max_chars: int = 2000
 
+    # Second safety layer (M4-15): crisis by meaning (app/crisis_meaning.py).
+    # The historical must-fire corpus is promoted into active controls. Any future
+    # model or example change needs a newly authored independent evaluation corpus;
+    # do not treat the promoted phrases as generalisation evidence.
+    crisis_meaning_enabled: bool = True
+    # all-MiniLM-L6-v2 was tried first: it could not separate crisis from everyday
+    # sentences (calibration, Nov 14). all-mpnet-base-v2 is larger (~420 MB) and stronger.
+    crisis_meaning_model: str = "sentence-transformers/all-mpnet-base-v2"
+    crisis_meaning_revision: str = "e8c3b32edf5434bc2275fc9bab85f82640a19130"
+    crisis_meaning_threshold: float = Field(default=0.56, ge=-1, le=1)
+    crisis_meaning_margin: float = Field(default=0.00, ge=0, le=2)
+
     # Smoothing and gating of the camera signal (M3-04). Each cv-service frame
     # result is noisy, so the gateway averages the recent ones and decides
     # whether the reading is steady enough to use.

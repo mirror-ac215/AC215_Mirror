@@ -27,6 +27,8 @@ async def test_health_ok_when_all_dependencies_are_up(monkeypatch) -> None:
         return {"cv-service": "ok", "llm-service": "ok", "db": "ok"}
 
     monkeypatch.setattr(app.main, "check_dependencies", all_up)
+    # The crisis-meaning entry is covered in tests/test_crisis_meaning.py.
+    monkeypatch.setattr(app.main, "get_crisis_meaning", lambda: None)
 
     body = await get_health()
 
