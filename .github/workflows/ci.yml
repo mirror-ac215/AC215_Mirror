@@ -30,6 +30,7 @@ jobs:
       persona_checks: ${{ steps.filter.outputs.persona_checks }}
       pairwise_eval: ${{ steps.filter.outputs.pairwise_eval }}
       modality_eval: ${{ steps.filter.outputs.modality_eval }}
+      load_test: ${{ steps.filter.outputs.load_test }}
       compose: ${{ steps.filter.outputs.compose }}
 
     steps:
@@ -97,6 +98,9 @@ jobs:
               - '.github/workflows/**'
             modality_eval:
               - 'pipelines/modality-eval/**'
+              - '.github/workflows/**'
+            load_test:
+              - 'tests/load/**'
               - '.github/workflows/**'
             compose:
               - 'infra/**'
@@ -272,6 +276,15 @@ jobs:
     uses: ./.github/workflows/python-service-ci.yml
     with:
       service_path: pipelines/modality-eval
+
+  # M4-07 load test: locked install, Ruff and pytest of the timing helpers (no image to build).
+  load_test:
+    name: Load test checks
+    needs: changes
+    if: needs.changes.outputs.load_test == 'true'
+    uses: ./.github/workflows/python-service-ci.yml
+    with:
+      service_path: tests/load
 
   frontend:
     name: Frontend checks
@@ -457,7 +470,7 @@ jobs:
     name: CI summary
     # Preserve both independently added path-gated jobs: removing either from
     # `needs` would let its failed result bypass this fail-closed summary.
-    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, frontend, contract_validation, api_gateway, api_gateway_model, compose, e2e, python_lint]
+    needs: [changes, service_template, db, llm_service, cv_service, data_preprocess, persona_data, iemocap_data, cv_eval, cv_train, fairness_audit, llm_finetune, persona_checks, pairwise_eval, modality_eval, load_test, frontend, contract_validation, api_gateway, api_gateway_model, compose, e2e, python_lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -495,6 +508,8 @@ jobs:
           PAIRWISE_EVAL_RESULT: ${{ needs.pairwise_eval.result }}
           MODALITY_EVAL_CHANGED: ${{ needs.changes.outputs.modality_eval }}
           MODALITY_EVAL_RESULT: ${{ needs.modality_eval.result }}
+          LOAD_TEST_CHANGED: ${{ needs.changes.outputs.load_test }}
+          LOAD_TEST_RESULT: ${{ needs.load_test.result }}
           FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
@@ -595,6 +610,11 @@ jobs:
 
           if [ "$MODALITY_EVAL_CHANGED" = "true" ] && [ "$MODALITY_EVAL_RESULT" != "success" ]; then
             echo "Modality eval checks did not pass: $MODALITY_EVAL_RESULT"
+            exit 1
+          fi
+
+          if [ "$LOAD_TEST_CHANGED" = "true" ] && [ "$LOAD_TEST_RESULT" != "success" ]; then
+            echo "Load test checks did not pass: $LOAD_TEST_RESULT"
             exit 1
           fi
 

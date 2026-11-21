@@ -1,0 +1,8 @@
+# Raw run outputs stay out of Git. Published runs keep only Locust's *_stats.csv
+# (counts and percentiles, no messages or frames) under results/<run>/.
+runs/
+*.csv
+*.html
+*.jpg
+*.jpeg
+!results/**/*_stats.csv
