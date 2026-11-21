@@ -5,6 +5,7 @@ camera reply, an LLM fallback, or a check-in removed by the no-two-questions rul
 patient never saw it, so the cooldown must not start.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 
 import httpx
@@ -138,3 +139,63 @@ async def test_a_crisis_turn_does_not_advance_the_turn_count() -> None:
     history = TurnHistory()
     await run_turn(history, FakeLLM(CHECK_IN), text="I want to die")
     assert history.turns == 0
+
+
+async def open_turn(history: TurnHistory, llm: FakeLLM):
+    """Start a turn but do not stream it yet, like a request whose reply is still in flight."""
+    return await ChatOrchestrator(FakeRepository(), llm, SadWords()).start_turn(
+        session_id="session",
+        patient_id="patient",
+        text="I'm fine I guess",
+        visual=HAPPY_FACE,
+        history=history,
+        conversation=STATED,
+    )
+
+
+@pytest.mark.anyio
+async def test_two_overlapping_turns_in_one_session_check_in_at_most_once() -> None:
+    history = TurnHistory(checkin_cooldown=2)
+    first = await open_turn(history, FakeLLM(CHECK_IN))
+    second = await open_turn(history, FakeLLM(CHECK_IN))  # starts before the first is recorded
+    assert first.context["agreement"] == "disagree"
+    assert second.context["agreement"] == "n/a"
+    assert second.context["note"].endswith("; check-in in progress in another reply")
+    [token async for token in second.tokens]
+    [token async for token in first.tokens]
+    assert history.last_check_in == 1  # the first turn finished second, as turn index 1
+    assert history.turns == 2
+    assert not history.check_in_reserved
+
+
+@pytest.mark.anyio
+async def test_overlapping_turns_run_concurrently_still_check_in_once() -> None:
+    history = TurnHistory()  # cooldown 5: any second check-in among 3 turns would be a bug
+
+    class SlowLLM(FakeLLM):
+        async def stream(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
+            for token in self.tokens:
+                await asyncio.sleep(0)  # let the other requests run between tokens
+                yield token
+
+    async def one_turn() -> dict | None:
+        turn = await open_turn(history, SlowLLM(CHECK_IN))
+        [token async for token in turn.tokens]
+        return turn.context
+
+    contexts = await asyncio.gather(*(one_turn() for _ in range(3)))
+    assert [c["agreement"] for c in contexts].count("disagree") == 1
+    assert history.turns == 3
+
+
+@pytest.mark.anyio
+async def test_an_abandoned_reply_frees_the_check_in_for_a_later_turn() -> None:
+    history = TurnHistory()
+    turn = await open_turn(history, FakeLLM(CHECK_IN))
+    stream = turn.tokens
+    await stream.__anext__()  # the patient's browser receives the first words, then leaves
+    await stream.aclose()
+    assert history.last_check_in is None
+    assert not history.check_in_reserved
+    context = await run_turn(history, FakeLLM(CHECK_IN))
+    assert context["agreement"] == "disagree"

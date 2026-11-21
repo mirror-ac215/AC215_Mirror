@@ -24,6 +24,11 @@ A check-in starts the cooldown only if the patient actually saw it: `reply_deliv
 when the language model's reply was replaced (fixed medication or camera reply, LLM fallback) or
 cut by the no-two-questions rule. Only finished, saved, non-crisis turns are recorded, so only
 those advance the turn count.
+
+Overlapping turns in one session: the orchestrator reserves a check-in as soon as fusion allows
+one, with no await in between, so a second turn that starts before the first one is recorded sees
+the reservation and does not check in too. `record()` keeps or drops the reservation; a turn that
+ends without being recorded (the client left, a database error) calls `release_check_in()`.
 """
 
 from __future__ import annotations
@@ -39,6 +44,7 @@ MIN_TEXT_PROB = 0.40  # same bar as the prompt template (M3-08)
 # the prompt treat it as "unclear", so the turn continues without text-emotion context.
 NO_TEXT = {"top2": [["neutral", 0.0]]}
 ALREADY_CHECKED_IN = "; checked in recently"
+CHECK_IN_IN_PROGRESS = "; check-in in progress in another reply"
 # D-004 update (M4-17): turns from one check-in to the earliest next one. 2 is the minimum, so
 # Mirror never checks in on back-to-back turns. The gateway sets it from
 # FUSION_CHECKIN_COOLDOWN_TURNS (app/config.py).
@@ -55,6 +61,7 @@ class TurnHistory:
         self.checkin_cooldown = checkin_cooldown
         self.turns = 0  # finished turns so far; the turn being fused now has this index
         self.last_check_in: int | None = None  # index of the turn that last checked in
+        self.check_in_reserved = False  # a turn still streaming has a check-in under way
 
     @property
     def checked_in(self) -> bool:
@@ -62,20 +69,33 @@ class TurnHistory:
         return self.last_check_in is not None
 
     def may_check_in(self) -> bool:
-        """True when the current turn may check in: never before, or the cooldown has passed."""
+        """True when the current turn may check in: none under way, and the cooldown has passed."""
+        if self.check_in_reserved:
+            return False
         return (
             self.last_check_in is None or self.turns - self.last_check_in >= self.checkin_cooldown
         )
+
+    def reserve_check_in(self) -> None:
+        """Hold the check-in for this turn, so an overlapping turn cannot check in as well."""
+        self.check_in_reserved = True
+
+    def release_check_in(self) -> None:
+        """Drop a reservation for a turn that ended without being recorded."""
+        self.check_in_reserved = False
 
     def record(self, context: dict, *, reply_delivered: bool) -> None:
         """Remember a finished turn. Call once per turn, after the reply is final.
 
         reply_delivered: the language model's reply reached the patient unchanged. A "disagree"
-        turn counts as a check-in only then; otherwise the cooldown does not start.
+        turn counts as a check-in only then; otherwise the cooldown does not start. Either way the
+        turn's reservation ends here (only the reserving turn has "disagree").
         """
         self.steady.append(_steady(_signals(context["visual"], context["text"])))
-        if context["agreement"] == "disagree" and reply_delivered:
-            self.last_check_in = self.turns
+        if context["agreement"] == "disagree":
+            self.check_in_reserved = False
+            if reply_delivered:
+                self.last_check_in = self.turns
         self.turns += 1
 
 
@@ -113,7 +133,10 @@ def fuse(visual: dict, text: dict | None, history: TurnHistory, steady_needed: i
         both_negative = face_label in NEGATIVE and text_label in NEGATIVE
         agreement = "agree" if face_label == text_label or both_negative else "disagree"
         if agreement == "disagree" and not history.may_check_in():
-            agreement, note_extra = "n/a", ALREADY_CHECKED_IN  # D-004: trust them for a while
+            # D-004: trust them for a while, and never two check-ins at once
+            pending = history.check_in_reserved
+            agreement = "n/a"
+            note_extra = CHECK_IN_IN_PROGRESS if pending else ALREADY_CHECKED_IN
     else:
         agreement = "n/a"
 

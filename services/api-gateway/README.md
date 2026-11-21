@@ -154,10 +154,11 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 | Face ok but negative, words calm | text | **disagree, on purpose** (see below) |
 | Face uncertain, dropped or camera off | text (or none if the words are unclear, prob < 0.40) | n/a |
 | A disagreement less than `FUSION_CHECKIN_COOLDOWN_TURNS` turns after a check-in | as above | n/a, note ends "checked in recently" |
+| A disagreement while another reply of the same session is still checking in | as above | n/a, note ends "check-in in progress in another reply" |
 
 - **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, therefore a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
-- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context, reply_delivered=...)` once, when the turn's reply is final. `reply_delivered` is False when a fixed reply, an LLM fallback or the no-two-questions rule replaced or cut the model's reply; a check-in then does not start the cooldown. Crisis turns are never recorded.
+- **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context, reply_delivered=...)` once, when the turn's reply is final. `reply_delivered` is False when a fixed reply, an LLM fallback or the no-two-questions rule replaced or cut the model's reply; a check-in then does not start the cooldown. Crisis turns are never recorded. Overlapping messages in one session check in at most once: a turn that may check in reserves it (`reserve_check_in()`), an overlapping turn gets `n/a` with the note "check-in in progress in another reply", and the reservation ends at `record()` or, for an abandoned reply, `release_check_in()`.
 
 ## Metrics (M3-15)
 

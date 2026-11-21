@@ -153,7 +153,11 @@ It does not turn an unmerged pull request into merged functionality.
   has run. The cooldown starts only when the patient actually saw the check-in:
   not when a fixed medication or camera reply, an LLM fallback, or the
   no-two-questions rule replaced or cut the model's reply. Only finished, saved,
-  non-crisis turns count towards N.
+  non-crisis turns count towards N. If two messages of one session overlap,
+  at most one of them checks in: the first turn reserves the check-in when it
+  is fused, and the other is sent as `n/a` ("check-in in progress"). The
+  reservation ends when that turn is recorded, or is released if its reply is
+  abandoned or fails to save.
 - **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
   gating (M3-04), prompt template (`app/prompt.py`, M3-08).
 

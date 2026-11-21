@@ -151,6 +151,17 @@ class ChatOrchestrator:
         hold_reply = not fixed_text and "?" in previous
 
         async def forward_and_persist() -> AsyncIterator[str]:
+            recorded = False
+            try:
+                async for token in stream_and_save():
+                    yield token
+                recorded = True
+            finally:
+                # Client left mid-reply or saving failed: free the check-in for a later turn.
+                if not recorded and context["agreement"] == "disagree":
+                    history.release_check_in()
+
+        async def stream_and_save() -> AsyncIterator[str]:
             reply_parts: list[str] = []
             llm_failed = False
             # Medication and camera questions never reach the LLM: same stream, fixed text.
@@ -183,6 +194,10 @@ class ChatOrchestrator:
             # A fixed reply, an LLM fallback or a removed question means it never reached them.
             history.record(context, reply_delivered=not (fixed_text or llm_failed or cut))
 
+        # No await since fuse(), so no other turn of this session has run in between: reserving
+        # here means an overlapping turn cannot check in as well (M4-17).
+        if context["agreement"] == "disagree":
+            history.reserve_check_in()
         return ChatTurn(
             message_id=patient_message_id,
             context=context,
