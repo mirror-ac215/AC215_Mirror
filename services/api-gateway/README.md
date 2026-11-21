@@ -96,6 +96,55 @@ When unsure, let the crisis rule fire: an extra 988 screen costs a moment; a mis
 - The medication rules catch a request for a decision, not every mention: "my sertraline makes me tired" gets a normal reply, and the prompt still tells the LLM never to talk about doses.
 - Prototype on demo data only: built with HIPAA-style safeguards (only the patient's own clinician can see their data, no message text in logs, no camera frames, HTTPS, encrypted storage), but not a HIPAA-compliant product.
 
+## Second safety layer (M4-15)
+
+The rules above match the wording they list. `app/crisis_meaning.py` adds a check by meaning:
+a sentence-embedding model (`sentence-transformers/all-mpnet-base-v2`, pinned, CPU, shipped in
+the image) compares each message with reviewed crisis controls and everyday look-alikes. It fires
+when the closest crisis example scores at least the threshold and beats the closest everyday one
+by the margin. The rules run first; either one firing is a crisis. Only the example id is logged
+(`meaning-<id>`), never the text.
+
+**Safety acceptance decision (Nov 16).** The previously named dev, holdout, and independent
+must-fire phrasings are now all active safety controls. This prioritizes recall over preserving
+those historical sets as an independent semantic-model evaluation: their expected failures were
+removed, and every one must fire in the real-model CI gate. The existing everyday corpus remains
+an explicit false-alarm regression guard. Any future semantic-model change must introduce a new,
+reviewed independent evaluation corpus before promotion; it must not relabel this promoted corpus
+as evidence of generalisation.
+
+**Required gate (CI: "API gateway real-model safety gate").**
+`tests/test_crisis_meaning_model.py` runs inside the built image with no network, on the model the
+image ships. Every reviewed crisis phrasing must fire and every everyday sentence must stay quiet,
+including the 62 `expect: none` cases and all reviewed look-alikes. There are no xfails.
+
+The enabled meaning layer is an active safety control, not an optional enhancement. The gateway
+warms it before serving. If the shipped model cannot load, the gateway still starts, with the
+deterministic rules and the 988 screen as the only crisis check (agreed on #111: a patient is safer
+with the rules alone than with no app). The failure is loud, never silent:
+
+- `crisis_meaning_warmup_failed` is logged at error level at startup;
+- `mirror_gateway_fallback_total{reason="crisis_meaning_unavailable"}` counts every message
+  checked by the rules alone, with a `crisis_meaning_fallback` log (stage, never the text);
+- `/health` reports `"crisis-meaning": "down"` and `"status": "degraded"`.
+
+The real-model CI gate already proves the shipped image loads the model, therefore this path only
+matters if a deployment breaks. `CRISIS_MEANING_ENABLED=false` is retained only for an explicitly
+reviewed experimental deployment and is not the accepted default safety configuration; with the
+layer off, `/health` omits the `crisis-meaning` entry.
+
+Locally: `RUN_MODEL_TESTS=1 uv run pytest tests/test_crisis_meaning_model.py` (downloads the
+pinned model once).
+
+**Crisis wins over medication, on purpose.** When a message is both a medication question and a
+crisis by meaning, the patient gets the crisis reply with 988, not the fixed medication reply,
+and the clinician is flagged. A message such as "should I double my sleeping pills?" can
+therefore get 988 instead of the medication reply (raised by Mostafa on #111). A missed crisis costs more than a crisis reply to a medication question.
+
+**Cost and known limits.** The model adds about 420 MB to the gateway image (agreed on #111).
+Both models (text emotion and this layer) run synchronously in the event loop; moving them to
+`asyncio.to_thread` is a later improvement, not needed at 5 patients.
+
 ## Text-emotion module (M3-05)
 
 `app/text_emotion.py` turns one chat message into the two most likely emotions, in the shape the context object uses for `text.top2` (`docs/contracts/context_object.schema.json`):

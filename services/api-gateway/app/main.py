@@ -9,6 +9,7 @@ from app import metrics as gateway_metrics
 from app.chat import router as chat_router
 from app.clinician import router as clinician_router
 from app.config import Settings
+from app.crisis_meaning import CrisisMeaningUnavailable, get_crisis_meaning
 from app.health import check_dependencies
 from app.logging_config import configure_logging, request_id_context
 from app.text_emotion import TextEmotionUnavailable, get_text_emotion
@@ -25,6 +26,19 @@ async def lifespan(_: FastAPI):
     except TextEmotionUnavailable as exc:
         # Text emotion remains optional; individual turns preserve the text-only fallback.
         logger.warning("text_emotion_warmup_failed", extra={"error_type": type(exc).__name__})
+    meaning = get_crisis_meaning()
+    if meaning is not None:
+        try:
+            meaning.warm_up()
+        except CrisisMeaningUnavailable as exc:
+            # Keep serving (#111): a patient is safer with the deterministic rules and
+            # the 988 screen than with no gateway. The failure is loud, not silent:
+            # this error log, a fallback count per message checked by the rules alone,
+            # and /health reporting "crisis-meaning" as down (status "degraded").
+            logger.error(
+                "crisis_meaning_warmup_failed",
+                extra={"error_type": type(exc).__name__, "stage": exc.stage},
+            )
     yield
 
 
@@ -70,6 +84,9 @@ async def add_request_id(request: Request, call_next):
 async def health() -> dict[str, object]:
     """Gateway is alive; each dependency is reported separately (contract:/health)."""
     dependencies = await check_dependencies(settings)
+    meaning = get_crisis_meaning()
+    if meaning is not None:  # absent when the layer is switched off
+        dependencies["crisis-meaning"] = "ok" if meaning.available else "down"
     status = "ok" if all(state == "ok" for state in dependencies.values()) else "degraded"
     return {"status": status, "dependencies": dependencies}
 

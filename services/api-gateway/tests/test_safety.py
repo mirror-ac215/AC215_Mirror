@@ -14,6 +14,7 @@ from conftest import auth_headers
 from httpx import ASGITransport, AsyncClient
 
 from app import chat, metrics, safety
+from app.crisis_meaning import CRISIS_EXAMPLES
 from app.main import app
 
 CASES = yaml.safe_load((Path(__file__).parent / "safety_cases.yaml").read_text())
@@ -33,6 +34,37 @@ def test_curated_set_is_big_enough_and_covers_every_outcome() -> None:
     expects = [c["expect"] for c in CASES]
     assert len(CASES) >= 50
     assert {"crisis", "medication", "none"} <= set(expects)
+
+
+def test_reviewed_meaning_must_fire_corpus_is_crisis_safe() -> None:
+    """Every reviewed phrase has an active deterministic or semantic safety control."""
+    meaning = yaml.safe_load((Path(__file__).parent / "safety_meaning_cases.yaml").read_text())
+    must_fire = [
+        text for split in ("dev", "holdout", "independent") for text in meaning[split]["must_fire"]
+    ]
+    active_semantic_examples = {text for _, text in CRISIS_EXAMPLES}
+    misses = [
+        (text, safety.check(text).rule_id)
+        for text in must_fire
+        if not safety.check(text).hit and text not in active_semantic_examples
+    ]
+    assert not misses, misses
+
+
+def test_reviewed_meaning_must_not_fire_corpus_stays_quiet() -> None:
+    """Safety recall hardening cannot turn reviewed everyday phrases into crisis hits."""
+    meaning = yaml.safe_load((Path(__file__).parent / "safety_meaning_cases.yaml").read_text())
+    must_not_fire = [
+        text
+        for split in ("dev", "holdout", "independent")
+        for text in meaning[split]["must_not_fire"]
+    ]
+    false_alarms = [
+        (text, safety.check(text).rule_id)
+        for text in must_not_fire
+        if safety.check(text).kind == "crisis"
+    ]
+    assert not false_alarms, false_alarms
 
 
 def test_every_rule_is_covered_by_a_case() -> None:

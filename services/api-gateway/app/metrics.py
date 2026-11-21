@@ -92,8 +92,9 @@ GATE_STATUSES = ("ok", "uncertain", "dropped", "camera_off")
 AGREEMENTS = ("agree", "disagree", "n/a")
 TONE_MODES = ("coach", "supportive")
 MAIN_SIGNALS = ("face", "text", "none")
-# llm_unavailable: the reply came from the gentle fallback text; cv_unavailable: a frame got no reading.
-FALLBACK_REASONS = ("llm_unavailable", "cv_unavailable")
+# llm_unavailable: the reply came from the gentle fallback text; cv_unavailable: a frame got no reading;
+# crisis_meaning_unavailable: a message was checked by the M3-07 rules alone (M4-15 layer down).
+FALLBACK_REASONS = ("llm_unavailable", "cv_unavailable", "crisis_meaning_unavailable")
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
 MEDICATION_RULE_IDS = (
     "med-change",
