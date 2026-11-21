@@ -68,7 +68,7 @@ From the repository root unless stated.
 
 ### Python services and pipelines
 
-Each folder below runs the same three commands as its CI job:
+Each folder below runs this base sequence, as in its CI job:
 
 ```bash
 cd <folder>
@@ -77,11 +77,18 @@ uv run ruff check .
 uv run pytest -v
 ```
 
+`services/api-gateway`, `services/cv-service` and `services/llm-service` run the coverage
+variant in CI instead of the last line; it enforces the 70% threshold:
+
+```bash
+uv run pytest -v --cov --cov-report=term-missing --cov-report=xml
+```
+
 | Folder | Notes |
 |---|---|
-| `services/api-gateway` | Add `--cov` for the coverage table and the 70% gate |
-| `services/cv-service` | Add `--cov`; installs CPU-only PyTorch |
-| `services/llm-service` | Add `--cov`; tests use the mock, no GPU |
+| `services/api-gateway` | Coverage variant (70% gate) |
+| `services/cv-service` | Coverage variant (70% gate); installs CPU-only PyTorch |
+| `services/llm-service` | Coverage variant (70% gate); tests use the mock, no GPU |
 | `services/_template` | Starting point for new services |
 | `pipelines/data-preprocess`, `persona-data`, `iemocap-data` | Data stages |
 | `pipelines/cv-train`, `cv-eval`, `fairness-audit` | Face model: train, evaluate, audit |
@@ -133,8 +140,8 @@ python3 infra/tests/test_m4_19_linting.py
 uv run --no-project --with pyyaml==6.0.2 python infra/tests/test_monitoring_assets.py
 ```
 
-`test_stage_a_assets.py` also validates the Caddyfile with the `caddy` binary; without it on
-your machine that one check fails while the rest pass.
+`test_stage_a_assets.py` also validates the Caddyfile by running Caddy in Docker
+(`caddy:2.10.2-alpine`); the prerequisite is Docker, not a local `caddy` binary.
 
 ### System tests (whole stack)
 
