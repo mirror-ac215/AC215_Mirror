@@ -35,7 +35,7 @@ def turn(visual: dict, text: dict | None, history: TurnHistory | None = None) ->
     history = history if history is not None else TurnHistory()
     context = fuse(visual, text, history)
     VALIDATOR.validate(context)  # raises if the shape breaks the contract
-    history.record(context)
+    history.record(context, reply_delivered=True)
     return context
 
 
@@ -106,16 +106,44 @@ def test_negative_words_lead_over_a_calm_face() -> None:
     assert context["tone_mode"] == "supportive"
 
 
-def test_mirror_checks_in_only_once_per_session() -> None:
-    # D-004: check in once on a disagreement, then take the patient's word for it.
+def test_after_a_check_in_mirror_takes_their_word_until_the_cooldown_passes() -> None:
+    # D-004: check in on a disagreement, then take the patient's word for a while.
     history = TurnHistory()
     mixed = (face("happy", 0.6), words("sadness", 0.7))
     assert turn(*mixed, history)["agreement"] == "disagree"
     later = turn(*mixed, history)
     assert later["agreement"] == "n/a"
-    assert later["note"] == "main signal: text (sad, 0.70); already checked in this session"
+    assert later["note"] == "main signal: text (sad, 0.70); checked in recently"
     # Agreement is still reported normally after the check-in.
     assert turn(face("happy", 0.6), words("joy", 0.8), history)["agreement"] == "agree"
+
+
+def test_mirror_may_check_in_again_once_the_cooldown_has_passed() -> None:
+    # M4-17 (D-004 update): the answer counts for that moment, not the whole session.
+    history = TurnHistory(checkin_cooldown=3)
+    mixed = (face("happy", 0.6), words("sadness", 0.7))
+    agreements = [turn(*mixed, history)["agreement"] for _ in range(7)]
+    # Turn 0 checks in, turns 1-2 wait, turn 3 may ask again, then 4-5 wait, turn 6 again.
+    assert agreements == ["disagree", "n/a", "n/a", "disagree", "n/a", "n/a", "disagree"]
+
+
+def test_the_cooldown_counts_every_turn_not_only_disagreements() -> None:
+    history = TurnHistory(checkin_cooldown=3)
+    mixed = (face("happy", 0.6), words("sadness", 0.7))
+    steady = (face("happy", 0.6), words("joy", 0.8))
+    assert turn(*mixed, history)["agreement"] == "disagree"
+    assert turn(*steady, history)["agreement"] == "agree"
+    assert turn(*steady, history)["agreement"] == "agree"
+    assert turn(*mixed, history)["agreement"] == "disagree"
+
+
+def test_mirror_never_checks_in_on_back_to_back_turns() -> None:
+    history = TurnHistory(checkin_cooldown=2)  # the shortest allowed cooldown
+    mixed = (face("happy", 0.6), words("sadness", 0.7))
+    agreements = [turn(*mixed, history)["agreement"] for _ in range(5)]
+    assert agreements == ["disagree", "n/a", "disagree", "n/a", "disagree"]
+    with pytest.raises(ValueError):
+        TurnHistory(checkin_cooldown=1)
 
 
 def test_fuse_does_not_change_the_history_so_a_retry_is_safe() -> None:

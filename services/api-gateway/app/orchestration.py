@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -68,6 +68,10 @@ class ChatTurn:
     crisis: dict | None = None
     safety_rule: str | None = None
     safety_kind: str | None = None
+    # Ends the turn's check-in reservation if the reply never got recorded (M4-17). Safe to call
+    # more than once, and also when `tokens` was never started: the chat endpoint calls it when
+    # its response ends, however it ends.
+    close: Callable[[], None] = lambda: None
 
 
 class ChatOrchestrator:
@@ -176,8 +180,26 @@ class ChatOrchestrator:
         )
         hold_reply = not fixed_text and "?" in previous
 
+        reserved = context["agreement"] == "disagree"
+        turn_open = True
+
+        def close() -> None:
+            # Client left (before or during the reply) or saving failed: free the check-in.
+            nonlocal turn_open
+            if turn_open and reserved:
+                history.release_check_in()
+            turn_open = False
+
         async def forward_and_persist() -> AsyncIterator[str]:
+            try:
+                async for token in stream_and_save():
+                    yield token
+            finally:
+                close()
+
+        async def stream_and_save() -> AsyncIterator[str]:
             reply_parts: list[str] = []
+            llm_failed = False
             # Medication and camera questions never reach the LLM: same stream, fixed text.
             source = fixed_reply() if fixed_text else self._llm.stream(llm_messages)
             try:
@@ -190,22 +212,35 @@ class ChatOrchestrator:
                 # a done event and a saved message. Never log the patient's text.
                 logger.warning("llm_fallback type=%s", type(exc).__name__)
                 metrics.record_fallback("llm_unavailable")
+                llm_failed = True
                 note = LLM_INTERRUPTED_NOTE if reply_parts else LLM_FALLBACK_REPLY
                 reply_parts.append(note)
                 if not hold_reply:
                     yield note
             reply = "".join(reply_parts)
+            cut = False
             if hold_reply:
-                reply = drop_questions(reply)
+                kept = drop_questions(reply)
+                cut = kept != reply.strip()
+                reply = kept
                 yield reply
             await self._repository.add_message(session_id, "assistant", reply, False)
             await self._repository.add_emotion_window(session_id, context)
-            history.record(context)
+            # M4-17: a check-in only counts if the patient saw the model's reply as written.
+            # A fixed reply, an LLM fallback or a removed question means it never reached them.
+            history.record(context, reply_delivered=not (fixed_text or llm_failed or cut))
+            nonlocal turn_open
+            turn_open = False  # recorded: the reservation is settled, close() has nothing to do
 
+        # No await since fuse(), so no other turn of this session has run in between: reserving
+        # here means an overlapping turn cannot check in as well (M4-17).
+        if reserved:
+            history.reserve_check_in()
         return ChatTurn(
             message_id=patient_message_id,
             context=context,
             tokens=forward_and_persist(),
             safety_rule=safety_result.rule_id,
             safety_kind=safety_result.kind,
+            close=close,
         )

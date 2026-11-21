@@ -23,3 +23,12 @@ def test_llm_model_and_timeout_are_independently_configurable(monkeypatch) -> No
 def test_settings_reject_an_invalid_trusted_proxy_network() -> None:
     with pytest.raises(ValueError, match="trusted_proxy_ips"):
         Settings(trusted_proxy_ips=["not-a-network"])
+
+
+def test_checkin_cooldown_is_configurable_but_never_back_to_back(monkeypatch) -> None:
+    # M4-17: FUSION_CHECKIN_COOLDOWN_TURNS; below 2 would allow a check-in on back-to-back turns.
+    assert Settings().fusion_checkin_cooldown_turns == 5
+    monkeypatch.setenv("FUSION_CHECKIN_COOLDOWN_TURNS", "8")
+    assert Settings().fusion_checkin_cooldown_turns == 8
+    with pytest.raises(ValueError, match="fusion_checkin_cooldown_turns"):
+        Settings(fusion_checkin_cooldown_turns=1)

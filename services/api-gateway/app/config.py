@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Longer messages are cut before scoring (the API allows up to 4000 characters).
     text_emotion_max_chars: int = 2000
 
+    # Fusion check-in cooldown (D-004 update, M4-17): after Mirror checks in about a face/words
+    # disagreement, it may check in again at the earliest this many turns later. At least 2, so
+    # never on back-to-back turns. 5 is a judgement call until the M4-09 evaluation can tune it.
+    fusion_checkin_cooldown_turns: int = Field(default=5, ge=2)
+
     # Second safety layer (M4-15): crisis by meaning (app/crisis_meaning.py).
     # The historical must-fire corpus is promoted into active controls. Any future
     # model or example change needs a newly authored independent evaluation corpus;
