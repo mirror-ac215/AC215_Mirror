@@ -15,7 +15,7 @@ settings: [`tests/load/README.md`](../tests/load/README.md).
 Rows come from `python -m mirror_load.report` after each run.
 
 **Run 1: Nov 14, 2026. Camera pipeline without the emotion model (grey frame).**
-Code under test: commit `2f18bb1` (later commits on this branch change only documentation), on
+Code under test: commit `2f18bb1`. Later commits on this branch add the Run 2 measurement, SSE accounting, retained aggregate evidence, and documentation; they do not retroactively make Run 1 a model-path measurement. It ran on
 `main` `5a41478`. Julie's MacBook Air, local compose with cv-service (`cv-vit-b16-v4`) and the
 mock LLM. 5 patients for 3 minutes per run: 93 replies and 568 frames with the camera on, 69
 replies with the camera off. The raw stats files of this run were not kept; Run 2 publishes
