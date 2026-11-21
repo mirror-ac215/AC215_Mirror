@@ -134,6 +134,8 @@ docker compose -f infra/compose.yml up --build -d
 No setup is needed: the local stack uses built-in, local-only defaults. Open http://localhost:3000 (app) and http://localhost:8000/docs (gateway API), and log in as `patient.alex@example.test` or `clinician.ada@example.test` with the password `local-demo-password`. To use your own passwords, see [`infra/README.md`](infra/README.md).
 `cv-service` is opt-in (`--profile cv`) because it downloads the model from GCS; see `infra/README.md`.
 
+To run the tests (every suite, locally and in CI): [`docs/testing.md`](docs/testing.md).
+
 ## Data setup with DVC
 
 Raw datasets are versioned with DVC, while the actual content is stored in the team's GCS bucket. Raw data is never committed to Git.
