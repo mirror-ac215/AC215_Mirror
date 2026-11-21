@@ -3,13 +3,14 @@
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from starlette.types import Receive, Scope, Send
 
 from app import metrics
 from app.auth import (
@@ -202,6 +203,27 @@ async def receive_frame(
     return FrameAck(visual_status=visual["status"], top2=visual.get("top2") if trusted else None)
 
 
+class TurnStreamingResponse(StreamingResponse):
+    """A chat turn's SSE stream that always ends the turn, even if the stream never starts.
+
+    If the client goes away before the first token, Starlette never iterates the body, so code in
+    the token generator never runs. `on_end` runs here instead, so the turn's check-in reservation
+    (M4-17) cannot outlive the response.
+    """
+
+    def __init__(
+        self, content: AsyncIterator[str], *, on_end: Callable[[], None], **kwargs
+    ) -> None:
+        super().__init__(content, **kwargs)
+        self._on_end = on_end
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self._on_end()
+
+
 @router.post(
     "/sessions/{session_id}/messages",
     response_class=StreamingResponse,
@@ -273,4 +295,4 @@ async def send_message(
         )
         yield sse("done", {"message_id": turn.message_id, "context": turn.context})
 
-    return StreamingResponse(events(), media_type="text/event-stream")
+    return TurnStreamingResponse(events(), on_end=turn.close, media_type="text/event-stream")

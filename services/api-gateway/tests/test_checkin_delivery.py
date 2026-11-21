@@ -10,7 +10,9 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
+from starlette.requests import ClientDisconnect
 
+from app.chat import TurnStreamingResponse
 from app.fusion import TurnHistory
 from app.orchestration import ChatOrchestrator
 from app.text_emotion import TextEmotionResult
@@ -141,7 +143,32 @@ async def test_a_crisis_turn_does_not_advance_the_turn_count() -> None:
     assert history.turns == 0
 
 
-async def open_turn(history: TurnHistory, llm: FakeLLM):
+class PromptAwareLLM:
+    """Checks in only when the prompt asks it to, like the real model; otherwise just reflects.
+
+    This lets the overlap tests count check-ins the patient actually receives, not only fusion
+    labels.
+    """
+
+    def __init__(self, pause: bool = False) -> None:
+        self.pause = pause
+        self.calls = 0
+
+    async def stream(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
+        self.calls += 1
+        asked = any("gently check in now" in m["content"] for m in messages)
+        for token in CHECK_IN if asked else ["That sounds like a lot to carry."]:
+            if self.pause:
+                await asyncio.sleep(0)  # let the other requests run between tokens
+            yield token
+
+
+def check_ins(replies: list[str]) -> int:
+    """How many replies the patient received contain the check-in."""
+    return sum("How are you really feeling?" in reply for reply in replies)
+
+
+async def open_turn(history: TurnHistory, llm: PromptAwareLLM):
     """Start a turn but do not stream it yet, like a request whose reply is still in flight."""
     return await ChatOrchestrator(FakeRepository(), llm, SadWords()).start_turn(
         session_id="session",
@@ -153,49 +180,79 @@ async def open_turn(history: TurnHistory, llm: FakeLLM):
     )
 
 
+async def reply(turn) -> str:
+    return "".join([token async for token in turn.tokens])
+
+
 @pytest.mark.anyio
-async def test_two_overlapping_turns_in_one_session_check_in_at_most_once() -> None:
+async def test_two_overlapping_turns_deliver_at_most_one_check_in() -> None:
     history = TurnHistory(checkin_cooldown=2)
-    first = await open_turn(history, FakeLLM(CHECK_IN))
-    second = await open_turn(history, FakeLLM(CHECK_IN))  # starts before the first is recorded
-    assert first.context["agreement"] == "disagree"
-    assert second.context["agreement"] == "n/a"
+    first = await open_turn(history, PromptAwareLLM())
+    second = await open_turn(history, PromptAwareLLM())  # starts before the first is recorded
     assert second.context["note"].endswith("; check-in in progress in another reply")
-    [token async for token in second.tokens]
-    [token async for token in first.tokens]
+    replies = [await reply(second), await reply(first)]
+    assert check_ins(replies) == 1
     assert history.last_check_in == 1  # the first turn finished second, as turn index 1
-    assert history.turns == 2
     assert not history.check_in_reserved
 
 
 @pytest.mark.anyio
-async def test_overlapping_turns_run_concurrently_still_check_in_once() -> None:
+async def test_concurrent_turns_with_interleaved_streams_deliver_one_check_in() -> None:
     history = TurnHistory()  # cooldown 5: any second check-in among 3 turns would be a bug
 
-    class SlowLLM(FakeLLM):
-        async def stream(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
-            for token in self.tokens:
-                await asyncio.sleep(0)  # let the other requests run between tokens
-                yield token
+    async def one_turn() -> str:
+        return await reply(await open_turn(history, PromptAwareLLM(pause=True)))
 
-    async def one_turn() -> dict | None:
-        turn = await open_turn(history, SlowLLM(CHECK_IN))
-        [token async for token in turn.tokens]
-        return turn.context
-
-    contexts = await asyncio.gather(*(one_turn() for _ in range(3)))
-    assert [c["agreement"] for c in contexts].count("disagree") == 1
+    replies = await asyncio.gather(*(one_turn() for _ in range(3)))
+    assert check_ins(replies) == 1
     assert history.turns == 3
+    assert not history.check_in_reserved
 
 
 @pytest.mark.anyio
 async def test_an_abandoned_reply_frees_the_check_in_for_a_later_turn() -> None:
     history = TurnHistory()
-    turn = await open_turn(history, FakeLLM(CHECK_IN))
+    turn = await open_turn(history, PromptAwareLLM())
     stream = turn.tokens
     await stream.__anext__()  # the patient's browser receives the first words, then leaves
     await stream.aclose()
     assert history.last_check_in is None
     assert not history.check_in_reserved
-    context = await run_turn(history, FakeLLM(CHECK_IN))
-    assert context["agreement"] == "disagree"
+    assert check_ins([await reply(await open_turn(history, PromptAwareLLM()))]) == 1
+
+
+@pytest.mark.anyio
+async def test_a_response_that_never_starts_still_frees_the_check_in() -> None:
+    """The client leaves before the first token: the token generator never runs at all."""
+    history = TurnHistory()
+    llm = PromptAwareLLM()
+    turn = await open_turn(history, llm)
+    assert history.check_in_reserved
+
+    async def events() -> AsyncIterator[str]:
+        async for token in turn.tokens:
+            yield token
+
+    async def receive() -> dict:
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict) -> None:
+        raise OSError("client went away before the response started")
+
+    response = TurnStreamingResponse(events(), on_end=turn.close, media_type="text/event-stream")
+    with pytest.raises(ClientDisconnect):
+        await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+    assert llm.calls == 0  # nothing was streamed
+    assert not history.check_in_reserved
+    assert check_ins([await reply(await open_turn(history, PromptAwareLLM()))]) == 1
+
+
+@pytest.mark.anyio
+async def test_close_after_a_recorded_turn_never_frees_another_turns_reservation() -> None:
+    history = TurnHistory(checkin_cooldown=2)
+    done = await open_turn(history, PromptAwareLLM())
+    await reply(done)  # recorded: its reservation is settled
+    history.reserve_check_in()  # a later turn now holds the check-in
+    done.close()  # the endpoint calls close() when each response ends, and may call it twice
+    done.close()
+    assert history.check_in_reserved

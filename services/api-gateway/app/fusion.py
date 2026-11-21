@@ -27,8 +27,10 @@ those advance the turn count.
 
 Overlapping turns in one session: the orchestrator reserves a check-in as soon as fusion allows
 one, with no await in between, so a second turn that starts before the first one is recorded sees
-the reservation and does not check in too. `record()` keeps or drops the reservation; a turn that
-ends without being recorded (the client left, a database error) calls `release_check_in()`.
+the reservation and does not check in too. `record()` ends the reservation; a turn that ends
+without being recorded (the client left, even before the first token, or a database error) calls
+`release_check_in()` through `ChatTurn.close()`, which the chat endpoint runs when its response
+ends.
 """
 
 from __future__ import annotations

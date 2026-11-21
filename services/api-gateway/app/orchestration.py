@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -68,6 +68,10 @@ class ChatTurn:
     crisis: dict | None = None
     safety_rule: str | None = None
     safety_kind: str | None = None
+    # Ends the turn's check-in reservation if the reply never got recorded (M4-17). Safe to call
+    # more than once, and also when `tokens` was never started: the chat endpoint calls it when
+    # its response ends, however it ends.
+    close: Callable[[], None] = lambda: None
 
 
 class ChatOrchestrator:
@@ -176,16 +180,22 @@ class ChatOrchestrator:
         )
         hold_reply = not fixed_text and "?" in previous
 
+        reserved = context["agreement"] == "disagree"
+        turn_open = True
+
+        def close() -> None:
+            # Client left (before or during the reply) or saving failed: free the check-in.
+            nonlocal turn_open
+            if turn_open and reserved:
+                history.release_check_in()
+            turn_open = False
+
         async def forward_and_persist() -> AsyncIterator[str]:
-            recorded = False
             try:
                 async for token in stream_and_save():
                     yield token
-                recorded = True
             finally:
-                # Client left mid-reply or saving failed: free the check-in for a later turn.
-                if not recorded and context["agreement"] == "disagree":
-                    history.release_check_in()
+                close()
 
         async def stream_and_save() -> AsyncIterator[str]:
             reply_parts: list[str] = []
@@ -219,10 +229,12 @@ class ChatOrchestrator:
             # M4-17: a check-in only counts if the patient saw the model's reply as written.
             # A fixed reply, an LLM fallback or a removed question means it never reached them.
             history.record(context, reply_delivered=not (fixed_text or llm_failed or cut))
+            nonlocal turn_open
+            turn_open = False  # recorded: the reservation is settled, close() has nothing to do
 
         # No await since fuse(), so no other turn of this session has run in between: reserving
         # here means an overlapping turn cannot check in as well (M4-17).
-        if context["agreement"] == "disagree":
+        if reserved:
             history.reserve_check_in()
         return ChatTurn(
             message_id=patient_message_id,
@@ -230,4 +242,5 @@ class ChatOrchestrator:
             tokens=forward_and_persist(),
             safety_rule=safety_result.rule_id,
             safety_kind=safety_result.kind,
+            close=close,
         )

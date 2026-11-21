@@ -155,9 +155,10 @@ It does not turn an unmerged pull request into merged functionality.
   no-two-questions rule replaced or cut the model's reply. Only finished, saved,
   non-crisis turns count towards N. If two messages of one session overlap,
   at most one of them checks in: the first turn reserves the check-in when it
-  is fused, and the other is sent as `n/a` ("check-in in progress"). The
-  reservation ends when that turn is recorded, or is released if its reply is
-  abandoned or fails to save.
+  is fused, and the other is sent as `n/a` ("check-in in progress"), so the
+  patient receives at most one check-in. The reservation ends when that turn
+  is recorded; if the reply is abandoned (even before its first token) or fails
+  to save, the chat response releases it when it ends.
 - **Affected areas:** `services/api-gateway` fusion (M3-06), smoothing and
   gating (M3-04), prompt template (`app/prompt.py`, M3-08).
 
