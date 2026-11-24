@@ -387,6 +387,9 @@ jobs:
       - name: Validate M4-21 one-command start and production guards
         run: python3 infra/tests/test_m4_21_one_command.py
 
+      - name: Validate M5-09 Kubernetes repository handoff assets
+        run: python3 infra/tests/test_m5_09_k8s_assets.py
+
       - name: Build and start the stack, wait for every health check
         run: docker compose -f infra/compose.yml --profile monitoring up --build --wait --wait-timeout 300
 
