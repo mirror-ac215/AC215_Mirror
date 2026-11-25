@@ -7,6 +7,57 @@ A patient chats with a supportive persona. With consent, their webcam gives a fa
 
 Team: Mostafa Galal, Owen Chong, Julie Lander.
 
+## Milestone 4: what changed since MS3
+
+MS4 turns the MS3 system into a complete application that runs locally with one command, backed by CI and automated tests.
+
+| Area | What we added | Where |
+|---|---|---|
+| Application design | Screens and user flows, solution and technical architecture, data flow, sequence diagram, API summary, code organisation | [`docs/design.md`](docs/design.md) |
+| One command, no setup | The whole local stack starts from a fresh clone with built-in, local-only defaults | [Quick start](#quick-start) |
+| Clinician side | Endpoints that enforce which patients a clinician may see, and a dashboard on real data with uncertainty shown | `services/api-gateway/app/clinician.py`, `services/frontend` |
+| Loading and errors | Visible loading and error states on the sign-in and chat screens; every chat turn finishes, even with a service down | `services/frontend`, `services/api-gateway/app/orchestration.py` |
+| Safety | A second crisis layer that matches by meaning, after the fixed rules. If its model cannot load, the rules and 988 still work and `/health` reports degraded | `services/api-gateway` |
+| Conversation | When face and words disagree, Mirror checks in at most once every few turns (D-004) | `services/api-gateway/app/fusion.py` |
+| CI | Every pull request to `main` is linted, built and tested; one required check covers all of it | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Tests | Unit, integration, system and browser end-to-end tests; 70% coverage gate on the three backend services (the course asks for 50%) | [`docs/testing.md`](docs/testing.md) |
+| Evaluation | LLM model card, pairwise preference scoring, and a load test with local results | [model card](docs/model_cards/qwen2.5-3b-instruct.md), `pipelines/llm-eval/pairwise`, [`docs/perf.md`](docs/perf.md) |
+| Monitoring | Prometheus and a Grafana dashboard for the gateway (opt-in) | [`infra/monitoring/README.md`](infra/monitoring/README.md) |
+
+### Components
+
+| Component | What it does | Local address |
+|---|---|---|
+| `frontend` | React web app: sign-in, consent, chat, crisis screen, clinician dashboard | http://localhost:3000 |
+| `api-gateway` | FastAPI: login, sessions, safety rules, gating, fusion, chat streaming, clinician endpoints | http://localhost:8000 (docs at http://localhost:8000/docs) |
+| `llm-service` | The language model. Locally a mock; Qwen on vLLM when deployed with a GPU | internal only |
+| `db` | Postgres with a seeded demo database | internal only |
+| `cv-service` (opt-in, `--profile cv`) | The face-expression model; needs Google Cloud access to download it | http://localhost:8001 |
+| Grafana (opt-in, `--profile monitoring`) | Gateway dashboard | http://localhost:3001 |
+
+Every component has its own Dockerfile or pinned image and starts from `infra/compose.yml`.
+
+### Use the app
+
+After the [Quick start](#quick-start), open http://localhost:3000.
+
+- **As a patient** (`patient.alex@example.test`): sign in, choose whether to allow the camera, and send a message. The reply streams in word by word. Without `cv-service` the chat works from text alone.
+- **As a clinician** (`clinician.ada@example.test`): sign in to see your assigned patients, their affect trends and any conversations flagged for review.
+
+Local replies come from the mock model, so they show the flow and not the real model's quality. Stop the stack with `docker compose -f infra/compose.yml down`. Screens and user flows: [design document](docs/design.md#1-user-interface-and-user-flows).
+
+### CI and tests
+
+On every pull request, GitHub Actions finds the changed components and runs their lint, build and tests. The browser end-to-end test (patient to clinician) runs the real containers on every pull request; the Compose smoke test and the database checks run when files that affect them change. The required `CI summary` check fails if any job fails, and `main` only accepts reviewed pull requests with that check green. Coverage for each backend service is printed in the run's Summary page.
+
+To run the tests yourself: [`docs/testing.md`](docs/testing.md).
+
+### Known gaps at MS4
+
+- **Reply time on the real model is not measured yet.** Locally the camera adds 90 ms to the p95 first token (limit 300 ms); the reply-time target (p95 under 5 s) needs a run on the GPU VM, planned for MS5 ([`docs/perf.md`](docs/perf.md)).
+- **Kubernetes:** the GKE files are in `infra/k8s`, but nothing has been deployed to a cluster yet (MS5).
+- **Coverage gate:** it covers the three backend services. The frontend and pipelines are tested in CI without a coverage threshold.
+
 ## Milestone 3: what changed since MS2
 
 | Area | What we added | Where |
@@ -105,7 +156,7 @@ Tests: every service has its own unit tests, and CI runs them plus contract vali
 |---|---|
 | `services/` | Long-running containers: `frontend`, `api-gateway`, `cv-service`, `llm-service`, `db`, plus `_template` to copy from |
 | `pipelines/` | Jobs that run on demand: data preprocessing, training, fairness audit, evaluation |
-| `infra/` | docker-compose, reverse proxy, monitoring, deployment config |
+| `infra/` | docker-compose, reverse proxy, monitoring, deployment config, Kubernetes files (`k8s`) |
 | `tests/` | End-to-end (`e2e`) and load (`load`) tests |
 | `docs/` | Architecture and project context, API contracts, model cards, decisions |
 | `secrets/` | Keys and credentials. **Never committed**; see `secrets/README.md` |

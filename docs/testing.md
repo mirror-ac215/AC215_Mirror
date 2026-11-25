@@ -30,7 +30,7 @@ clone with Docker, `uv` and Node 24 (the version CI uses); nothing needs cloud a
 | Bash + curl + Docker Compose | System tests against the running stack (`infra/tests/test_compose_*.sh`) |
 | Ruff | Lint and format for all Python (`ruff.toml`, M4-19) |
 | ESLint, `tsc` | Frontend lint and type check |
-| Locust | Load test (`tests/load`, M4-07, PR #110) |
+| Locust | Load test (`tests/load`, M4-07; results in [`perf.md`](perf.md)) |
 | Playwright | End-to-end patient-to-clinician smoke test (M4-05) |
 
 ## What each level covers
@@ -174,7 +174,7 @@ Not run in CI, on purpose:
 |---|---|---|
 | Text-emotion model speed (`services/api-gateway/tests/test_text_emotion_model.py`) | Downloads the ~330 MB model | `RUN_MODEL_TESTS=1 uv run pytest tests/test_text_emotion_model.py -q -s` |
 | Persona checks against a real model (`pipelines/llm-eval/persona-checks`) | Needs llm-service in real mode on a GPU | See its README |
-| Load test (`tests/load`, M4-07, PR #110) | Needs the running stack; minutes long | See `tests/load/README.md` |
+| Load test (`tests/load`, M4-07) | Needs the running stack; minutes long | See `tests/load/README.md` |
 | DVC restore (`tests/m2_04_dvc_smoke.sh`) | Needs Google Cloud access to the data bucket | `bash tests/m2_04_dvc_smoke.sh` after `gcloud auth application-default login` |
 
 ## Where CI reports results
