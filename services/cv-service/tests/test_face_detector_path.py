@@ -29,7 +29,7 @@ class FixedYuNet:
         self.rows = np.array(rows, dtype=np.float32) if rows else None
         self.input_size: tuple[int, int] | None = None
 
-    def setInputSize(self, size: tuple[int, int]) -> None:  # noqa: N802 (OpenCV's name)
+    def setInputSize(self, size: tuple[int, int]) -> None:  # OpenCV's method name
         self.input_size = size
 
     def detect(self, image: np.ndarray) -> tuple[int, np.ndarray | None]:
