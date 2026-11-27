@@ -1,21 +1,23 @@
 # MS4 evidence: the application, end to end
 
-Recorded on **Nov 25, 2026** on a Windows 11 PC from a fresh clone of the M4-25 branch (commit `e9870f0`), started with one command and no setup (`docker compose -f infra/compose.yml up --build -d`). For the chat, crisis and camera screenshots the same stack also ran the opt-in `cv-service` (`cv-vit-b16-v4`) and real Qwen 2.5-3B-Instruct on a local NVIDIA GPU instead of the default mock. All accounts and patients are seeded demo data. Camera previews are blurred.
+Screenshots taken on **Nov 25, 2026** on a Windows 11 PC running the stack locally with Docker Compose. Each line below claims only what its screenshot shows. Camera previews are blurred.
 
-| File | What it proves |
+**Supporting evidence not in the screenshots:** that one command starts the stack with no setup, and that the frontend reaches the API, are both checked by CI on every pull request. The *Compose stack smoke test* and the *End-to-end patient to clinician smoke test* jobs are in the #114 run below, and their commands are in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+
+| File | What it shows |
 |---|---|
-| `ms4_01_sign_in.png` | The frontend at `http://localhost:3000`: sign-in with a demo account |
-| `ms4_02_chat.png` | **Frontend to API, end to end:** a patient chats and the model's replies stream back |
-| `ms4_03_camera_expression.png` | Camera on: the face model's estimate shown with its uncertainty, next to the chat |
-| `ms4_04_error_state.png` | **Error state:** with `cv-service` not running, the app turns the camera off, says so, and keeps the chat working on text alone |
-| `ms4_05_crisis.png` | The crisis path: 988 and 911 resources, the clinician notified, no model reply |
-| `ms4_06_fixed_replies.png` | The fixed reply to a question about the camera |
-| `ms4_07_clinician_patients.png` | The clinician's patient list, with the patients that need review |
+| `ms4_01_sign_in.png` | The Mirror sign-in page, filled in with a demo account (`patient.alex@example.test`) |
+| `ms4_02_chat.png` | **Frontend and API working together:** a patient's messages and Mirror's replies in the chat screen |
+| `ms4_03_camera_expression.png` | Camera on: the predicted-expression panel shows the top readings with percentages and the note that it is an estimate, next to the chat |
+| `ms4_04_error_state.png` | **Error state:** the camera is off and the app says "Camera frames are not being sent; messages remain text-only", while the chat stays open for messages |
+| `ms4_05_crisis.png` | The crisis screen: 988 and 911 resources and the notice that the clinician has been notified |
+| `ms4_06_fixed_replies.png` | Mirror's reply to "Can you see me?": it only reads messages, the camera gives a rough expression estimate, and no video or images are stored |
+| `ms4_07_clinician_patients.png` | The clinician's patient list, with patients marked for review |
 | `ms4_08_clinician_detail.png` | One patient's review queue and day-by-day trends, with confidence shown |
-| `ms4_09_stack_healthy.png` | All five services healthy |
-| `ms4_10_ci_green.png` | **CI on a pull request ([#114](https://github.com/mirror-ac215/AC215_Mirror/pull/114)):** gateway tests, real-model safety gate, Compose smoke test and browser end-to-end test pass. Jobs for unchanged components are skipped |
-| `ms4_11_coverage.png` | **Coverage in CI:** the api-gateway report from that run, 89% (the gate is 70%; the course asks for 50%) |
-| `ms4_12_api_docs.png` | The API's own documentation at `http://localhost:8000/docs` |
+| `ms4_09_stack_healthy.png` | Docker Compose output: five containers (frontend, db, api-gateway, cv-service, llm-service) reported Healthy |
+| `ms4_10_ci_green.png` | **CI on a pull request:** the checks of [#114](https://github.com/mirror-ac215/AC215_Mirror/pull/114) at commit `630e7c2`, Actions run [44878040756](https://github.com/mirror-ac215/AC215_Mirror/actions/runs/44878040756). Gateway tests, the real-model safety gate, the Compose smoke test and the browser end-to-end test pass; jobs for unchanged components are skipped |
+| `ms4_11_coverage.png` | **Coverage in CI:** the api-gateway coverage report from that same run, total 89% (job [136767035927](https://github.com/mirror-ac215/AC215_Mirror/actions/runs/44878040756/job/136767035927); the gate is 70%, the course asks for 50%) |
+| `ms4_12_api_docs.png` | The API's own documentation page (`/docs`) |
 
 The Grafana dashboard is in `m4_08_grafana_dashboard.png`.
 
