@@ -99,20 +99,27 @@ def test_openapi_validation_rejects_an_invalid_future_contract(tmp_path, monkeyp
 
 
 @pytest.mark.parametrize(
-    ("changes_result", "contract_result", "e2e_result", "expected_exit"),
+    ("changes_result", "contract_result", "e2e_result", "compose_result", "expected_exit"),
     [
-        ("success", "success", "success", 0),
-        ("success", "failure", "success", 1),
-        ("success", "cancelled", "success", 1),
-        ("success", "skipped", "success", 1),
-        ("failure", "success", "success", 1),
-        ("success", "success", "failure", 1),
-        ("success", "success", "cancelled", 1),
-        ("success", "success", "skipped", 1),
+        ("success", "success", "success", "success", 0),
+        ("success", "failure", "success", "success", 1),
+        ("success", "cancelled", "success", "success", 1),
+        ("success", "skipped", "success", "success", 1),
+        ("failure", "success", "success", "success", 1),
+        ("success", "success", "failure", "success", 1),
+        ("success", "success", "cancelled", "success", 1),
+        ("success", "success", "skipped", "success", 1),
+        # M5-11: the API integration suite runs on every PR, so skipped also fails.
+        ("success", "success", "success", "failure", 1),
+        ("success", "success", "success", "skipped", 1),
     ],
 )
 def test_ci_summary_script_rejects_unsuccessful_required_results(
-    changes_result: str, contract_result: str, e2e_result: str, expected_exit: int
+    changes_result: str,
+    contract_result: str,
+    e2e_result: str,
+    compose_result: str,
+    expected_exit: int,
 ) -> None:
     import yaml
 
@@ -129,6 +136,7 @@ def test_ci_summary_script_rejects_unsuccessful_required_results(
         "DOCS_CONTRACTS_CHANGED": "true",
         "CONTRACT_VALIDATION_RESULT": contract_result,
         "E2E_RESULT": e2e_result,
+        "COMPOSE_RESULT": compose_result,
         "PYTHON_LINT_RESULT": "success",
     }
 
