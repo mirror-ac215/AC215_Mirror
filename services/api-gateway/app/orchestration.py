@@ -13,6 +13,7 @@ from app.crisis_meaning import CrisisMeaning, CrisisMeaningUnavailable
 from app.fusion import TurnHistory, fuse
 from app.prompt import build_messages
 from app.text_emotion import TextEmotion, TextEmotionUnavailable
+from app.wellbeing import SessionClock, break_payload
 
 logger = logging.getLogger("mirror")
 
@@ -53,7 +54,9 @@ class TurnRepository(Protocol):
 
     async def add_emotion_window(self, session_id: str, context: dict) -> None: ...
 
-    async def add_review_flag(self, patient_id: str, message_id: str) -> None: ...
+    async def add_review_flag(
+        self, patient_id: str, message_id: str, reason: str = "crisis"
+    ) -> None: ...
 
 
 class LLMClient(Protocol):
@@ -72,6 +75,8 @@ class ChatTurn:
     # more than once, and also when `tokens` was never started: the chat endpoint calls it when
     # its response ends, however it ends.
     close: Callable[[], None] = lambda: None
+    # M4-16: a break suggestion to send after the reply, at most once per session.
+    wellbeing: dict | None = None
 
 
 class ChatOrchestrator:
@@ -122,6 +127,7 @@ class ChatOrchestrator:
         visual: dict,
         history: TurnHistory,
         conversation: list[dict[str, str]],
+        clock: SessionClock | None = None,
     ) -> ChatTurn:
         safety_result = self._safety(text)
         if safety_result.kind == "crisis":
@@ -156,6 +162,15 @@ class ChatOrchestrator:
             )
 
         patient_message_id = await self._repository.add_message(session_id, "patient", text, False)
+        # Crisis turns skip this: they already flag, and 988 comes first.
+        if clock is not None and clock.flag_due():
+            try:
+                await self._repository.add_review_flag(
+                    patient_id, patient_message_id, reason="long_session"
+                )
+                clock.flagged = True
+            except Exception as exc:  # noqa: BLE001 -- a non-urgent flag never blocks the reply
+                logger.warning("long_session_flag_failed type=%s", type(exc).__name__)
 
         try:
             text_context = self._text_emotion.analyse(text).as_context()
@@ -243,4 +258,5 @@ class ChatOrchestrator:
             safety_rule=safety_result.rule_id,
             safety_kind=safety_result.kind,
             close=close,
+            wellbeing=break_payload() if clock is not None and clock.break_due() else None,
         )

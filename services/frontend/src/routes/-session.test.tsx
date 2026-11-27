@@ -632,6 +632,29 @@ describe("Session screen states (M4-24)", () => {
     await act(async () => finish());
   });
 
+  it("shows a break suggestion below the chat and lets the patient dismiss it", async () => {
+    startSession.mockResolvedValue({ session_id: "s1" });
+    sendMessage.mockImplementation(
+      async (_id: string, _text: string, onEvent: (event: unknown) => void) => {
+        onEvent({ type: "token", data: "That sounds tiring." });
+        onEvent({
+          type: "wellbeing",
+          data: { kind: "break_suggestion", message: "Take a break." },
+        });
+      },
+    );
+
+    render(<Session />);
+    const input = await screen.findByPlaceholderText("Type a message…");
+    fireEvent.change(input, { target: { value: "still going" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(await screen.findByText(/Take a break\./)).toBeTruthy();
+    expect(screen.getByText("That sounds tiring.")).toBeTruthy(); // the reply itself is unchanged
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/Take a break\./)).toBeNull();
+  });
+
   it("keeps the text and offers a retry when a message fails to send", async () => {
     startSession.mockResolvedValue({ session_id: "s1" });
     sendMessage.mockRejectedValueOnce(new TypeError("Failed to fetch"));

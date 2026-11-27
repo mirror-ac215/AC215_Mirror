@@ -108,7 +108,12 @@ describe("patient dashboard", () => {
       },
     ]);
     api.listReviewFlags.mockResolvedValue([
-      { flag_id: "flag-1", created_at: "2026-11-11T14:30:00Z", reviewed_at: null },
+      {
+        flag_id: "flag-1",
+        created_at: "2026-11-11T14:30:00Z",
+        reviewed_at: null,
+        reason: "crisis",
+      },
     ]);
     api.markFlagReviewed.mockResolvedValue(undefined);
   });
@@ -126,6 +131,27 @@ describe("patient dashboard", () => {
     await waitFor(() => expect(api.markFlagReviewed).toHaveBeenCalled());
     expect(api.markFlagReviewed.mock.calls[0]![0]).toBe("flag-1");
     await waitFor(() => expect(api.listReviewFlags).toHaveBeenCalledTimes(2));
+  });
+
+  it("labels a long-session flag as not urgent, apart from crisis flags", async () => {
+    api.listReviewFlags.mockResolvedValue([
+      {
+        flag_id: "flag-2",
+        created_at: "2026-11-12T18:00:00Z",
+        reviewed_at: null,
+        reason: "long_session",
+      },
+      {
+        flag_id: "flag-1",
+        created_at: "2026-11-11T14:30:00Z",
+        reviewed_at: null,
+        reason: "crisis",
+      },
+    ]);
+    renderWithQueries(<PatientDashboard />);
+    expect(await screen.findByText(/a very long session/i)).toBeTruthy();
+    expect(screen.getByText(/not urgent/i)).toBeTruthy();
+    expect(screen.getAllByText(/crisis resources were shown/i)).toHaveLength(1);
   });
 
   it("explains a 403 instead of showing another clinician's patient", async () => {

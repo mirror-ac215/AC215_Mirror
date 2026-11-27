@@ -63,8 +63,10 @@ class InMemoryRepository:
     async def add_emotion_window(self, session_id: str, context: dict) -> None:
         self.windows.append({"session_id": session_id, "context": context})
 
-    async def add_review_flag(self, patient_id: str, message_id: str) -> None:
-        self.flags.append({"patient_id": patient_id, "message_id": message_id})
+    async def add_review_flag(
+        self, patient_id: str, message_id: str, reason: str = "crisis"
+    ) -> None:
+        self.flags.append({"patient_id": patient_id, "message_id": message_id, "reason": reason})
 
 
 class PostgresRepository:
@@ -118,11 +120,13 @@ class PostgresRepository:
             ),
         )
 
-    async def add_review_flag(self, patient_id: str, message_id: str) -> None:
+    async def add_review_flag(
+        self, patient_id: str, message_id: str, reason: str = "crisis"
+    ) -> None:
         await asyncio.to_thread(
             self._execute,
-            "INSERT INTO review_flags (patient_id, message_id) VALUES (%s, %s)",
-            (patient_id, message_id),
+            "INSERT INTO review_flags (patient_id, message_id, reason) VALUES (%s, %s, %s)",
+            (patient_id, message_id, reason),
         )
 
     @staticmethod

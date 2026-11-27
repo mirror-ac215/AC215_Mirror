@@ -13,6 +13,7 @@ import {
 import { EmptyState, ErrorState, LoadingBlocks } from "@/components/mirror/ClinicianStates";
 import { TopNav } from "@/components/mirror/TopNav";
 import { getPatientTrend, listPatients, listReviewFlags, markFlagReviewed } from "@/lib/api/client";
+import type { ReviewFlagSummary } from "@/lib/api/types";
 import {
   dailyReadings,
   dateTime,
@@ -166,7 +167,7 @@ function ReviewQueue({
   failed,
   onReview,
 }: {
-  flags: { flag_id: string; created_at: string; reviewed_at: string | null }[];
+  flags: ReviewFlagSummary[];
   pendingId: string | undefined;
   failed: boolean;
   onReview: (flagId: string) => void;
@@ -182,12 +183,21 @@ function ReviewQueue({
             flag.reviewed_at === null ? (
               <li key={flag.flag_id} className="flex flex-wrap gap-3 rounded-xl bg-lowmood p-4">
                 <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-safety" />
-                <p className="flex-1 text-sm leading-relaxed text-body">
-                  <span className="font-medium text-safety">
-                    Crisis resources were shown on {dateTime(flag.created_at)}.
-                  </span>{" "}
-                  A human check-in is recommended.
-                </p>
+                {flag.reason === "long_session" ? (
+                  <p className="flex-1 text-sm leading-relaxed text-body">
+                    <span className="font-medium">
+                      A very long session on {dateTime(flag.created_at)}.
+                    </span>{" "}
+                    Not urgent: worth asking about at the next check-in.
+                  </p>
+                ) : (
+                  <p className="flex-1 text-sm leading-relaxed text-body">
+                    <span className="font-medium text-safety">
+                      Crisis resources were shown on {dateTime(flag.created_at)}.
+                    </span>{" "}
+                    A human check-in is recommended.
+                  </p>
+                )}
                 <button
                   type="button"
                   disabled={pendingId === flag.flag_id}
@@ -203,8 +213,8 @@ function ReviewQueue({
                 className="flex gap-3 rounded-xl bg-secondary p-4 text-sm text-muted-ink"
               >
                 <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                Crisis resources shown on {dateTime(flag.created_at)} · reviewed{" "}
-                {dateTime(flag.reviewed_at)}
+                {flag.reason === "long_session" ? "Long session" : "Crisis resources shown"} on{" "}
+                {dateTime(flag.created_at)} · reviewed {dateTime(flag.reviewed_at)}
               </li>
             ),
           )}

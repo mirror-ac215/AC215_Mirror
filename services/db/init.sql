@@ -4,6 +4,8 @@ CREATE TYPE user_role AS ENUM ('patient', 'clinician');
 CREATE TYPE message_role AS ENUM ('patient', 'assistant', 'system');
 CREATE TYPE visual_status AS ENUM ('ok', 'uncertain', 'dropped', 'camera_off');
 CREATE TYPE tone_mode AS ENUM ('coach', 'supportive');
+-- Why a message was flagged for the clinician: the crisis check, or a long session (M4-16).
+CREATE TYPE review_reason AS ENUM ('crisis', 'long_session');
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,6 +56,7 @@ CREATE TABLE review_flags (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(user_id) ON DELETE CASCADE,
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE RESTRICT,
+    reason review_reason NOT NULL DEFAULT 'crisis',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     reviewed_at TIMESTAMPTZ,
     reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,

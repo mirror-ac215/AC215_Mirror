@@ -90,6 +90,12 @@ if run_sql "INSERT INTO review_flags (patient_id, message_id, reviewed_at, revie
 fi
 
 run_sql "INSERT INTO review_flags (patient_id, message_id, reviewed_at, reviewed_by) VALUES ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000401', now(), '00000000-0000-0000-0000-000000000101');" >/dev/null
+assert_equals "crisis" "$(run_sql "SELECT reason FROM review_flags WHERE message_id = '00000000-0000-0000-0000-000000000401';")" "review flag reason defaults to crisis"
+
+if run_sql "INSERT INTO review_flags (patient_id, message_id, reason) VALUES ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000401', 'tired');" >/dev/null 2>&1; then
+  echo "FAIL: an unknown review flag reason was accepted." >&2
+  exit 1
+fi
 
 if run_sql "DELETE FROM messages WHERE id = '00000000-0000-0000-0000-000000000401';" >/dev/null 2>&1; then
   echo "FAIL: a flagged message was deleted without first removing its review flag." >&2

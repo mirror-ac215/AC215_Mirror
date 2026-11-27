@@ -148,6 +148,8 @@ paths:
             Event types:
               crisis: data = CrisisPayload; no persona reply, the stream ends
               token:  data = TokenPayload, the next piece of reply text
+              wellbeing: data = WellbeingPayload; optional, after the last token and before
+                         done, at most once per session (M4-16 break suggestion)
               done:   data = DonePayload; the stream ends
 
             Example, normal turn:
@@ -159,6 +161,16 @@ paths:
 
               event: done
               data: {"message_id": "m-123", "context": {...}}
+
+            Example, long session (after the configured break time):
+              event: token
+              data: {"text": "That sounds like a lot to carry."}
+
+              event: wellbeing
+              data: {"kind": "break_suggestion", "message": "We've been talking for a while now. ..."}
+
+              event: done
+              data: {"message_id": "m-456", "context": {...}}
 
             Example, crisis turn:
               event: crisis
@@ -364,6 +376,13 @@ components:
             True when a review flag was recorded for the patient's clinician. Until M3-10 the flag is
             kept in the gateway's memory only and is lost on restart; it is not yet in the database.
 
+    WellbeingPayload:
+      type: object
+      required: [kind, message]
+      properties:
+        kind: { type: string, enum: [break_suggestion] }
+        message: { type: string, description: Gentle text to show below the reply }
+
     DonePayload:
       type: object
       required: [message_id, context]
@@ -408,7 +427,7 @@ components:
       type: object
       title: ReviewFlagSummary
       description: Clinician-visible flag metadata, deliberately excluding message content.
-      required: [flag_id, created_at, reviewed_at]
+      required: [flag_id, created_at, reviewed_at, reason]
       properties:
         flag_id: { type: string, format: uuid, title: Flag Id }
         created_at: { type: string, format: date-time, title: Created At }
@@ -417,3 +436,7 @@ components:
           anyOf:
             - { type: string, format: date-time }
             - { type: "null" }
+        reason:
+          type: string
+          enum: [crisis, long_session]
+          title: Reason

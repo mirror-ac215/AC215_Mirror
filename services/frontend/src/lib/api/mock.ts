@@ -133,6 +133,13 @@ const mockFlags: Record<string, ReviewFlagSummary[]> = {
       flag_id: "00000000-0000-4000-8000-0000000000b1",
       created_at: daysAgo(3, 2),
       reviewed_at: null,
+      reason: "crisis",
+    },
+    {
+      flag_id: "00000000-0000-4000-8000-0000000000b2",
+      created_at: daysAgo(1, 3),
+      reviewed_at: null,
+      reason: "long_session",
     },
   ],
   "00000000-0000-0000-0000-000000000203": [
@@ -140,6 +147,7 @@ const mockFlags: Record<string, ReviewFlagSummary[]> = {
       flag_id: "00000000-0000-4000-8000-0000000000c1",
       created_at: daysAgo(8, 5),
       reviewed_at: daysAgo(7, 5),
+      reason: "crisis",
     },
   ],
 };

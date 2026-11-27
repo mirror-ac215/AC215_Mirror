@@ -43,6 +43,7 @@ from app.schemas import (
     SessionCreate,
 )
 from app.text_emotion import get_text_emotion
+from app.wellbeing import SessionClock
 
 router = APIRouter()
 settings = get_settings()
@@ -51,6 +52,7 @@ session_owners: dict[str, str] = {}
 frame_windows: dict[str, FrameWindow] = {}
 turn_histories: dict[str, TurnHistory] = {}
 conversations: dict[str, list[dict[str, str]]] = {}
+session_clocks: dict[str, SessionClock] = {}
 repository = PostgresRepository.from_dsn(settings.database_url)
 llm_client = LLMServiceClient(settings.llm_service_url, settings.llm_timeout_s, settings.llm_model)
 cv_client = CVClient(settings.cv_service_url, settings.dependency_timeout_s)
@@ -160,6 +162,11 @@ async def start_session(
         checkin_cooldown=settings.fusion_checkin_cooldown_turns
     )
     conversations[session.session_id] = []
+    session_clocks[session.session_id] = SessionClock(
+        started_at=session.started_at,
+        break_after_min=settings.wellbeing_break_after_min,
+        flag_after_min=settings.wellbeing_flag_after_min,
+    )
     return session
 
 
@@ -254,6 +261,7 @@ async def send_message(
             visual=visual_context(session_id, session),
             history=turn_histories[session_id],
             conversation=conversations[session_id],
+            clock=session_clocks.get(session_id),
         )
     except Exception as exc:
         logger.error("chat_persistence_orchestration_failed", extra={"error": str(exc)})
@@ -293,6 +301,11 @@ async def send_message(
                 {"role": "assistant", "content": "".join(reply_parts)},
             )
         )
+        # M4-16: after the reply, never in the middle of it, and only once per session.
+        clock = session_clocks.get(session_id)
+        if turn.wellbeing is not None and clock is not None and not clock.break_suggested:
+            clock.break_suggested = True
+            yield sse("wellbeing", turn.wellbeing)
         yield sse("done", {"message_id": turn.message_id, "context": turn.context})
 
     return TurnStreamingResponse(events(), on_end=turn.close, media_type="text/event-stream")

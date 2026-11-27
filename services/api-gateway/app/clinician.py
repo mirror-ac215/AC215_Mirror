@@ -135,7 +135,7 @@ class PostgresClinicianRepository:
         """Return flag metadata only when assignment matches in this SQL query."""
         rows = await asyncio.to_thread(
             self._fetchall,
-            """SELECT rf.id::text, rf.created_at, rf.reviewed_at
+            """SELECT rf.id::text, rf.created_at, rf.reviewed_at, rf.reason::text
                  FROM patients p
                  LEFT JOIN review_flags rf ON rf.patient_id = p.user_id
                  WHERE p.clinician_id = %s AND p.user_id = %s
@@ -145,8 +145,10 @@ class PostgresClinicianRepository:
         if not rows:
             return None
         return [
-            ReviewFlagSummary(flag_id=flag_id, created_at=created_at, reviewed_at=reviewed_at)
-            for flag_id, created_at, reviewed_at in rows
+            ReviewFlagSummary(
+                flag_id=flag_id, created_at=created_at, reviewed_at=reviewed_at, reason=reason
+            )
+            for flag_id, created_at, reviewed_at, reason in rows
             if flag_id is not None
         ]
 

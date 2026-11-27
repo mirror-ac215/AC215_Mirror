@@ -62,6 +62,7 @@ class FakeClinicianRepository:
                 flag_id=FLAG_ALEX_ID,
                 created_at=datetime.fromisoformat("2026-11-09T08:00:00+00:00"),
                 reviewed_at=None,
+                reason="long_session",
             )
         ]
 
@@ -169,6 +170,7 @@ async def test_assigned_clinician_can_list_flag_metadata_without_message_text() 
             "flag_id": FLAG_ALEX_ID,
             "created_at": "2026-11-09T08:00:00Z",
             "reviewed_at": None,
+            "reason": "long_session",
         }
     ]
     assert "message" not in response.text

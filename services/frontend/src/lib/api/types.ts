@@ -51,6 +51,12 @@ export interface CrisisPayload {
   review_flag_created: boolean;
 }
 
+/** M4-16: a gentle break suggestion after a long session, sent at most once. */
+export interface WellbeingPayload {
+  kind: "break_suggestion";
+  message: string;
+}
+
 export interface DonePayload {
   message_id: string;
   context: ContextObject;
@@ -60,6 +66,7 @@ export interface DonePayload {
 export type ChatEvent =
   | { type: "crisis"; data: CrisisPayload }
   | { type: "token"; data: string }
+  | { type: "wellbeing"; data: WellbeingPayload }
   | { type: "done"; data: DonePayload };
 
 // --- Clinician dashboard (M4-01), from the /clinician/* endpoints (M4-03) ---
@@ -81,9 +88,10 @@ export interface TrendPoint {
   tone_mode: "coach" | "supportive";
 }
 
-/** A review flag raised by the crisis path. Metadata only, never the message. */
+/** A review flag: a crisis, or a non-urgent long session (M4-16). Metadata only, never the message. */
 export interface ReviewFlagSummary {
   flag_id: string;
   created_at: string;
   reviewed_at: string | null;
+  reason: "crisis" | "long_session";
 }

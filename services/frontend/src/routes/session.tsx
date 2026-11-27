@@ -76,6 +76,7 @@ export function Session() {
   const [sending, setSending] = useState(false);
   const [sessionFailed, setSessionFailed] = useState(false);
   const [sendFailed, setSendFailed] = useState(false);
+  const [breakNote, setBreakNote] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0); // bump to retry starting the session
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraRequested, setCameraRequested] = useState(true);
@@ -243,6 +244,8 @@ export function Session() {
         if (event.type === "crisis") {
           setMessages((m) => m.slice(0, -1)); // no persona reply on a crisis turn
           setCrisis(event.data);
+        } else if (event.type === "wellbeing") {
+          setBreakNote(event.data.message);
         } else if (event.type === "done") {
           // The readout follows the gateway's reading for this turn, never a guess in the browser.
           if (readingRun === cameraRunRef.current) setVisual(event.data.context.visual);
@@ -346,6 +349,14 @@ export function Session() {
               {!sessionId && !sessionFailed && (
                 <p role="status" className="mb-2 text-sm text-muted-ink">
                   Starting your session…
+                </p>
+              )}
+              {breakNote && (
+                <p role="status" className="mb-2 text-sm text-muted-ink">
+                  {breakNote}{" "}
+                  <button onClick={() => setBreakNote(null)} className="underline">
+                    Dismiss
+                  </button>
                 </p>
               )}
               {sendFailed && (
