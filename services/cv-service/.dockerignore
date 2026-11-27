@@ -17,3 +17,6 @@ data/
 secrets/
 *service-account*.json
 *-key.json
+# M4-26: the bundled YuNet face detector must reach the image
+!app/models/
+!app/models/face_detection_yunet_2023mar.onnx

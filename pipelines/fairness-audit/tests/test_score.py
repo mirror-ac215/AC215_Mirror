@@ -2,12 +2,14 @@
 
 import csv
 import json
+import re
 import subprocess
 from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
+import yaml
 from PIL import Image
 
 from mirror_fairness_audit import LABELS
@@ -16,10 +18,17 @@ from mirror_fairness_audit.score import (
     FaceDetector,
     build_model,
     check_output,
+    detector_from_params,
     score,
+    square_face_crop,
     to_tensor,
     write,
 )
+
+ROOT = Path(__file__).parents[1]
+PARAMS_PATH = ROOT / "params.yaml"
+PARAMS = yaml.safe_load(PARAMS_PATH.read_text())
+CV_RUNTIME = ROOT.parents[1] / "services/cv-service/app/runtime.py"
 
 
 class FixedModel(torch.nn.Module):
@@ -48,11 +57,36 @@ def test_no_face_is_recorded_and_the_photo_still_scored(tmp_path: Path) -> None:
     for i in range(5):
         Image.new("RGB", (224, 224), (i * 40, 90, 90)).save(tmp_path / f"val/{i}.jpg")
         photos.append(Photo(f"val/{i}.jpg", "White", "Female", "20-29"))
-    rows = list(score(photos, tmp_path, FixedModel(), FaceDetector(), batch_size=2))
+    detector = detector_from_params(PARAMS, PARAMS_PATH)
+    rows = list(score(photos, tmp_path, FixedModel(), detector, batch_size=2))
     assert len(rows) == 5
-    assert all(r["face_found"] is False for r in rows)  # plain colour: Haar finds nothing
+    assert all(r["face_found"] is False for r in rows)  # plain colour: no face found
     assert all(max(LABELS, key=lambda label: r[label]) == "happy" for r in rows)
     assert abs(sum(rows[0][label] for label in LABELS) - 1) < 1e-4
+
+
+def test_detector_matches_cv_service() -> None:
+    """Same model file, same hash, same threshold as services/cv-service/app/runtime.py."""
+    runtime = CV_RUNTIME.read_text()
+    spec = PARAMS["detector"]
+    assert re.search(r'YUNET_SHA256 = "([0-9a-f]{64})"', runtime).group(1) == spec["sha256"]
+    threshold = re.search(r"FACE_SCORE_THRESHOLD = ([0-9.]+)", runtime).group(1)
+    assert float(threshold) == spec["score_threshold"]
+    model = (PARAMS_PATH.parent / spec["model"]).resolve()
+    assert model == (CV_RUNTIME.parent / "models" / model.name).resolve()
+
+
+def test_a_detector_model_with_another_hash_is_refused(tmp_path: Path) -> None:
+    fake = tmp_path / "yunet.onnx"
+    fake.write_bytes(b"not the model")
+    with pytest.raises(ValueError, match="sha256"):
+        FaceDetector(fake, PARAMS["detector"]["sha256"], 0.9)
+
+
+def test_square_crop_matches_cv_service_shape() -> None:
+    image = np.zeros((240, 320, 3), dtype=np.uint8)
+    assert square_face_crop(image, (100.0, 50.0, 60.0, 80.0)).shape[:2] == (80, 80)
+    assert square_face_crop(image, (-10.0, 200.0, 60.0, 60.0)).shape[:2] == (40, 50)
 
 
 def test_write_keeps_numbers_and_provenance_only(tmp_path: Path) -> None:

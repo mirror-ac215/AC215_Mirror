@@ -13,7 +13,7 @@ Mirror's facial-expression model. **Owner:** Mostafa (M4-10). **Last updated:** 
 | Classes | angry, disgust, fear, happy, neutral, sad, surprise |
 | Input | One face crop: grayscale copied to 3 channels, resized to 224x224, ImageNet normalization |
 | Output | 7 probabilities (softmax) |
-| Face detection | Haar cascade in cv-service, before the model. No face means no reading |
+| Face detection | YuNet (OpenCV, threshold 0.9) in cv-service, before the model; it replaced the Haar cascade in M4-26. No face means no reading |
 | Served by | `cv-service`, on CPU (M3-03) |
 | Artifact | `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth` (343,280,429 bytes) |
 | SHA-256 | `5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b` |
@@ -86,7 +86,22 @@ A single frame is noisy, so the gateway only trusts a steady reading. With the c
 
 So fusion never lets a negative face reading lead (M3-06). These thresholds are provisional and have not been tested on our own users.
 
-## Subgroup gaps (fairness audit, M3-02)
+## Subgroup gaps (fairness audit, M3-02, re-run for M4-26)
+
+**Update, Nov 27, 2026 (M4-26).** The MS3 audit below found that most of the race gap came from the old Haar face detector. cv-service now uses OpenCV's YuNet detector, and the audit was re-run on the same photos, model and gate:
+
+| Measure | Haar (MS3) | YuNet (now) |
+|---|---|---|
+| Face found, everyone | 48.1% | 90.9% |
+| Face found: Black / Southeast Asian | 33.8% / 55.0% | 88.6% / 93.8% |
+| Race gap in face found | 21.2 points | 5.2 points |
+| Trusted reading: Black | 20.5% | 55.1% |
+| Trusted reading: over 70 | 12.7% | 35.6% |
+| Largest gap: gate passes once a face is found, 20-29 or 10-19 vs over 70 | 41.1 points | 29.9 points |
+
+The detector gap is mostly closed. **The gaps that remain come from this model:** it trusts older and male faces less often, and reads older faces as negative more often (26.3% over 70 vs 10.9% at 20-29). Full tables: `pipelines/fairness-audit/results/fairface-v4-yunet/report.md`.
+
+The MS3 audit, with the Haar detector:
 
 Audit of v4 on all 10,954 FairFace validation photos (9,399 in scope; children are reported separately). **FairFace has no expression labels, so this shows how differently the model behaves per group, not how accurate it is.** Accuracy gaps by group have not been measured. Non-overlapping 95% intervals are a screen for gaps worth a closer look, not a formal significance test.
 
@@ -107,15 +122,15 @@ What this means:
 - **The race gap comes mostly from the face detector.** Once a face is found, the gate passes for 58-70% of every race group. A modern detector is the most direct fix, and this audit can measure it.
 - **The gender gap is not only about smiling.** The detector finds women's faces more often (54.6% vs 42.2%), and once a face is found the gate passes for 70.1% of women vs 59.7% of men. People may also smile more in some photos. Without expression labels, the audit can't separate these causes from model bias.
 
-Full tables: `pipelines/fairness-audit/results/fairface-v4/report.md`.
+Full tables (MS3, Haar): `pipelines/fairness-audit/results/fairface-v4/report.md`.
 
 ## Limits
 
 - **Weak on real video.** 0.337 macro-F1 on Aff-Wild2. On video, fear is read as surprise and sadness as neutral in every run we tried. The limit is the data: Aff-Wild2 has only 16-28 training people per rare emotion.
 - **Expression is not emotion.** People can smile through pain or look neutral while struggling.
 - **Not tested on our own users.** No results yet from real webcam sessions (M3-20), so lighting, camera quality and patient populations are all unmeasured.
-- **Training and serving differ.** cv-service's tight Haar crop differs from Aff-Wild2's aligned crops, and FER-2013's 48x48 photos.
-- **Face detection is limited.** Haar found a face in only 48% of FairFace photos, which include profiles and tilted heads. It works mainly on frontal faces.
+- **Training and serving differ.** cv-service's square YuNet crop differs from Aff-Wild2's aligned crops, and FER-2013's 48x48 photos.
+- **Face detection misses some faces.** YuNet finds a face in 90.9% of FairFace photos (Haar: 48%). Its false alarms (a "face" where there is none) are not measured, which is why the threshold stays at 0.9 rather than 0.7.
 - **Near-duplicate photos.** FER-2013 has some near-duplicates across its parts, which lifts FER+ test scores a little for both v3 and v4. Aff-Wild2 test scores are not affected.
 - **Not cleared for commercial use.** FER-2013's rights are unclear and Aff-Wild2 is licensed, so a commercial version would need different data.
 
@@ -140,5 +155,6 @@ Build the data first with `mirror-prepare-ferplus`. Full details: `pipelines/cv-
 ## Next steps
 
 - Re-measure on our own consented sessions (M3-20) and re-run the gate sweep.
-- Try a modern face detector and re-run the fairness audit.
+- Older faces: the largest remaining gap. Needs training data with more older faces, then a re-run of the fairness audit.
+- Measure YuNet's false alarms on frames with no face, then consider a lower threshold.
 - Measure accuracy by group if RAF-DB access is granted.

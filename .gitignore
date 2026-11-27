@@ -35,6 +35,8 @@ data/
 *.safetensors
 *.bin
 *.onnx
+# the small YuNet face detector is committed on purpose (M4-26, MIT, see its README)
+!services/cv-service/app/models/face_detection_yunet_2023mar.onnx
 *.npy
 wandb/
 # raw third-party datasets downloaded by hand (keep outside the repo)

@@ -59,9 +59,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{params['data']['labels_sha256']}: rebuild it with the README recipe"
             )
 
+        detector = score.detector_from_params(params, args.params)
         photos = read_labels(args.labels)[: args.limit]
         model = score.load_model(args.checkpoint, args.device)
-        rows = score.score(photos, args.images_dir, model, score.FaceDetector(), device=args.device)
+        rows = score.score(photos, args.images_dir, model, detector, device=args.device)
         meta = {
             "model_version": params["model"]["version"],
             "model_status": params["model"]["status"],
@@ -69,6 +70,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "data_version": params["data"]["version"],
             "data_revision": params["data"]["revision"],
             "labels_sha256": labels_sha,
+            "detector": params["detector"]["name"],
+            "detector_score_threshold": params["detector"]["score_threshold"],
             "code_revision": args.code_revision,
             "limit": args.limit,
         }

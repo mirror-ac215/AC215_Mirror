@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -32,24 +33,53 @@ class ModelSettings(BaseSettings):
     uncertain_margin: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
-class FaceDetector:
-    """Haar-cascade detector that returns the largest detected RGB face crop."""
+# OpenCV's YuNet face detector (opencv_zoo, MIT licence), stored next to this file.
+# M4-26: replaces the Haar cascade, which missed far more Black and older faces in the
+# FairFace audit. The fairness audit loads the same file and checks the same hash.
+YUNET_MODEL = Path(__file__).parent / "models" / "face_detection_yunet_2023mar.onnx"
+YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+FACE_SCORE_THRESHOLD = 0.9  # opencv_zoo's default for this model
 
-    def __init__(self) -> None:
-        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        self._cascade = cv2.CascadeClassifier(cascade_path)
-        if self._cascade.empty():
-            raise RuntimeError(f"could not load Haar cascade at {cascade_path}")
+
+def square_face_crop(image: np.ndarray, box: tuple[float, float, float, float]) -> np.ndarray:
+    """A square crop around the detector's box, like the Haar crops v4 was evaluated on."""
+    height, width = image.shape[:2]
+    x, y, box_width, box_height = box
+    side = max(box_width, box_height)
+    centre_x, centre_y = x + box_width / 2, y + box_height / 2
+    left = max(0, round(centre_x - side / 2))
+    top = max(0, round(centre_y - side / 2))
+    right = min(width, round(centre_x + side / 2))
+    bottom = min(height, round(centre_y + side / 2))
+    return image[top:bottom, left:right]
+
+
+class FaceDetector:
+    """YuNet detector that returns the largest detected RGB face crop, or None."""
+
+    def __init__(
+        self,
+        model_path: Path = YUNET_MODEL,
+        score_threshold: float = FACE_SCORE_THRESHOLD,
+    ) -> None:
+        if not model_path.is_file():
+            raise RuntimeError(f"face detector model not found at {model_path}")
+        digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        if digest != YUNET_SHA256:
+            raise RuntimeError(f"face detector model at {model_path} has sha256 {digest}")
+        self._detector = cv2.FaceDetectorYN.create(
+            str(model_path), "", (320, 320), score_threshold, 0.3, 5000
+        )
 
     def __call__(self, image: np.ndarray) -> np.ndarray | None:
-        grayscale = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        faces = self._cascade.detectMultiScale(
-            grayscale, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
-        )
-        if len(faces) == 0:
+        height, width = image.shape[:2]
+        self._detector.setInputSize((width, height))
+        _, faces = self._detector.detect(cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        if faces is None or len(faces) == 0:
             return None
-        x, y, width, height = max(faces, key=lambda face: int(face[2]) * int(face[3]))
-        return image[y : y + height, x : x + width]
+        x, y, box_width, box_height = max(faces, key=lambda face: face[2] * face[3])[:4]
+        crop = square_face_crop(image, (x, y, box_width, box_height))
+        return crop if crop.size else None
 
 
 class ExpressionClassifier:

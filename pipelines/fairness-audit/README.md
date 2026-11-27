@@ -1,6 +1,6 @@
 # Mirror fairness audit (M3-02)
 
-Does the CV model behave differently for people of different race, gender or age? This job runs cv-service's pipeline (Haar face detection, then the ViT-B/16 expression model, then the gateway's gate) on every photo of the FairFace validation set and compares the groups. The report opens with the largest gap, stated in one sentence; the CV model card (M4-10) cites it.
+Does the CV model behave differently for people of different race, gender or age? This job runs cv-service's pipeline (YuNet face detection since M4-26, Haar before; then the ViT-B/16 expression model, then the gateway's gate) on every photo of the FairFace validation set and compares the groups. The report opens with the largest gap, stated in one sentence; the CV model card (M4-10) cites it.
 
 ## What it measures
 
@@ -10,7 +10,7 @@ Per group:
 
 | Measure | Meaning | Why it matters |
 |---|---|---|
-| `face_found` | Haar finds a face (cv-service step 1) | no face -> Mirror ignores the camera for that person |
+| `face_found` | the face detector finds a face (cv-service step 1) | no face -> Mirror ignores the camera for that person |
 | `gate_ok` | face found **and** the gate passes | the share of readings the gateway would actually use |
 | `gate_ok_if_face` | gate passes, among photos with a face | the model alone, without the detector |
 | `confidence` | mean top probability | a less confident model is gated out more often |
@@ -93,7 +93,30 @@ uv sync --all-groups && uv run ruff check . && uv run pytest -q
 docker build -t mirror-fairness-audit-ci .
 ```
 
-## Results
+## Results after the detector change (M4-26, Nov 27, 2026)
+
+After the MS3 feedback, cv-service's Haar cascade was replaced by OpenCV's YuNet detector (threshold 0.9, its published default) and the audit was re-run on the same photos, model and gate. Full tables: [`results/fairface-v4-yunet/report.md`](results/fairface-v4-yunet/report.md).
+
+| Measure (all 9,399 photos in scope) | Haar (MS3) | YuNet |
+|---|---|---|
+| Face found, everyone | 48.1% | **90.9%** |
+| Face found, Black / Southeast Asian | 33.8% / 55.0% | **88.6% / 93.8%** |
+| Race gap in face found | 21.2 points | **5.2 points** |
+| Age gap in face found | 11.4 points | **5.8 points** |
+| Gender gap in face found | 12.4 points | **3.0 points** |
+| Trusted reading, Black | 20.5% | **55.1%** |
+| Trusted reading, over 70 | 12.7% | **35.6%** |
+| Gate passes once a face is found, everyone | 65.4% | 63.3% |
+
+**Largest gap now:** when a face is found, the gate trusts the reading for 69.9% of people aged 10-19 but only 40.0% of people over 70 (29.9 points, down from 41.1). Trusted readings by race now range from 49.0% (Middle Eastern) to 64.1% (Southeast Asian).
+
+**What this means:** the detector gap is mostly closed. The gaps that remain come from the expression model, which trusts older and male faces less often, not from finding the face. Fixing those needs training data with more older faces, which is future work.
+
+**Threshold:** at 0.7, YuNet finds a face in 99.7% of photos with every gap under 1 point. It is not used because every FairFace photo contains a face, so this audit cannot measure false alarms (a "face" in an empty room or a poster); a wrong reading is worse than none.
+
+**Provenance:** same checkpoint and labels as below; detector `face_detection_yunet_2023mar.onnx` sha256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`; predictions sha256 `ab20b0c7a3eebb6c69e798d87d6332da10adce214739525817254bb8c1b2ccc0`. Scored on CPU (Windows 11) from the M4-26 branch.
+
+## Results at MS3 (Haar detector)
 
 First run on Oct 29, 2026: `cv-vit-b16-v4` (candidate, not yet served) on all 10,954 FairFace validation photos (9,399 in scope), T4 GPU on Colab. A second full run gave identical numbers. Full tables: [`results/fairface-v4/report.md`](results/fairface-v4/report.md); every number with its 95% interval: `report.json`.
 
@@ -111,13 +134,13 @@ First run on Oct 29, 2026: `cv-vit-b16-v4` (candidate, not yet served) on all 10
 **What this means for Mirror**
 
 - **Older patients** get the weakest camera signal: fewer trusted readings, and more readings of sad or disgust. A clinician could see a negative reading that reflects age, not mood. The fusion rule that never lets the face lead on negative emotions (M3-06) limits the harm; the model card (M4-10) should state this gap.
-- **The race gap comes mostly from face detection, not the expression model.** Once a face is found, the gate passes for 58-70% of every race group. Haar is an old frontal-face detector; a modern detector in cv-service is the most direct fix, and this audit can measure it.
+- **The race gap comes mostly from face detection, not the expression model.** Once a face is found, the gate passes for 58-70% of every race group. Haar is an old frontal-face detector; a modern detector in cv-service is the most direct fix, and this audit can measure it. Done in M4-26: see the results above.
 - **The gender gap may partly be real:** FairFace photos are not posed, and people may smile more in some photos than others. Without expression labels the audit cannot separate model bias from real expressions (RAF-DB would).
 - Overall, Haar finds a face in only 48% of FairFace photos, which include profiles and tilted heads. A patient facing a webcam is easier; the gaps between groups matter more than this level.
 
 **Provenance:** checkpoint sha256 `5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b`; labels sha256 `3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c`; predictions sha256 `3adb75dd0390d74ea7fbd43ebfe94726410c7f061b5ca08879bbfd0a2c292477`; code `5c77271`.
 
-**Colab notes:** Colab ships OpenCV 5, which has no `CascadeClassifier`; install `opencv-python-headless<5` first (same pin as cv-service). On Colab's Python 3.13, run the commands with `PYTHONPATH=pipelines/fairness-audit/src python -m mirror_fairness_audit.cli` instead of the installed script.
+**Colab notes:** install `opencv-python-headless<5` first (same pin as cv-service; the MS3 Haar run needed it, since OpenCV 5 has no `CascadeClassifier`). On Colab's Python 3.13, run the commands with `PYTHONPATH=pipelines/fairness-audit/src python -m mirror_fairness_audit.cli` instead of the installed script.
 
 ## Not in this PR
 
