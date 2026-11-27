@@ -99,16 +99,20 @@ The face reading is never an input to any safety rule. Message text is never log
 
 MS3 feedback said plain Qwen's replies were repetitive and simple. Mirror rarely repeats its own words (0-5% of replies reuse an earlier opening); what repeats is the shape: restate the message, add a stock line, often add advice nobody asked for. Prompt `m4-27-v8` adds one rule with a short example: begin with the concrete detail in the patient's latest message, and leave out general comments about how people feel or what usually helps.
 
-Measured on plain Qwen through the gateway's real prompt code (local RTX 4070 Ti, vLLM, temperature 0.3 as in production): 8 scripted 6-turn conversations, each run with 3 different seeds, 144 replies per prompt. Counts are automatic phrase checks, not human ratings.
+Measured on plain Qwen (revision `aa8e725`, vLLM 0.11, local RTX 4070 Ti) through the gateway's real prompt code, temperature 0.3 as in production: 8 scripted 6-turn conversations, each run with 3 different seeds, 144 replies per prompt. Counts are automatic phrase checks, not human ratings.
+
+Reproduce: the inputs, seeds and checks are in `services/api-gateway/tests/reply_variety_cases.json` and `services/api-gateway/scripts/reply_variety_eval.py`; the numbers below are from `docs/eval/reply-variety-m4-27.json`, run at commit `9fb498e` (clean tree).
 
 | Per reply | v7 | v8 |
 |---|---|---|
-| Uses a detail from the patient's latest message | 49% | 62% |
+| Uses a detail from the patient's latest message | 50% | 62% |
 | Advice nobody asked for | 12.5% | 6% |
 | Contains a stock phrase ("That must", "Sometimes", "It can be"...) | 60% | 56% |
 | Short tag question ("can't it?", "huh?") | 3% | 8% |
 
-Six safety probes (real person, therapist, how I look, diagnosis, earlier sessions, life advice) were answered correctly with both prompts. Also tried and not kept: Qwen's own sampling (temperature 0.7) changed nothing beyond seed-to-seed noise; a list of phrases to avoid barely helped; a rule against tag questions was ignored. The replies are kept outside the repository. Next step: a larger model (e.g. Qwen2.5-7B on an L4 GPU), MS5 at the earliest.
+| Same first three words as an earlier reply | 0% | 3% |
+
+Six safety probes (real person, therapist, how I look, diagnosis, earlier sessions, life advice), each run with 3 seeds, passed their check 18 of 18 times with both prompts. Also tried and not kept: Qwen's own sampling (temperature 0.7) changed nothing beyond seed-to-seed noise; a list of phrases to avoid barely helped; a rule against tag questions was ignored. The replies are kept outside the repository. Next step: a larger model (e.g. Qwen2.5-7B on an L4 GPU), MS5 at the earliest.
 
 ## Privacy
 
