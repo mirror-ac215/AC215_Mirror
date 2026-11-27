@@ -1,6 +1,6 @@
 # Mirror fairness audit (M3-02)
 
-Does the CV model behave differently for people of different race, gender or age? This job runs cv-service's pipeline (YuNet face detection since M4-26, Haar before; then the ViT-B/16 expression model, then the gateway's gate) on every photo of the FairFace validation set and compares the groups. The report opens with the largest gap, stated in one sentence; the CV model card (M4-10) cites it.
+Does the CV model behave differently for people of different race, gender or age? This job runs cv-service's pipeline (YuNet face detection from PR #118 / M4-26 on, Haar before it; then the ViT-B/16 expression model, then the gateway's gate) on every photo of the FairFace validation set and compares the groups. The report opens with the largest gap, stated in one sentence; the CV model card (M4-10) cites it.
 
 ## What it measures
 
@@ -93,9 +93,9 @@ uv sync --all-groups && uv run ruff check . && uv run pytest -q
 docker build -t mirror-fairness-audit-ci .
 ```
 
-## Results after the detector change (M4-26, Nov 27, 2026)
+## Results with the YuNet detector (PR #118, M4-26, Nov 27, 2026)
 
-After the MS3 feedback, cv-service's Haar cascade was replaced by OpenCV's YuNet detector (threshold 0.9, its published default) and the audit was re-run on the same photos, model and gate. Full tables: [`results/fairface-v4-yunet/report.md`](results/fairface-v4-yunet/report.md).
+After the MS3 feedback, PR #118 replaces cv-service's Haar cascade with OpenCV's YuNet detector (threshold 0.9, its published default) and the audit was re-run on the same photos, model and gate. Full tables: [`results/fairface-v4-yunet/report.md`](results/fairface-v4-yunet/report.md).
 
 | Measure (all 9,399 photos in scope) | Haar (MS3) | YuNet |
 |---|---|---|
@@ -114,7 +114,7 @@ After the MS3 feedback, cv-service's Haar cascade was replaced by OpenCV's YuNet
 
 **Threshold:** at 0.7, YuNet finds a face in 99.7% of photos with every gap under 1 point. It is not used because every FairFace photo contains a face, so this audit cannot measure false alarms (a "face" in an empty room or a poster); a wrong reading is worse than none.
 
-**Provenance:** same checkpoint and labels as below; detector `face_detection_yunet_2023mar.onnx` sha256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`; predictions sha256 `ab20b0c7a3eebb6c69e798d87d6332da10adce214739525817254bb8c1b2ccc0`. Scored on CPU (Windows 11) from the M4-26 branch.
+**Provenance:** same checkpoint and labels as below; detector `face_detection_yunet_2023mar.onnx` sha256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`; predictions sha256 `ab20b0c7a3eebb6c69e798d87d6332da10adce214739525817254bb8c1b2ccc0`. code `a36cf18` (clean tree, the first commit of #118). Scored on CPU (Windows 11). A re-run gave byte-identical predictions.
 
 ## Results at MS3 (Haar detector)
 

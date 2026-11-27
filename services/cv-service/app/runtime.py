@@ -34,7 +34,7 @@ class ModelSettings(BaseSettings):
 
 
 # OpenCV's YuNet face detector (opencv_zoo, MIT licence), stored next to this file.
-# M4-26: replaces the Haar cascade, which missed far more Black and older faces in the
+# M4-26 (PR #118): replaces the Haar cascade, which missed far more Black and older faces in the
 # FairFace audit. The fairness audit loads the same file and checks the same hash.
 YUNET_MODEL = Path(__file__).parent / "models" / "face_detection_yunet_2023mar.onnx"
 YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"

@@ -13,7 +13,7 @@ data:
   revision: "54d573cdb8b5af490ba8da9da2799628f6e5c496"  # Hugging Face commit, see README
   labels_sha256: 3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c
 
-# cv-service's face detector (M4-26: YuNet replaced the Haar cascade). A test keeps
+# cv-service's face detector (M4-26, PR #118: YuNet replaces the Haar cascade). A test keeps
 # these equal to services/cv-service/app/runtime.py. The path is relative to this file.
 detector:
   name: yunet-2023mar

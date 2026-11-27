@@ -101,5 +101,5 @@ Top emotion per group:
 - labels sha256: `3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c`
 - predictions sha256: `ab20b0c7a3eebb6c69e798d87d6332da10adce214739525817254bb8c1b2ccc0`
 - FairFace: `HuggingFaceM4/FairFace` at `54d573cdb8b5af490ba8da9da2799628f6e5c496`
-- code: `f9ae3540b0d304d12bf6c50ac20d0167cd342d60+M4-26-uncommitted`
+- code: `a36cf189200c3fbaad26ac5e2293109e733617d6`
 - gate (gateway defaults): top >= 0.45, margin >= 0.05, stability >= 0.5, window 10.0 s, at least 3 frames, face in >= 0.5 of frames; a photo is one steady frame

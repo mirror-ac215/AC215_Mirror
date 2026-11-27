@@ -50,7 +50,7 @@
     "labels_sha256": "3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c",
     "detector": "yunet-2023mar",
     "detector_score_threshold": 0.9,
-    "code_revision": "f9ae3540b0d304d12bf6c50ac20d0167cd342d60+M4-26-uncommitted",
+    "code_revision": "a36cf189200c3fbaad26ac5e2293109e733617d6",
     "limit": null,
     "photos_scored": 10954,
     "predictions_sha256": "ab20b0c7a3eebb6c69e798d87d6332da10adce214739525817254bb8c1b2ccc0"

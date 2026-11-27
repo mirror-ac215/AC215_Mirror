@@ -13,7 +13,7 @@ Mirror's facial-expression model. **Owner:** Mostafa (M4-10). **Last updated:** 
 | Classes | angry, disgust, fear, happy, neutral, sad, surprise |
 | Input | One face crop: grayscale copied to 3 channels, resized to 224x224, ImageNet normalization |
 | Output | 7 probabilities (softmax) |
-| Face detection | YuNet (OpenCV, threshold 0.9) in cv-service, before the model; it replaced the Haar cascade in M4-26. No face means no reading |
+| Face detection | YuNet (OpenCV, threshold 0.9) in cv-service, before the model, from PR #118 (M4-26) on; the Haar cascade before it. No face means no reading |
 | Served by | `cv-service`, on CPU (M3-03) |
 | Artifact | `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth` (343,280,429 bytes) |
 | SHA-256 | `5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b` |
@@ -88,7 +88,7 @@ So fusion never lets a negative face reading lead (M3-06). These thresholds are 
 
 ## Subgroup gaps (fairness audit, M3-02, re-run for M4-26)
 
-**Update, Nov 27, 2026 (M4-26).** The MS3 audit below found that most of the race gap came from the old Haar face detector. cv-service now uses OpenCV's YuNet detector, and the audit was re-run on the same photos, model and gate:
+**Update, Nov 27, 2026 (M4-26, PR #118).** The MS3 audit below found that most of the race gap came from the old Haar face detector. PR #118 replaces it with OpenCV's YuNet detector, and the audit was re-run on the same photos, model and gate:
 
 | Measure | Haar (MS3) | YuNet (now) |
 |---|---|---|
