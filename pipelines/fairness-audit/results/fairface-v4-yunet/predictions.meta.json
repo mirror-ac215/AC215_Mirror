@@ -1,0 +1,14 @@
+{
+  "model_version": "cv-vit-b16-v4",
+  "model_status": "candidate (not yet served)",
+  "checkpoint_sha256": "5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b",
+  "data_version": "fairface/v1-val",
+  "data_revision": "54d573cdb8b5af490ba8da9da2799628f6e5c496",
+  "labels_sha256": "3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c",
+  "detector": "yunet-2023mar",
+  "detector_score_threshold": 0.9,
+  "code_revision": "a36cf189200c3fbaad26ac5e2293109e733617d6",
+  "limit": null,
+  "photos_scored": 10954,
+  "predictions_sha256": "ab20b0c7a3eebb6c69e798d87d6332da10adce214739525817254bb8c1b2ccc0"
+}

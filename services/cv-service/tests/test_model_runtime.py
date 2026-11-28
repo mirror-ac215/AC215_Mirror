@@ -110,12 +110,60 @@ def test_load_model_rejects_checkpoint_with_wrong_class_count(tmp_path: Path) ->
         )
 
 
-def test_cpu_face_detector_loads_its_embedded_cascade() -> None:
+def test_face_detector_creates_yunet_with_the_file_and_threshold(stub_yunet) -> None:
+    from app.runtime import FACE_SCORE_THRESHOLD, FaceDetector
+
+    FaceDetector(model_path=stub_yunet.path)
+    path, config, size, threshold, nms, top_k = stub_yunet.detector.created_with
+    assert (path, config, size) == (str(stub_yunet.path), "", (320, 320))
+    assert (threshold, nms, top_k) == (FACE_SCORE_THRESHOLD, 0.3, 5000)
+
+
+def test_face_detector_returns_none_when_yunet_finds_nothing(stub_yunet) -> None:
+    import numpy as np
+
     from app.runtime import FaceDetector
 
-    detector = FaceDetector()
+    detector = FaceDetector(model_path=stub_yunet.path)
+    assert detector(np.full((240, 320, 3), 128, dtype=np.uint8)) is None
 
-    assert detector is not None
+
+def test_face_detector_refuses_a_model_file_with_another_hash(tmp_path) -> None:
+    from app.runtime import FaceDetector
+
+    fake = tmp_path / "yunet.onnx"
+    fake.write_bytes(b"not the model")
+    with pytest.raises(RuntimeError, match="sha256"):
+        FaceDetector(model_path=fake)
+
+
+def test_face_detector_refuses_a_missing_model_file(tmp_path) -> None:
+    from app.runtime import FaceDetector
+
+    with pytest.raises(RuntimeError, match="not found"):
+        FaceDetector(model_path=tmp_path / "missing.onnx")
+
+
+def test_square_face_crop_is_square_and_centred_on_the_box() -> None:
+    import numpy as np
+
+    from app.runtime import square_face_crop
+
+    image = np.zeros((240, 320, 3), dtype=np.uint8)
+    crop = square_face_crop(image, (100.0, 50.0, 60.0, 80.0))  # taller than wide
+
+    assert crop.shape[:2] == (80, 80)
+
+
+def test_square_face_crop_is_clipped_at_the_image_edge() -> None:
+    import numpy as np
+
+    from app.runtime import square_face_crop
+
+    image = np.zeros((240, 320, 3), dtype=np.uint8)
+    crop = square_face_crop(image, (-10.0, 200.0, 60.0, 60.0))
+
+    assert crop.shape[:2] == (40, 50)
 
 
 def test_vit_factory_matches_the_inherited_checkpoint_classifier_keys() -> None:
