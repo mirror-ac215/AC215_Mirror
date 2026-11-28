@@ -1,28 +1,37 @@
-"""Shared test setup: download the YuNet detector (pinned URL in params.yaml) if missing.
+"""Shared test setup. Unit tests are hermetic: no network, no real YuNet model.
 
-The model file is not committed. The download is checked against the sha256 in
-params.yaml, and a file with another hash is deleted rather than used.
+The real model is checked by cv-service's opt-in tests/test_yunet_artifact.py; a test here
+keeps params.yaml's pinned URL, sha256 and threshold equal to cv-service's.
 """
 
-import hashlib
 import urllib.request
-from pathlib import Path
 
 import pytest
-import yaml
-
-PARAMS_PATH = Path(__file__).resolve().parents[1] / "params.yaml"
 
 
-@pytest.fixture(scope="session", autouse=True)
-def yunet_model_file() -> None:
-    spec = yaml.safe_load(PARAMS_PATH.read_text())["detector"]
-    path = (PARAMS_PATH.parent / spec["model"]).resolve()
-    if path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() == spec["sha256"]:
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(spec["url"], timeout=60) as response:
-        data = response.read()
-    if hashlib.sha256(data).hexdigest() != spec["sha256"]:
-        raise RuntimeError("downloaded YuNet does not match the sha256 in params.yaml")
-    path.write_bytes(data)
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(url, *args, **kwargs):
+        raise AssertionError(f"unit tests must not download: {url}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+
+
+@pytest.fixture
+def no_face_yunet(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OpenCV's YuNet replaced by a detector that never finds a face."""
+    import cv2
+
+    class NoFaces:
+        def setInputSize(self, size):  # OpenCV's method name
+            pass
+
+        def detect(self, image):
+            return 0, None
+
+    class FakeFaceDetectorYN:
+        @staticmethod
+        def create(*args):
+            return NoFaces()
+
+    monkeypatch.setattr(cv2, "FaceDetectorYN", FakeFaceDetectorYN)

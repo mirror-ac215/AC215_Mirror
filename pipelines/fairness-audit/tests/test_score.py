@@ -1,6 +1,7 @@
 """Scoring with a stand-in model: cv-service's steps, batching, and what gets written."""
 
 import csv
+import hashlib
 import json
 import re
 import subprocess
@@ -51,16 +52,18 @@ def test_preprocessing_matches_cv_service() -> None:
     assert torch.allclose(tensor[0], tensor[0].flatten()[0])  # grayscale: one value everywhere
 
 
-def test_no_face_is_recorded_and_the_photo_still_scored(tmp_path: Path) -> None:
+def test_no_face_is_recorded_and_the_photo_still_scored(tmp_path: Path, no_face_yunet) -> None:
     (tmp_path / "val").mkdir()
     photos = []
     for i in range(5):
         Image.new("RGB", (224, 224), (i * 40, 90, 90)).save(tmp_path / f"val/{i}.jpg")
         photos.append(Photo(f"val/{i}.jpg", "White", "Female", "20-29"))
-    detector = detector_from_params(PARAMS, PARAMS_PATH)
+    model = tmp_path / "yunet.onnx"
+    model.write_bytes(b"stand-in for the YuNet model")
+    detector = FaceDetector(model, hashlib.sha256(model.read_bytes()).hexdigest(), 0.9)
     rows = list(score(photos, tmp_path, FixedModel(), detector, batch_size=2))
     assert len(rows) == 5
-    assert all(r["face_found"] is False for r in rows)  # plain colour: no face found
+    assert all(r["face_found"] is False for r in rows)  # the stand-in YuNet finds no face
     assert all(max(LABELS, key=lambda label: r[label]) == "happy" for r in rows)
     assert abs(sum(rows[0][label] for label in LABELS) - 1) < 1e-4
 
@@ -121,3 +124,13 @@ def test_predictions_can_only_be_written_where_git_ignores_them(tmp_path: Path) 
     check_output(repo / "outputs" / "predictions.csv")
     with pytest.raises(ValueError, match="not ignored"):
         check_output(repo / "results" / "predictions.csv")
+
+
+def test_the_detector_model_path_is_relative_to_params_yaml(tmp_path: Path, no_face_yunet) -> None:
+    (tmp_path / "models").mkdir()
+    model = tmp_path / "models" / "yunet.onnx"
+    model.write_bytes(b"stand-in for the YuNet model")
+    spec = {"model": "models/yunet.onnx", "score_threshold": 0.9}
+    spec["sha256"] = hashlib.sha256(model.read_bytes()).hexdigest()
+    detector = detector_from_params({"detector": spec}, tmp_path / "params.yaml")
+    assert detector(np.zeros((240, 320, 3), dtype=np.uint8)) is None

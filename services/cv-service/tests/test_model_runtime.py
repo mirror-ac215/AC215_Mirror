@@ -110,18 +110,22 @@ def test_load_model_rejects_checkpoint_with_wrong_class_count(tmp_path: Path) ->
         )
 
 
-def test_face_detector_loads_the_bundled_yunet_model() -> None:
-    from app.runtime import FaceDetector
+def test_face_detector_creates_yunet_with_the_file_and_threshold(stub_yunet) -> None:
+    from app.runtime import FACE_SCORE_THRESHOLD, FaceDetector
 
-    assert FaceDetector() is not None
+    FaceDetector(model_path=stub_yunet.path)
+    path, config, size, threshold, nms, top_k = stub_yunet.detector.created_with
+    assert (path, config, size) == (str(stub_yunet.path), "", (320, 320))
+    assert (threshold, nms, top_k) == (FACE_SCORE_THRESHOLD, 0.3, 5000)
 
 
-def test_face_detector_finds_no_face_in_a_blank_frame() -> None:
+def test_face_detector_returns_none_when_yunet_finds_nothing(stub_yunet) -> None:
     import numpy as np
 
     from app.runtime import FaceDetector
 
-    assert FaceDetector()(np.full((240, 320, 3), 128, dtype=np.uint8)) is None
+    detector = FaceDetector(model_path=stub_yunet.path)
+    assert detector(np.full((240, 320, 3), 128, dtype=np.uint8)) is None
 
 
 def test_face_detector_refuses_a_model_file_with_another_hash(tmp_path) -> None:

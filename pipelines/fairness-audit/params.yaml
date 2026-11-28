@@ -15,8 +15,8 @@ data:
 
 # cv-service's face detector (M4-26, PR #118: YuNet replaces the Haar cascade). A test keeps
 # these equal to services/cv-service/app/runtime.py and app/fetch_models.py. The path is
-# relative to this file. The file is not in Git; the tests download it from `url` (pinned
-# opencv_zoo commit) and the audit refuses it if its sha256 differs.
+# relative to this file. The file is not in Git: fetch it from `url` (pinned opencv_zoo
+# commit) before a run; the audit refuses it if its sha256 differs. Unit tests use a stand-in.
 detector:
   name: yunet-2023mar
   model: ../../services/cv-service/app/models/face_detection_yunet_2023mar.onnx
