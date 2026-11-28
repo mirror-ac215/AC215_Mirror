@@ -93,6 +93,9 @@ def test_rules_ask_for_reflection_length_and_honesty_about_being_a_person():
     assert "Do not question the patient." in BASE_RULES
     assert "Do not give advice or suggest next steps unless they ask for it." in BASE_RULES
     assert "not a real person" in BASE_RULES
+    # M4-27: start from the patient's own detail, not a stock remark (MS3 feedback).
+    assert "Begin with the concrete detail in their latest message" in BASE_RULES
+    assert "Leave out general comments about how people feel" in BASE_RULES
 
 
 def test_camera_off_says_do_not_mention():

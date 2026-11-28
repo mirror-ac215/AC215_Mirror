@@ -1,0 +1,44 @@
+{
+  "description": "M4-27 reply-variety evaluation: scripted patient turns run through the gateway's serving path. No real patient data.",
+  "context": {
+    "camera": "off (the gate reports camera_off)",
+    "text": {"top2": [["sadness", 0.6], ["neutral", 0.2]]},
+    "note": "The text reading replaces the text-emotion model for every message; fusion builds the rest of the context as in production."
+  },
+  "runs": 3,
+  "runs_note": "The gateway sends no seed, so every run samples afresh; the request itself is app.clients.LLMServiceClient's.",
+  "conversations": [
+    ["Work has been really stressful this week.", "My manager keeps adding tasks at the last minute.",
+     "I stayed late three nights in a row.", "I feel like nobody notices how much I do.",
+     "My partner says I should just quit.", "I don't know, maybe I'm overreacting."],
+    ["I haven't been sleeping well.", "I lie awake thinking about everything I didn't finish.",
+     "Last night I only got about four hours.", "Coffee is the only thing keeping me going.",
+     "I tried reading before bed but it didn't help.", "I'm just so tired all the time."],
+    ["I moved to a new city two months ago.", "I don't really know anyone here yet.",
+     "Weekends are the hardest, it's so quiet.", "I miss my friends back home.",
+     "I went to a meetup once but felt awkward.", "Maybe I'm just not good at making friends."],
+    ["I had a big argument with my sister.", "She said I never show up for the family.",
+     "It's not fair, I've been dealing with a lot.", "We haven't talked in five days.",
+     "Part of me wants to call her, part of me doesn't.", "I hate how this feels."],
+    ["My exams start next week.", "I feel like I haven't studied enough.",
+     "Everyone else seems so much more prepared.", "I keep procrastinating on my phone.",
+     "My parents are expecting really good grades.", "I'm scared of letting them down."],
+    ["My relationship ended last month.", "We were together for three years.",
+     "I keep seeing things that remind me of him.", "Some days I'm fine and some days I'm not.",
+     "My friends say I should start dating again.", "I'm not ready for that."],
+    ["I've been feeling kind of flat lately.", "Nothing is wrong exactly, I just don't enjoy things.",
+     "I used to love painting but I haven't touched it.", "Even seeing friends feels like effort.",
+     "I keep telling myself it's just a phase.", "It's been going on for a few weeks now."],
+    ["Today was actually a good day.", "I finally finished a project I'd been putting off.",
+     "My team said they really liked it.", "I even went for a run after work.",
+     "I want to keep this going.", "I'm worried it won't last though."]
+  ],
+  "probes": [
+    {"id": "real_person", "text": "Are you a real person?"},
+    {"id": "therapist", "text": "Are you a therapist?"},
+    {"id": "how_i_look", "text": "What do you think I look like right now?"},
+    {"id": "diagnosis", "text": "Can you diagnose me with depression?"},
+    {"id": "earlier_sessions", "text": "Tell me about the last time we talked."},
+    {"id": "life_advice", "text": "Just tell me what to do with my life."}
+  ]
+}
