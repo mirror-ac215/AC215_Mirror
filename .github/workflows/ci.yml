@@ -31,7 +31,6 @@ jobs:
       pairwise_eval: ${{ steps.filter.outputs.pairwise_eval }}
       modality_eval: ${{ steps.filter.outputs.modality_eval }}
       load_test: ${{ steps.filter.outputs.load_test }}
-      compose: ${{ steps.filter.outputs.compose }}
 
     steps:
       - name: Check out repository
@@ -101,13 +100,6 @@ jobs:
               - '.github/workflows/**'
             load_test:
               - 'tests/load/**'
-              - '.github/workflows/**'
-            compose:
-              - 'infra/**'
-              - 'services/frontend/**'
-              - 'services/api-gateway/**'
-              - 'services/db/**'
-              - 'services/llm-service/**'
               - '.github/workflows/**'
 
   service_template:
@@ -354,8 +346,8 @@ jobs:
 
   compose:
     name: Compose stack smoke test
-    needs: changes
-    if : needs.changes.outputs.compose == 'true'
+    # Runs on every pull request (M5-11, MS5 Objective 2): this is the integration suite
+    # that calls the exposed gateway API with its real dependencies.
     runs-on: ubuntu-latest
     # No configuration on purpose (M4-21): a fresh clone has no infra/.env, so this job
     # starts the stack on compose.yml's local-only defaults, exactly as a new user would.
@@ -517,7 +509,6 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_CONTRACTS_CHANGED: ${{ needs.changes.outputs.docs_contracts }}
           CONTRACT_VALIDATION_RESULT: ${{ needs.contract_validation.result }}
-          COMPOSE_CHANGED: ${{ needs.changes.outputs.compose }}
           COMPOSE_RESULT: ${{ needs.compose.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           PYTHON_LINT_RESULT: ${{ needs.python_lint.result }}
@@ -631,7 +622,7 @@ jobs:
             exit 1
           fi
 
-          if [ "$COMPOSE_CHANGED" = "true" ] && [ "$COMPOSE_RESULT" != "success" ]; then
+          if [ "$COMPOSE_RESULT" != "success" ]; then
             echo "Compose stack smoke test did not pass: $COMPOSE_RESULT"
             exit 1
           fi

@@ -186,12 +186,23 @@ Not run in CI, on purpose:
 - **Coverage:** the three backend jobs print the per-file table in the job log and in the run's
   Summary page ("Coverage: services/..."). Below 70% the job fails. Path gating means a PR that
   changes no backend service shows no coverage table.
-- **System tests:** "Compose stack smoke test"; on failure it prints every container's logs.
+- **System tests:** "Compose stack smoke test" runs on every pull request to `main` (M5-11);
+  on failure it prints every container's logs.
 - **Browser acceptance:** "End-to-end patient to clinician smoke test" installs Chromium, starts
   the disposable `mirror-e2e` Compose stack, exercises the accepted patient-to-clinician flow, and
   removes the stack. It runs on every pull request to `main`.
 - **Gate:** "CI summary" is the one required check. It fails if any job for a changed
   component did not succeed.
+
+## MS5 Objective 2 (M5-11)
+
+| Requirement | CI job | When it runs |
+|---|---|---|
+| Unit tests across every container | One job per component ("API gateway checks", "CV service checks", "Frontend checks", ...): 5 services, 11 pipelines, the frontend and the load test | When that component or `.github/workflows/` changes |
+| Integration tests across the exposed API | "Compose stack smoke test": health, ordinary and crisis chat turns, and fallbacks through the gateway API with its real dependencies | Every pull request to `main` |
+| | "End-to-end patient to clinician smoke test": the same API, driven from the browser | Every pull request to `main` |
+
+"CI summary" fails if either integration job did not succeed, also when it was skipped.
 
 ## Gaps
 
@@ -202,5 +213,7 @@ Not run in CI, on purpose:
 - llm-service's coverage counts `app/` only, which is the mock. Real serving
   (`docker-entrypoint.sh` + vLLM) is not measured by any test.
 - `infra/tests/test_m4_19_linting.py` and `tests/m2_04_dvc_smoke.sh` are not run by any CI job.
+- `pipelines/llm-eval/text-emotion-selection` (the M2-11 model comparison) has no tests and no
+  CI job: it was a one-off comparison, not a container.
 - What is still untested inside each service: the `Missing` column of the coverage table
   (see above); the full list is M5-12.
