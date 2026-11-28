@@ -13,7 +13,7 @@ Mirror's facial-expression model. **Owner:** Mostafa (M4-10). **Last updated:** 
 | Classes | angry, disgust, fear, happy, neutral, sad, surprise |
 | Input | One face crop: grayscale copied to 3 channels, resized to 224x224, ImageNet normalization |
 | Output | 7 probabilities (softmax) |
-| Face detection | YuNet (OpenCV, threshold 0.9) in cv-service, before the model, from PR #118 (M4-26) on; the Haar cascade before it. No face means no reading |
+| Face detection | Candidate: YuNet (OpenCV, threshold 0.9) in cv-service, before the model, in PR #118 (M4-26, not yet merged). `main` uses the Haar cascade until #118 merges. No face means no reading |
 | Served by | `cv-service`, on CPU (M3-03) |
 | Artifact | `gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth` (343,280,429 bytes) |
 | SHA-256 | `5b003e0a18578e570672d2b58742548b91247a75b9ba3bd5f484750eee1e862b` |
@@ -88,9 +88,9 @@ So fusion never lets a negative face reading lead (M3-06). These thresholds are 
 
 ## Subgroup gaps (fairness audit, M3-02, re-run for M4-26)
 
-**Update, Nov 27, 2026 (M4-26, PR #118).** The MS3 audit below found that most of the race gap came from the old Haar face detector. PR #118 replaces it with OpenCV's YuNet detector, and the audit was re-run on the same photos, model and gate:
+**Update, Nov 27, 2026 (M4-26, PR #118).** The MS3 audit below found that most of the race gap came from the old Haar face detector. PR #118 (candidate, not yet merged) replaces it with OpenCV's YuNet detector, and the audit was re-run on the same photos, model and gate:
 
-| Measure | Haar (MS3) | YuNet (now) |
+| Measure | Haar (MS3, `main`) | YuNet (PR #118) |
 |---|---|---|
 | Face found, everyone | 48.1% | 90.9% |
 | Face found: Black / Southeast Asian | 33.8% / 55.0% | 88.6% / 93.8% |
@@ -130,7 +130,7 @@ Full tables (MS3, Haar): `pipelines/fairness-audit/results/fairface-v4/report.md
 - **Expression is not emotion.** People can smile through pain or look neutral while struggling.
 - **Not tested on our own users.** No results yet from real webcam sessions (M3-20), so lighting, camera quality and patient populations are all unmeasured.
 - **Training and serving differ.** cv-service's square YuNet crop differs from Aff-Wild2's aligned crops, and FER-2013's 48x48 photos.
-- **Face detection misses some faces.** YuNet finds a face in 90.9% of FairFace photos (Haar: 48%). Its false alarms (a "face" where there is none) are not measured, which is why the threshold stays at 0.9 rather than 0.7.
+- **Face detection misses some faces.** With PR #118, YuNet finds a face in 90.9% of FairFace photos (Haar: 48%). Its false alarms (a "face" where there is none) are not measured, which is why the threshold stays at 0.9 rather than 0.7.
 - **Near-duplicate photos.** FER-2013 has some near-duplicates across its parts, which lifts FER+ test scores a little for both v3 and v4. Aff-Wild2 test scores are not affected.
 - **Not cleared for commercial use.** FER-2013's rights are unclear and Aff-Wild2 is licensed, so a commercial version would need different data.
 

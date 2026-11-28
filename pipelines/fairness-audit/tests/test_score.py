@@ -74,6 +74,10 @@ def test_detector_matches_cv_service() -> None:
     assert float(threshold) == spec["score_threshold"]
     model = (PARAMS_PATH.parent / spec["model"]).resolve()
     assert model == (CV_RUNTIME.parent / "models" / model.name).resolve()
+    fetch = (CV_RUNTIME.parent / "fetch_models.py").read_text()
+    commit = re.search(r'OPENCV_ZOO_COMMIT = "([0-9a-f]{40})"', fetch).group(1)
+    assert f"/{commit}/" in spec["url"]
+    assert spec["url"].endswith("/" + model.name)
 
 
 def test_a_detector_model_with_another_hash_is_refused(tmp_path: Path) -> None:

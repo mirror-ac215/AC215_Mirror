@@ -14,10 +14,13 @@ data:
   labels_sha256: 3d8e4e47183d48c1014986308c752dfe6e242f2e7e1509a6d4d1481b67013a5c
 
 # cv-service's face detector (M4-26, PR #118: YuNet replaces the Haar cascade). A test keeps
-# these equal to services/cv-service/app/runtime.py. The path is relative to this file.
+# these equal to services/cv-service/app/runtime.py and app/fetch_models.py. The path is
+# relative to this file. The file is not in Git; the tests download it from `url` (pinned
+# opencv_zoo commit) and the audit refuses it if its sha256 differs.
 detector:
   name: yunet-2023mar
   model: ../../services/cv-service/app/models/face_detection_yunet_2023mar.onnx
+  url: https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
   sha256: 8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4
   score_threshold: 0.9
 

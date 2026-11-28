@@ -33,7 +33,8 @@ class ModelSettings(BaseSettings):
     uncertain_margin: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
-# OpenCV's YuNet face detector (opencv_zoo, MIT licence), stored next to this file.
+# OpenCV's YuNet face detector (opencv_zoo, MIT licence). Not committed: app/fetch_models.py
+# downloads it (pinned commit, sha256-checked) during the Docker build and for tests.
 # M4-26 (PR #118): replaces the Haar cascade, which missed far more Black and older faces in the
 # FairFace audit. The fairness audit loads the same file and checks the same hash.
 YUNET_MODEL = Path(__file__).parent / "models" / "face_detection_yunet_2023mar.onnx"

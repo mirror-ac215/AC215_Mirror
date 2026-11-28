@@ -51,7 +51,9 @@ Sign in to Colab with the account that is Editor on `mirror-ac215`, select a GPU
 !git switch -q jl/M3-02-fairness-audit
 !uv pip install --system --no-deps -e pipelines/fairness-audit
 
-# 2. The v4 checkpoint
+# 2. The YuNet detector (not in Git; the audit refuses it if its sha256 differs) and the v4 checkpoint
+!curl -sL -o services/cv-service/app/models/face_detection_yunet_2023mar.onnx \
+  https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
 from google.colab import auth
 auth.authenticate_user()
 !gcloud storage cp gs://mirror-ac215-data/models/cv/v4/vit_b16_v4.pth /content/
@@ -83,7 +85,7 @@ with open("/content/fairface/fairface_label_val.csv", "w", newline="") as f:
 
 Download `report.md`, `report.json` and `predictions.meta.json` from `/content/out/`, then disconnect the runtime. The two report files hold aggregate numbers only and are committed under `results/fairface-v4/`; `predictions.csv` stays out of git.
 
-Locally (CPU, slower): `uv sync` in this folder, then the same two commands with `uv run` and without `--device cuda`.
+Locally (CPU, slower): fetch the detector once with `uv run python -m app.fetch_models` in `services/cv-service`, then `uv sync` in this folder and the same two commands with `uv run` and without `--device cuda`.
 
 ## Checks
 
@@ -94,6 +96,8 @@ docker build -t mirror-fairness-audit-ci .
 ```
 
 ## Results with the YuNet detector (PR #118, M4-26, Nov 27, 2026)
+
+**Status: candidate.** These results are for the detector in PR #118, which is not yet merged; cv-service on `main` still uses the Haar cascade until #118 merges.
 
 After the MS3 feedback, PR #118 replaces cv-service's Haar cascade with OpenCV's YuNet detector (threshold 0.9, its published default) and the audit was re-run on the same photos, model and gate. Full tables: [`results/fairface-v4-yunet/report.md`](results/fairface-v4-yunet/report.md).
 
