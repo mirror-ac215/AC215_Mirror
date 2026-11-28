@@ -15,7 +15,8 @@ export function createSseParser(onEvent: (event: ChatEvent) => void) {
     }
     const data = dataLines.join("\n"); // the SSE standard joins multiple data lines with newlines
     if (type === "token") onEvent({ type, data: (JSON.parse(data) as TokenPayload).text });
-    else if (type === "crisis" || type === "done") onEvent({ type, data: JSON.parse(data) });
+    else if (type === "crisis" || type === "wellbeing" || type === "done")
+      onEvent({ type, data: JSON.parse(data) });
   }
 
   return {

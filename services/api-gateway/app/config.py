@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # never on back-to-back turns. 5 is a judgement call until the M4-09 evaluation can tune it.
     fusion_checkin_cooldown_turns: int = Field(default=5, ge=2)
 
+    # Long-session wellbeing (M4-16): suggest a break once after this many minutes, and give the
+    # clinician a non-urgent review flag after the second. Placeholders until the team agrees times.
+    wellbeing_break_after_min: float = Field(default=120, gt=0, allow_inf_nan=False)
+    wellbeing_flag_after_min: float = Field(default=180, gt=0, allow_inf_nan=False)
+
     # Second safety layer (M4-15): crisis by meaning (app/crisis_meaning.py).
     # The historical must-fire corpus is promoted into active controls. Any future
     # model or example change needs a newly authored independent evaluation corpus;

@@ -40,6 +40,8 @@ Errors: 401 no/invalid token or wrong login, 403 wrong role or not your session,
 | `TEXT_EMOTION_MODEL` | `j-hartmann/emotion-english-distilroberta-base` (D-003) |
 | `TEXT_EMOTION_REVISION` | `0e1cd914e3d46199ed785853e12b57304e04178b` (pinned Hugging Face commit, see Model pin) |
 | `TEXT_EMOTION_MAX_CHARS` | `2000` |
+| `WELLBEING_BREAK_AFTER_MIN` | `120` (placeholder, M4-16) |
+| `WELLBEING_FLAG_AFTER_MIN` | `180` (placeholder, M4-16) |
 
 Defaults use docker-compose service names. No secrets needed in v0. All variables are listed in `.env.example`; copy it to `.env` only for local overrides (never commit `.env`).
 
@@ -208,6 +210,17 @@ Re-run after a model change: export the frame scores with the new checkpoint, th
 - **A negative face never leads:** the M3-04 sweep showed the gate is almost never right about angry, disgust, fear or sad. It still counts for `agreement`, therefore a negative face with calm words makes Mirror check in gently. That is the safe direction; please don't "fix" it.
 - **Tone:** `supportive` by default; `coach` only after 2 of the last 3 turns were steady (a signal, nothing negative), and back to supportive on any negative turn.
 - **Once per turn:** `fuse()` only reads the session's `TurnHistory`, therefore a retry is safe. Call `history.record(context, reply_delivered=...)` once, when the turn's reply is final. `reply_delivered` is False when a fixed reply, an LLM fallback or the no-two-questions rule replaced or cut the model's reply; a check-in then does not start the cooldown. Crisis turns are never recorded. Overlapping messages in one session check in at most once: a turn that may check in reserves it (`reserve_check_in()`), an overlapping turn gets `n/a` with the note "check-in in progress in another reply", and the reservation ends at `record()`. If the reply is abandoned or fails to save, the turn's `close()` releases it; the chat endpoint's `TurnStreamingResponse` calls `close()` whenever the response ends, even if the client left before the first token.
+
+## Long-session wellbeing (M4-16)
+
+`app/wellbeing.py` keeps one `SessionClock` per session. Sessions have no time limit, therefore:
+
+- After `WELLBEING_BREAK_AFTER_MIN` minutes, the next reply ends with a `wellbeing` event (a gentle break suggestion), once per session. It comes after the last token and before `done`; the reply itself is unchanged.
+- After `WELLBEING_FLAG_AFTER_MIN` minutes, the turn's patient message gets a review flag with reason `long_session`, once per session. It is non-urgent: the dashboard shows it apart from crisis flags.
+- Crisis turns skip both: 988 comes first and the crisis flag already exists.
+- If saving the flag fails, the reply still goes out and the next turn tries again.
+
+Both times are placeholders until the team agrees real values.
 
 ## Metrics (M3-15)
 

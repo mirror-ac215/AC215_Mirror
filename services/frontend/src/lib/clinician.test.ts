@@ -112,9 +112,20 @@ describe("sortFlags and relativeDay", () => {
         flag_id: "old-done",
         created_at: "2026-11-01T00:00:00Z",
         reviewed_at: "2026-11-02T00:00:00Z",
+        reason: "crisis",
       },
-      { flag_id: "old-open", created_at: "2026-11-03T00:00:00Z", reviewed_at: null },
-      { flag_id: "new-open", created_at: "2026-11-05T00:00:00Z", reviewed_at: null },
+      {
+        flag_id: "old-open",
+        created_at: "2026-11-03T00:00:00Z",
+        reviewed_at: null,
+        reason: "crisis",
+      },
+      {
+        flag_id: "new-open",
+        created_at: "2026-11-05T00:00:00Z",
+        reviewed_at: null,
+        reason: "long_session",
+      },
     ]);
     expect(sorted.map((f) => f.flag_id)).toEqual(["new-open", "old-open", "old-done"]);
   });

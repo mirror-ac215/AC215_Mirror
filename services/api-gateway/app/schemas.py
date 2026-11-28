@@ -87,6 +87,8 @@ class ReviewFlagSummary(BaseModel):
     flag_id: UUID
     created_at: datetime
     reviewed_at: datetime | None
+    # "crisis" from the safety check; "long_session" is the non-urgent M4-16 flag.
+    reason: Literal["crisis", "long_session"]
 
 
 class ReviewFlagAcknowledgement(BaseModel):

@@ -25,6 +25,14 @@ describe("createSseParser", () => {
     expect(events[0]?.type).toBe("crisis");
   });
 
+  it("handles a wellbeing event before done", () => {
+    const { events, parser } = collect();
+    parser.push('event: wellbeing\ndata: {"kind":"break_suggestion","message":"Take a break"}\n\n');
+    expect(events).toEqual([
+      { type: "wellbeing", data: { kind: "break_suggestion", message: "Take a break" } },
+    ]);
+  });
+
   it("flushes a last event that has no blank line after it", () => {
     const { events, parser } = collect();
     parser.push('event: done\ndata: {"message_id":"m2"}');

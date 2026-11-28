@@ -110,7 +110,8 @@ export async function sendFrame(sessionId: string, jpeg: Blob): Promise<FrameAck
 
 /**
  * Sends the patient's message and calls onEvent for each streamed event:
- * "crisis" (stop, show 988), "token" (next piece of text), "done" (finished).
+ * "crisis" (stop, show 988), "token" (next piece of text), "wellbeing" (break suggestion),
+ * "done" (finished).
  */
 export async function sendMessage(
   sessionId: string,
