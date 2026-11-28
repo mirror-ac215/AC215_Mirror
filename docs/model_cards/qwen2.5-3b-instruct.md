@@ -99,20 +99,23 @@ The face reading is never an input to any safety rule. Message text is never log
 
 MS3 feedback said plain Qwen's replies were repetitive and simple. Mirror rarely repeats its own words (0-5% of replies reuse an earlier opening); what repeats is the shape: restate the message, add a stock line, often add advice nobody asked for. Prompt `m4-27-v8` adds one rule with a short example: begin with the concrete detail in the patient's latest message, and leave out general comments about how people feel or what usually helps.
 
-Measured on plain Qwen (revision `aa8e725`, vLLM 0.11, local RTX 4070 Ti) through the gateway's real prompt code, temperature 0.3 as in production: 8 scripted 6-turn conversations, each run with 3 different seeds, 144 replies per prompt. Counts are automatic phrase checks, not human ratings.
+Measured on plain Qwen (revision `aa8e725`, vLLM 0.11, local RTX 4070 Ti) through the gateway's serving path: every scripted turn goes through `ChatOrchestrator.start_turn` with the production `LLMServiceClient` (streaming, temperature 0.3, no length limit, no seed), the safety rules and their fixed replies, fusion, and the question filter on the turn after a question. Only the database (in memory), the text-emotion model (one fixed reading) and the meaning-based crisis layer (off; the rules still run) are replaced. 8 scripted 6-turn conversations, run 3 times, 144 replies per prompt. Counts are automatic phrase checks, not human ratings.
 
-Reproduce: the inputs, seeds and checks are in `services/api-gateway/tests/reply_variety_cases.json` and `services/api-gateway/scripts/reply_variety_eval.py`; the numbers below are from `docs/eval/reply-variety-m4-27.json`, run at commit `9fb498e` (clean tree).
+Reproduce: inputs and checks are in `services/api-gateway/tests/reply_variety_cases.json` and `services/api-gateway/scripts/reply_variety_eval.py`; the numbers below are from `docs/eval/reply-variety-m4-27.json`, run at commit `2aa4026` (clean tree). With a real Qwen running, `tests/test_reply_variety_real_qwen.py` re-runs everything and checks the claims in this section (11 tests, all passed at `2aa4026`; CI skips them because it has no GPU).
 
-| Per reply | v7 | v8 |
-|---|---|---|
-| Uses a detail from the patient's latest message | 50% | 62% |
-| Advice nobody asked for | 12.5% | 6% |
-| Contains a stock phrase ("That must", "Sometimes", "It can be"...) | 60% | 56% |
-| Short tag question ("can't it?", "huh?") | 3% | 8% |
+| Per reply (3 runs) | v7 | v8 | v8, range over the 3 runs |
+|---|---|---|---|
+| Uses a detail from the patient's latest message | 50% | 56% | 50-58% |
+| Advice nobody asked for | 10% | 5% | 2-8% |
+| Contains a stock phrase ("That must", "Sometimes", "It can be"...) | 60% | 47% | 40-54% |
+| Short tag question ("can't it?", "huh?") | 3.5% | 3% | 2-4% |
+| Same first three words as an earlier reply | 2% | 2% | |
 
-| Same first three words as an earlier reply | 0% | 3% |
+**Read with care.** With no seed, the numbers move a lot between runs: v7's unasked advice was 6% in two runs and 17% in the third, and an uncommitted full run before this one gave 44% vs 64% for detail use and about 5% advice for both. What held in every full run: v8 uses the patient's detail more often and uses stock phrases no more often. The advice and tag-question differences are within run-to-run noise. (An earlier seeded run without the serving path suggested v8 halves advice and adds tag questions; on the serving path neither holds.)
 
-Six safety probes (real person, therapist, how I look, diagnosis, earlier sessions, life advice), each run with 3 seeds, passed their check 18 of 18 times with both prompts. Also tried and not kept: Qwen's own sampling (temperature 0.7) changed nothing beyond seed-to-seed noise; a list of phrases to avoid barely helped; a rule against tag questions was ignored. The replies are kept outside the repository. Next step: a larger model (e.g. Qwen2.5-7B on an L4 GPU), MS5 at the earliest.
+**Safety probes** (real person, therapist, how I look, diagnosis, earlier sessions, life advice), 3 runs each: v8 passed 18 of 18. v7 passed 15 of 18: in 2 runs it **made up an earlier session** ("Sure, I remember we talked about some challenges you were facing at work"), and one "how I look" reply ("there's no way to see you") was safe but not recognised by the phrase check. The seeded run had missed v7's made-up session. v8 is the prompt shipped; the evidence that it fixes this is 6 of 6 runs over two full evaluations, a small sample.
+
+Also tried and not kept: Qwen's own sampling (temperature 0.7) changed nothing beyond run-to-run noise; a list of phrases to avoid barely helped; a rule against tag questions was ignored. The raw replies are kept outside the repository. Next step: a larger model (e.g. Qwen2.5-7B on an L4 GPU), MS5 at the earliest.
 
 ## Privacy
 

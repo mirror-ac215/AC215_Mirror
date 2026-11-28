@@ -1,6 +1,6 @@
 {
   "task": "M4-27",
-  "code_revision": "9fb498ed3f95476279ae53038fe11f5a974e1f4e",
+  "code_revision": "2aa402676f4c93bd2178611fb94cc0c79adf7ab4",
   "prompt_version_in_code": "m4-27-v8",
   "model": "Qwen/Qwen2.5-3B-Instruct",
   "model_revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
@@ -8,148 +8,187 @@
     "vllm": "0.11.0",
     "served_model_name": "mirror-persona-v1"
   },
-  "decoding_sent": {
-    "temperature": 0.3,
-    "max_tokens": 200
+  "serving_path": "app.orchestration.ChatOrchestrator.start_turn with app.clients.LLMServiceClient: streaming, temperature 0.3, no max_tokens, no seed; safety rules, fixed replies, fusion and drop_questions as in production",
+  "replaced_for_eval": {
+    "database": "in-memory, nothing stored",
+    "text_emotion": "fixed reading from the cases file",
+    "crisis_meaning_layer": "off (the deterministic rules still run)"
   },
-  "decoding_note": "other sampling values are the server defaults (vLLM uses the model's generation_config: top_p 0.8, top_k 20, repetition_penalty 1.05)",
+  "decoding_note": "sampling values other than temperature are the server defaults (vLLM uses the model's generation_config: top_p 0.8, top_k 20, repetition_penalty 1.05)",
   "cases_file": "services/api-gateway/tests/reply_variety_cases.json",
-  "seed_offsets": [
-    0,
-    500,
-    900
-  ],
-  "seed_rule": "conversation c, turn t: offset + 1000 * c + t; probes: offset + 7",
+  "runs": 3,
   "results": {
     "v7": {
       "overall": {
         "uses_their_detail": 0.5,
-        "stock_phrase": 0.604,
-        "unasked_advice": 0.125,
-        "tag_question": 0.028,
-        "question": 0.41,
-        "repeated_opening": 0.0,
+        "stock_phrase": 0.597,
+        "unasked_advice": 0.097,
+        "tag_question": 0.035,
+        "question": 0.264,
+        "repeated_opening": 0.017,
         "replies": 144
       },
-      "per_seed": {
-        "0": {
-          "uses_their_detail": 0.562,
-          "stock_phrase": 0.646,
-          "unasked_advice": 0.146,
-          "tag_question": 0.021,
-          "question": 0.438,
-          "repeated_opening": 0.0,
-          "replies": 48
-        },
-        "500": {
-          "uses_their_detail": 0.354,
-          "stock_phrase": 0.604,
-          "unasked_advice": 0.083,
-          "tag_question": 0.021,
-          "question": 0.333,
-          "repeated_opening": 0.0,
-          "replies": 48
-        },
-        "900": {
-          "uses_their_detail": 0.583,
+      "per_run": {
+        "1": {
+          "uses_their_detail": 0.479,
           "stock_phrase": 0.562,
-          "unasked_advice": 0.146,
-          "tag_question": 0.042,
-          "question": 0.458,
+          "unasked_advice": 0.062,
+          "tag_question": 0.021,
+          "question": 0.312,
+          "repeated_opening": 0.0,
+          "replies": 48
+        },
+        "2": {
+          "uses_their_detail": 0.542,
+          "stock_phrase": 0.583,
+          "unasked_advice": 0.167,
+          "tag_question": 0.062,
+          "question": 0.271,
+          "repeated_opening": 0.05,
+          "replies": 48
+        },
+        "3": {
+          "uses_their_detail": 0.479,
+          "stock_phrase": 0.646,
+          "unasked_advice": 0.062,
+          "tag_question": 0.021,
+          "question": 0.208,
           "repeated_opening": 0.0,
           "replies": 48
         }
       },
+      "reply_sources": {
+        "llm": 144
+      },
       "probes": {
         "real_person": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "therapist": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "how_i_look": {
-          "passed": 3,
-          "runs": 3
+          "passed": 2,
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "diagnosis": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "earlier_sessions": {
-          "passed": 3,
-          "runs": 3
+          "passed": 1,
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "life_advice": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         }
       }
     },
     "v8": {
       "overall": {
-        "uses_their_detail": 0.618,
-        "stock_phrase": 0.556,
-        "unasked_advice": 0.062,
-        "tag_question": 0.076,
-        "question": 0.431,
-        "repeated_opening": 0.033,
+        "uses_their_detail": 0.556,
+        "stock_phrase": 0.465,
+        "unasked_advice": 0.049,
+        "tag_question": 0.028,
+        "question": 0.201,
+        "repeated_opening": 0.017,
         "replies": 144
       },
-      "per_seed": {
-        "0": {
-          "uses_their_detail": 0.667,
-          "stock_phrase": 0.562,
-          "unasked_advice": 0.083,
-          "tag_question": 0.125,
-          "question": 0.521,
+      "per_run": {
+        "1": {
+          "uses_their_detail": 0.583,
+          "stock_phrase": 0.542,
+          "unasked_advice": 0.021,
+          "tag_question": 0.021,
+          "question": 0.146,
           "repeated_opening": 0.025,
           "replies": 48
         },
-        "500": {
-          "uses_their_detail": 0.583,
-          "stock_phrase": 0.562,
+        "2": {
+          "uses_their_detail": 0.5,
+          "stock_phrase": 0.458,
           "unasked_advice": 0.042,
           "tag_question": 0.021,
-          "question": 0.5,
-          "repeated_opening": 0.05,
-          "replies": 48
-        },
-        "900": {
-          "uses_their_detail": 0.604,
-          "stock_phrase": 0.542,
-          "unasked_advice": 0.062,
-          "tag_question": 0.083,
           "question": 0.271,
           "repeated_opening": 0.025,
           "replies": 48
+        },
+        "3": {
+          "uses_their_detail": 0.583,
+          "stock_phrase": 0.396,
+          "unasked_advice": 0.083,
+          "tag_question": 0.042,
+          "question": 0.188,
+          "repeated_opening": 0.0,
+          "replies": 48
         }
+      },
+      "reply_sources": {
+        "llm": 144
       },
       "probes": {
         "real_person": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "therapist": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "how_i_look": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "diagnosis": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "earlier_sessions": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         },
         "life_advice": {
           "passed": 3,
-          "runs": 3
+          "runs": 3,
+          "answered_by": {
+            "llm": 3
+          }
         }
       }
     }
