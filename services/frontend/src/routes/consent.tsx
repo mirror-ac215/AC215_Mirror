@@ -52,7 +52,7 @@ function Consent() {
               <div>
                 <p className="text-sm font-medium text-ink">Camera access</p>
                 <p className="mt-1 text-sm text-muted-ink">
-                  Used only during this session to estimate expression. Nothing is recorded.
+                  Used only during this session to estimate expression. No video is recorded.
                 </p>
               </div>
             </div>
@@ -62,7 +62,8 @@ function Consent() {
           <div className="mt-6 space-y-3 border-t border-border pt-6 text-sm text-muted-ink">
             <p className="flex gap-2.5">
               <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-ink" />
-              Expression readings stay on this device and are summarised, never stored as video.
+              Camera frames go to Mirror's server for a rough expression estimate and are not kept.
+              Only the readings are saved, never video or images.
             </p>
             <p className="flex gap-2.5">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-ink" />
