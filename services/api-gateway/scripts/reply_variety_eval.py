@@ -1,12 +1,22 @@
 """M4-27: how varied and specific are Mirror's replies? Prompt v7 vs v8 on a real model.
 
-Runs the scripted conversations and safety probes in tests/reply_variety_cases.json
-through the gateway's own build_messages() against an OpenAI-compatible llm-service
-(vLLM serving plain Qwen), with the same decoding the gateway sends (temperature only;
-other sampling values are the server's defaults). Scores every reply with the automatic
-checks below and writes AGGREGATES ONLY. Raw replies are written only if --replies-dir
-is given, and that folder must be outside the repository (they are model output about
-mental-health topics and stay out of this public repo).
+Every scripted patient turn goes through the gateway's own serving path:
+ChatOrchestrator.start_turn() with the production LLMServiceClient (streaming, the
+gateway's own request: temperature 0.3, no max_tokens, no seed), the deterministic safety
+rules and their fixed replies, fusion and TurnHistory, and drop_questions() on the turn
+after a question. The reply scored is the text the patient would see.
+
+Replaced, and recorded in the report:
+- the database: an in-memory repository (nothing is stored);
+- the text-emotion model: the fixed reading in the cases file, so every run gets the same
+  context;
+- the second safety layer (crisis by meaning, M4-15): off. The rules still run. No scripted
+  turn is a crisis message.
+
+The gateway sends no seed, so replies vary from run to run; each case runs `runs` times
+and the report gives every run as well as the total. AGGREGATES ONLY are written. Raw
+replies are written only if --replies-dir is given, and that folder must be outside the
+repository (they are model output about mental-health topics).
 
     uv run python -m scripts.reply_variety_eval --llm-url http://localhost:8002 \\
         --model-revision aa8e725 --output ../../docs/eval/reply-variety-m4-27.json
@@ -25,9 +35,11 @@ Each safety probe has its own pass rule in PROBE_CHECKS.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
 import subprocess
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -35,6 +47,12 @@ from typing import Any
 import httpx
 
 from app import prompt
+from app.clients import LLMServiceClient
+from app.config import Settings
+from app.fusion import TurnHistory
+from app.gating import gate
+from app.orchestration import ChatOrchestrator
+from app.text_emotion import TextEmotionResult
 
 CASES = Path(__file__).parent.parent / "tests" / "reply_variety_cases.json"
 V8_RULE = "- Begin with the concrete detail in their latest message, not with a general remark."
@@ -130,14 +148,18 @@ def probe_passes(probe_id: str, reply: str) -> bool:
 
 def rules_for(version: str) -> str:
     """The system-prompt rules for v8 (current code) or v7 (v8 without the M4-27 rule)."""
-    if V8_RULE not in prompt.BASE_RULES:
+    rules = _ORIGINAL_RULES
+    if V8_RULE not in rules:
         raise RuntimeError("the M4-27 rule is not in app.prompt.BASE_RULES")
     if version == "v8":
-        return prompt.BASE_RULES
+        return rules
     if version == "v7":
-        head, _, _ = prompt.BASE_RULES.partition("\n" + V8_RULE)
+        head, _, _ = rules.partition("\n" + V8_RULE)
         return head
     raise ValueError(f"unknown prompt version {version!r}")
+
+
+_ORIGINAL_RULES = prompt.BASE_RULES
 
 
 def summarise(rows: list[dict[str, bool]], openings: int, later_replies: int) -> dict[str, float]:
@@ -146,62 +168,127 @@ def summarise(rows: list[dict[str, bool]], openings: int, later_replies: int) ->
     return {**shares, "repeated_opening": round(openings / later_replies, 3), "replies": len(rows)}
 
 
-def ask(client: httpx.Client, args: argparse.Namespace, cases: dict, messages, seed: int) -> str:
-    response = client.post(
-        f"{args.llm_url}/v1/chat/completions",
-        json={
-            "model": args.model,
-            "messages": messages,
-            "max_tokens": cases["max_tokens"],
-            "temperature": cases["temperature"],
-            "seed": seed,
-        },
-    )
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
+class InMemoryRepository:
+    """Stands in for PostgreSQL: gives message ids, stores nothing."""
+
+    async def add_message(self, session_id: str, role: str, text: str, safety_hit: bool) -> str:
+        return str(uuid.uuid4())
+
+    async def add_emotion_window(self, session_id: str, context: dict) -> None:
+        return None
+
+    async def add_review_flag(self, patient_id: str, message_id: str) -> None:
+        return None
 
 
-def run_version(client, args, cases, version: str, replies_out: list) -> dict[str, Any]:
-    prompt.BASE_RULES = rules_for_cache[version]
-    rows, openings, later = [], 0, 0
-    per_seed = {}
-    for offset in cases["seed_offsets"]:
-        seed_rows, seed_openings = [], 0
-        for ci, turns in enumerate(cases["conversations"]):
-            history: list[dict[str, str]] = []
-            replies = []
-            for ti, text in enumerate(turns):
-                messages = prompt.build_messages(cases["context"], text, history)
-                reply = ask(client, args, cases, messages, seed=offset + 1000 * ci + ti)
-                history += [
-                    {"role": "user", "content": text},
-                    {"role": "assistant", "content": reply},
-                ]
-                replies.append(reply)
-                seed_rows.append(reply_checks(reply, text))
-            seed_openings += repeated_openings(replies)
-            later += len(replies) - 1
-            replies_out.append({"version": version, "seed_offset": offset, "turns": turns,
-                                "replies": replies})  # fmt: skip
-        per_seed[str(offset)] = summarise(
-            seed_rows, seed_openings, sum(len(t) - 1 for t in cases["conversations"])
+class FixedTextEmotion:
+    """Stands in for the text-emotion model: the same reading for every message."""
+
+    def __init__(self, top2: list[list[str | float]]) -> None:
+        self.top2 = top2
+
+    def analyse(self, message: str) -> TextEmotionResult:
+        return TextEmotionResult(top2=self.top2, latency_ms=0.0, model="fixed-for-eval")
+
+
+class Session:
+    """One patient session, kept the way app/chat.py keeps it."""
+
+    def __init__(self, orchestrator: ChatOrchestrator, settings: Settings) -> None:
+        self.orchestrator = orchestrator
+        self.id = str(uuid.uuid4())
+        self.history = TurnHistory(checkin_cooldown=settings.fusion_checkin_cooldown_turns)
+        self.conversation: list[dict[str, str]] = []
+        self.visual = gate([], settings, camera_on=False)
+
+    async def say(self, text: str) -> tuple[str, str]:
+        """The patient's message in, (reply the patient sees, where it came from) out."""
+        turn = await self.orchestrator.start_turn(
+            session_id=self.id,
+            patient_id="eval-patient",
+            text=text,
+            visual=self.visual,
+            history=self.history,
+            conversation=self.conversation,
         )
-        rows += seed_rows
-        openings += seed_openings
-    probes = {}
-    for probe in cases["probes"]:
-        results = []
-        for offset in cases["seed_offsets"]:
-            messages = prompt.build_messages(cases["context"], probe["text"], [])
-            reply = ask(client, args, cases, messages, seed=offset + 7)
-            results.append(probe_passes(probe["id"], reply))
-            replies_out.append({"version": version, "seed_offset": offset, "probe": probe["id"],
-                                "reply": reply})  # fmt: skip
-        probes[probe["id"]] = {"passed": sum(results), "runs": len(results)}
-    return {"overall": summarise(rows, openings, later), "per_seed": per_seed, "probes": probes}
+        try:
+            reply = "".join([token async for token in turn.tokens])
+        finally:
+            turn.close()
+        self.conversation.extend(
+            ({"role": "user", "content": text}, {"role": "assistant", "content": reply})
+        )
+        source = "crisis" if turn.crisis else (f"fixed_{turn.safety_kind}" if turn.safety_kind
+                                               else "llm")  # fmt: skip
+        return reply, source
 
 
-rules_for_cache: dict[str, str] = {}
+async def run_version(
+    orchestrator: ChatOrchestrator, settings: Settings, cases: dict, version: str,
+    replies_out: list,
+) -> dict[str, Any]:  # fmt: skip
+    prompt.BASE_RULES = rules_for(version)
+    try:
+        rows, openings, later, per_run = [], 0, 0, {}
+        sources: dict[str, int] = {}
+        for run in range(1, cases["runs"] + 1):
+            run_rows, run_openings, run_later = [], 0, 0
+            for turns in cases["conversations"]:
+                session = Session(orchestrator, settings)
+                replies = []
+                for text in turns:
+                    reply, source = await session.say(text)
+                    sources[source] = sources.get(source, 0) + 1
+                    replies.append(reply)
+                    run_rows.append(reply_checks(reply, text))
+                run_openings += repeated_openings(replies)
+                run_later += len(replies) - 1
+                replies_out.append({"version": version, "run": run, "turns": turns,
+                                    "replies": replies})  # fmt: skip
+            per_run[str(run)] = summarise(run_rows, run_openings, run_later)
+            rows += run_rows
+            openings += run_openings
+            later += run_later
+        probes = {}
+        for probe in cases["probes"]:
+            passed, answered_by = 0, {}
+            for run in range(1, cases["runs"] + 1):
+                reply, source = await Session(orchestrator, settings).say(probe["text"])
+                passed += probe_passes(probe["id"], reply)
+                answered_by[source] = answered_by.get(source, 0) + 1
+                replies_out.append({"version": version, "run": run, "probe": probe["id"],
+                                    "reply": reply, "source": source})  # fmt: skip
+            probes[probe["id"]] = {"passed": passed, "runs": cases["runs"],
+                                   "answered_by": answered_by}  # fmt: skip
+        return {"overall": summarise(rows, openings, later), "per_run": per_run,
+                "reply_sources": sources, "probes": probes}  # fmt: skip
+    finally:
+        prompt.BASE_RULES = _ORIGINAL_RULES
+
+
+def make_orchestrator(llm_url: str, model: str, settings: Settings, cases: dict):
+    llm = LLMServiceClient(llm_url, settings.llm_timeout_s, model)
+    text = FixedTextEmotion(cases["context"]["text"]["top2"])
+    return ChatOrchestrator(InMemoryRepository(), llm, text, crisis_meaning=None)
+
+
+async def evaluate(llm_url: str, model: str, cases: dict, replies_out: list) -> dict[str, Any]:
+    settings = eval_settings()
+    orchestrator = make_orchestrator(llm_url, model, settings, cases)
+    return {v: await run_version(orchestrator, settings, cases, v, replies_out)
+            for v in ("v7", "v8")}  # fmt: skip
+
+
+def eval_settings() -> Settings:
+    """The gateway's settings; the eval uses no database or login, so those get placeholders."""
+    return Settings(
+        database_url="postgresql://unused-by-the-eval",
+        jwt_signing_key="unused-by-the-eval-" + "x" * 32,
+    )
+
+
+def load_cases() -> dict:
+    return json.loads(CASES.read_text())
 
 
 def inside_repo(path: Path) -> bool:
@@ -218,7 +305,7 @@ def git_revision() -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--llm-url", required=True)
-    parser.add_argument("--model", default="mirror-persona-v1")
+    parser.add_argument("--model", default=eval_settings().llm_model)
     parser.add_argument("--model-revision", required=True, help="Hugging Face commit served")
     parser.add_argument("--output", type=Path, required=True, help="aggregate JSON")
     parser.add_argument("--replies-dir", type=Path, help="raw replies, OUTSIDE the repo")
@@ -226,13 +313,10 @@ def main() -> None:
 
     if args.replies_dir and inside_repo(args.replies_dir):
         parser.error("--replies-dir must be outside the repository")
-    cases = json.loads(CASES.read_text())
-    for version in ("v7", "v8"):
-        rules_for_cache[version] = rules_for(version)
+    cases = load_cases()
+    server = httpx.get(f"{args.llm_url}/version", timeout=30).json()
     replies_out: list[dict] = []
-    with httpx.Client(timeout=120) as client:
-        server = client.get(f"{args.llm_url}/version").json()
-        results = {v: run_version(client, args, cases, v, replies_out) for v in ("v7", "v8")}
+    results = asyncio.run(evaluate(args.llm_url, args.model, cases, replies_out))
 
     report = {
         "task": "M4-27",
@@ -241,12 +325,18 @@ def main() -> None:
         "model": "Qwen/Qwen2.5-3B-Instruct",
         "model_revision": args.model_revision,
         "server": {"vllm": server.get("version"), "served_model_name": args.model},
-        "decoding_sent": {"temperature": cases["temperature"], "max_tokens": cases["max_tokens"]},
-        "decoding_note": "other sampling values are the server defaults (vLLM uses the model's "
-        "generation_config: top_p 0.8, top_k 20, repetition_penalty 1.05)",
+        "serving_path": "app.orchestration.ChatOrchestrator.start_turn with "
+        "app.clients.LLMServiceClient: streaming, temperature 0.3, no max_tokens, no seed; "
+        "safety rules, fixed replies, fusion and drop_questions as in production",
+        "replaced_for_eval": {
+            "database": "in-memory, nothing stored",
+            "text_emotion": "fixed reading from the cases file",
+            "crisis_meaning_layer": "off (the deterministic rules still run)",
+        },
+        "decoding_note": "sampling values other than temperature are the server defaults "
+        "(vLLM uses the model's generation_config: top_p 0.8, top_k 20, repetition_penalty 1.05)",
         "cases_file": "services/api-gateway/tests/reply_variety_cases.json",
-        "seed_offsets": cases["seed_offsets"],
-        "seed_rule": "conversation c, turn t: offset + 1000 * c + t; probes: offset + 7",
+        "runs": cases["runs"],
         "results": results,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

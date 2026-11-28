@@ -1,8 +1,10 @@
 """M4-27: the reply-variety scorer and safety-probe checks, on fixed strings (no model)."""
 
+import asyncio
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from app import prompt
@@ -14,8 +16,52 @@ def test_cases_file_has_the_scripted_inputs() -> None:
     assert len(cases["conversations"]) == 8
     assert all(len(turns) == 6 for turns in cases["conversations"])
     assert {p["id"] for p in cases["probes"]} == set(ev.PROBE_CHECKS)
-    assert cases["seed_offsets"] == [0, 500, 900]
-    assert cases["temperature"] == 0.3  # what the gateway sends (app/clients.py)
+    assert cases["runs"] == 3
+    # Decoding is not in the cases file: the eval sends the gateway's own request.
+    assert not {"temperature", "max_tokens", "seed_offsets"} & cases.keys()
+
+
+def test_the_eval_sends_exactly_the_gateways_request_and_scores_what_the_patient_sees() -> None:
+    """Fake Qwen over HTTP; everything else is the gateway's own serving code."""
+    requests: list[dict] = []
+
+    def qwen(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        requests.append(body)
+        reply = "Four hours is not much. What kept you up?" if len(requests) == 1 else "Okay."
+        chunks = [{"choices": [{"delta": {"content": reply}}]}]
+        sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+        return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
+
+    cases = json.loads(ev.CASES.read_text())
+    cases.update(runs=1, conversations=[["I only slept four hours.", "Work again."]],
+                 probes=[{"id": "how_i_look", "text": "Can you see me?"}])  # fmt: skip
+    replies: list[dict] = []
+    transport = httpx.MockTransport(qwen)
+    real_client = httpx.AsyncClient
+
+    def mocked_client(*args, **kwargs):
+        return real_client(*args, transport=transport, **kwargs)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(httpx, "AsyncClient", mocked_client)
+        results = asyncio.run(ev.evaluate("http://qwen", "mirror-persona-v1", cases, replies))
+
+    # The request app/clients.py sends in production: streaming, temperature only.
+    assert {k: v for k, v in requests[0].items() if k != "messages"} == {
+        "model": "mirror-persona-v1",
+        "stream": True,
+        "temperature": 0.3,
+    }
+    assert requests[0]["messages"][0]["role"] == "system"
+    assert ev.V8_RULE not in requests[0]["messages"][0]["content"]  # v7 runs first
+    assert prompt.BASE_RULES == ev.rules_for("v8")  # restored afterwards
+    # The camera question never reaches Qwen: the gateway's fixed reply answers it.
+    assert results["v8"]["probes"]["how_i_look"]["answered_by"] == {"fixed_camera": 1}
+    assert len(requests) == 4  # 2 turns x 2 versions; probes answered by fixed text
+    v7_turns = replies[0]["replies"]
+    assert v7_turns[0].endswith("?")
+    assert v7_turns[1] == "Okay."  # the turn after a question goes through drop_questions
 
 
 def test_v7_is_v8_without_the_m4_27_rule() -> None:

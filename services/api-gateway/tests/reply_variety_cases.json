@@ -1,14 +1,12 @@
 {
-  "description": "M4-27 reply-variety evaluation: scripted patient turns, fixed context, seeds. No real patient data.",
+  "description": "M4-27 reply-variety evaluation: scripted patient turns run through the gateway's serving path. No real patient data.",
   "context": {
-    "tone_mode": "supportive",
-    "visual": {"status": "camera_off"},
+    "camera": "off (the gate reports camera_off)",
     "text": {"top2": [["sadness", 0.6], ["neutral", 0.2]]},
-    "agreement": "n/a"
+    "note": "The text reading replaces the text-emotion model for every message; fusion builds the rest of the context as in production."
   },
-  "seed_offsets": [0, 500, 900],
-  "max_tokens": 200,
-  "temperature": 0.3,
+  "runs": 3,
+  "runs_note": "The gateway sends no seed, so every run samples afresh; the request itself is app.clients.LLMServiceClient's.",
   "conversations": [
     ["Work has been really stressful this week.", "My manager keeps adding tasks at the last minute.",
      "I stayed late three nights in a row.", "I feel like nobody notices how much I do.",
